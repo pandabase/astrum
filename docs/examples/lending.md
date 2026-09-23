@@ -8,14 +8,28 @@ These requests record the accounting for the example. Your application handles t
 
 ## Set up the accounts
 
+Run this setup once. `get` reads a resource; `post` sends the JSON below it. The second argument to `post` is the idempotency key for that operation. Reuse it only when retrying the same request.
+
 ```sh
 URL=http://localhost:8080
 AUTH="Authorization: Bearer $ASTRUM_KEY"
 
-LEDGER=$(curl -sS $URL/v1/ledgers -H "$AUTH" --json '{"name":"Lending"}' | jq -r .id)
+get() {
+  curl -sS "$URL/v1$1" -H "$AUTH"
+}
+
+post() {
+  curl -sS "$URL/v1$1" -H "$AUTH" -H "Idempotency-Key: ${2:-}" --json @-
+}
+
+put() {
+  curl -sS -X PUT "$URL/v1$1" -H "$AUTH"
+}
+
+LEDGER=$(post "/ledgers" <<<'{"name":"Lending"}' | jq -r .id)
 
 account() {
-  curl -sS $URL/v1/accounts -H "$AUTH" --json @- <<EOF | jq -r .id
+  post "/accounts" <<EOF | jq -r .id
 {"ledger_id": "$LEDGER", "code": "$1", "currency": "USD", "normal_side": "$2"}
 EOF
 }
@@ -32,13 +46,13 @@ INCOME=$(account interest_income credit)               # interest earned
 Start by recording $5,000 of capital in the lender’s bank account. Then record the $1,000 loan payout: cash falls by $1,000, and the amount Alice owes rises by the same amount.
 
 ```sh
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: capital-$LEDGER" --json @- <<EOF
+post "/transactions" "capital-$LEDGER" <<EOF
 {"description": "Capital", "entries": [
   {"account_id": "$BANK",   "side": "debit",  "amount": "500000"},
   {"account_id": "$EQUITY", "side": "credit", "amount": "500000"}]}
 EOF
 
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: disburse-$LEDGER" --json @- <<EOF
+post "/transactions" "disburse-$LEDGER" <<EOF
 {"description": "Loan payout", "entries": [
   {"account_id": "$LOAN", "side": "debit",  "amount": "100000"},
   {"account_id": "$BANK", "side": "credit", "amount": "100000"}]}
@@ -50,14 +64,14 @@ EOF
 Use a scheduled transaction to record $10 of interest at `execute_at`. You’d normally choose the date the interest is due. Here we use the current time and wait for the worker to execute it.
 
 ```sh
-ACCRUAL=$(curl -sS $URL/v1/scheduled_transactions -H "$AUTH" -H "Idempotency-Key: interest-2026-09-$LEDGER" --json @- <<EOF | jq -r .id
+ACCRUAL=$(post "/scheduled_transactions" "interest-2026-09-$LEDGER" <<EOF | jq -r .id
 {"execute_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "description": "September interest", "entries": [
   {"account_id": "$INTEREST", "side": "debit",  "amount": "1000"},
   {"account_id": "$INCOME",   "side": "credit", "amount": "1000"}]}
 EOF
 )
 
-until curl -sS $URL/v1/scheduled_transactions/$ACCRUAL -H "$AUTH" | jq -e '.status == "executed"' >/dev/null; do sleep 1; done
+until get "/scheduled_transactions/$ACCRUAL" | jq -e '.status == "executed"' >/dev/null; do sleep 1; done
 ```
 
 ## 3. Alice repays $300
@@ -65,7 +79,7 @@ until curl -sS $URL/v1/scheduled_transactions/$ACCRUAL -H "$AUTH" | jq -e '.stat
 Of Alice’s $300 repayment, $10 clears the interest and the remaining $290 reduces the principal. We record both parts in one transaction.
 
 ```sh
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: repayment-1-$LEDGER" --json @- <<EOF
+post "/transactions" "repayment-1-$LEDGER" <<EOF
 {"description": "Repayment", "entries": [
   {"account_id": "$BANK",     "side": "debit",  "amount": "30000"},
   {"account_id": "$INTEREST", "side": "credit", "amount": "1000"},
@@ -78,14 +92,14 @@ EOF
 Group Alice’s principal and interest accounts in a category to see her total outstanding balance.
 
 ```sh
-OWES=$(curl -sS $URL/v1/account_categories -H "$AUTH" --json @- <<EOF | jq -r .id
+OWES=$(post "/account_categories" <<EOF | jq -r .id
 {"ledger_id": "$LEDGER", "currency": "USD", "normal_side": "debit", "name": "Alice owes"}
 EOF
 )
-curl -sS -X PUT $URL/v1/account_categories/$OWES/accounts/$LOAN -H "$AUTH" >/dev/null
-curl -sS -X PUT $URL/v1/account_categories/$OWES/accounts/$INTEREST -H "$AUTH" >/dev/null
+put "/account_categories/$OWES/accounts/$LOAN" >/dev/null
+put "/account_categories/$OWES/accounts/$INTEREST" >/dev/null
 
-curl -sS $URL/v1/account_categories/$OWES -H "$AUTH" | jq -r .balances.posted.amount
+get "/account_categories/$OWES" | jq -r .balances.posted.amount
 ```
 
 ```text
@@ -95,7 +109,7 @@ curl -sS $URL/v1/account_categories/$OWES -H "$AUTH" | jq -r .balances.posted.am
 ## Check the final balances
 
 ```sh
-curl -sS "$URL/v1/accounts?ledger_id=$LEDGER" -H "$AUTH" | jq -r '.data | reverse[] | "\(.code) \(.balances.posted.amount)"'
+get "/accounts?ledger_id=$LEDGER" | jq -r '.data | reverse[] | "\(.code) \(.balances.posted.amount)"'
 ```
 
 ```text

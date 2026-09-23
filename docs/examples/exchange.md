@@ -8,18 +8,28 @@ These requests record the accounting for the example. Your application handles t
 
 ## Set up the accounts
 
+Run this setup once. `get` reads a resource; `post` sends the JSON below it. The second argument to `post` is the idempotency key for that operation. Reuse it only when retrying the same request.
+
 First, register ETH with an exponent of 18 so amounts are expressed in wei. You only need to do this once: the exponent can’t change, and registering ETH again returns `currency_exists`. If it’s already registered, continue with the ledger setup.
 
 ```sh
 URL=http://localhost:8080
 AUTH="Authorization: Bearer $ASTRUM_KEY"
 
-curl -sS $URL/v1/currencies -H "$AUTH" --json '{"code":"ETH","exponent":18}'
+get() {
+  curl -sS "$URL/v1$1" -H "$AUTH"
+}
 
-LEDGER=$(curl -sS $URL/v1/ledgers -H "$AUTH" --json '{"name":"Exchange"}' | jq -r .id)
+post() {
+  curl -sS "$URL/v1$1" -H "$AUTH" -H "Idempotency-Key: ${2:-}" --json @-
+}
+
+post "/currencies" <<<'{"code":"ETH","exponent":18}'
+
+LEDGER=$(post "/ledgers" <<<'{"name":"Exchange"}' | jq -r .id)
 
 account() {
-  curl -sS $URL/v1/accounts -H "$AUTH" --json @- <<EOF | jq -r .id
+  post "/accounts" <<EOF | jq -r .id
 {"ledger_id": "$LEDGER", "code": "$1", "currency": "$2", "normal_side": "$3"}
 EOF
 }
@@ -38,13 +48,13 @@ FEES=$(account trading_fees USD credit)       # fee revenue
 The exchange holds 10 ETH, and Alice deposits $3,000.
 
 ```sh
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: house-eth-$LEDGER" --json @- <<EOF
+post "/transactions" "house-eth-$LEDGER" <<EOF
 {"description": "House inventory", "entries": [
   {"account_id": "$HOT_WALLET", "side": "debit",  "amount": "10000000000000000000"},
   {"account_id": "$HOUSE_ETH",  "side": "credit", "amount": "10000000000000000000"}]}
 EOF
 
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: deposit-alice-$LEDGER" --json @- <<EOF
+post "/transactions" "deposit-alice-$LEDGER" <<EOF
 {"description": "Deposit", "entries": [
   {"account_id": "$BANK",      "side": "debit",  "amount": "300000"},
   {"account_id": "$ALICE_USD", "side": "credit", "amount": "300000"}]}
@@ -56,7 +66,7 @@ EOF
 The USD entries balance against each other, and so do the ETH entries. This lets us record the whole trade, including the fee, in a single transaction.
 
 ```sh
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: trade-1-$LEDGER" --json @- <<EOF | jq -r .status
+post "/transactions" "trade-1-$LEDGER" <<EOF | jq -r .status
 {"description": "Buy 0.5 ETH", "entries": [
   {"account_id": "$ALICE_USD", "side": "debit",  "amount": "151500"},
   {"account_id": "$HOUSE_USD", "side": "credit", "amount": "150000"},
@@ -73,7 +83,7 @@ posted
 A USD debit can’t balance an ETH credit. If we try that instead, Astrum rejects the transaction:
 
 ```sh
-curl -sS $URL/v1/transactions -H "$AUTH" -H "Idempotency-Key: trade-2-$LEDGER" --json @- <<EOF | jq -r .code
+post "/transactions" "trade-2-$LEDGER" <<EOF | jq -r .code
 {"entries": [
   {"account_id": "$ALICE_USD", "side": "debit",  "amount": "150000"},
   {"account_id": "$ALICE_ETH", "side": "credit", "amount": "150000"}]}
@@ -87,7 +97,7 @@ unbalanced_transaction
 ## Check the final balances
 
 ```sh
-curl -sS "$URL/v1/accounts?ledger_id=$LEDGER" -H "$AUTH" | jq -r '.data | reverse[] | "\(.code) \(.balances.posted.amount) \(.currency)"'
+get "/accounts?ledger_id=$LEDGER" | jq -r '.data | reverse[] | "\(.code) \(.balances.posted.amount) \(.currency)"'
 ```
 
 ```text
