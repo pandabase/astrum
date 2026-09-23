@@ -4,6 +4,8 @@ Astrum records money movements in a double-entry ledger. Use it to track balance
 
 The default base URL is `http://localhost:8080`. Follow the [quick start](../README.md#quick-start) to start a server and create your first API key.
 
+For end-to-end application flows, see [multi-seller commerce](examples/commerce.md), [ride-hailing](examples/ride-hailing.md) and [usage-based billing](examples/usage-billing.md).
+
 ## Contents
 
 - [Requests and responses](#requests-and-responses) · [Authentication](#authentication) · [Idempotency](#idempotency)

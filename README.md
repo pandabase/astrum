@@ -4,9 +4,14 @@
 
 <p align="center"><strong>A financial kernel with a double-entry core.</strong></p>
 
-Astrum tracks balances, transactions, holds and settlements through a JSON API. Built with Go and PostgreSQL, with a web interface for day-to-day operations.
+## Features
 
-[API reference](docs/api.md) · [Web development](web/README.md) · [Configuration](docs/api.md#server-configuration)
+- Double-entry accounting with precise integer amounts and multiple currencies.
+- Posted, pending and available balances, with holds and overdraft controls.
+- Reversals, scheduled transactions, atomic batches and background bulk jobs.
+- Settlements, account categories, statements and balance monitors.
+- Role-based API keys, idempotent requests, events and signed webhooks.
+- Tamper-evident journal history and a minimal web dashboard.
 
 ## Quick start
 
@@ -45,6 +50,8 @@ WEB_DIR=web/build/client go run ./cmd/astrum
 ## Examples
 
 [Wallet](docs/examples/wallet.md) · [Marketplace](docs/examples/marketplace.md) · [Card authorization](docs/examples/card-authorization.md) · [Lending](docs/examples/lending.md) · [Crypto exchange](docs/examples/exchange.md)
+
+Larger applications: [Multi-seller commerce](docs/examples/commerce.md) · [Ride-hailing](docs/examples/ride-hailing.md) · [Usage billing](docs/examples/usage-billing.md)
 
 ## License
 
