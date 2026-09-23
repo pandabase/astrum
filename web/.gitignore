@@ -1,0 +1,26 @@
+# Dependencies and local pnpm cache.
+/node_modules/
+/.pnpm-store/
+
+# Generated routes, builds and tool caches.
+/.react-router/
+/build/
+/dist/
+/.vite/
+*.tsbuildinfo
+
+# Test reports.
+/coverage/
+/test-results/
+/playwright-report/
+
+# Local configuration; keep templates available to commit.
+.env
+.env.*
+*.env
+!.env.example
+!.env.sample
+!.env.template
+
+# Local agent skill files.
+/.agents/

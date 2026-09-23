@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
+
+  --color-canvas: #ffffff;
+  --color-sunken: #f7f7f7;
+  --color-ink: #0a0a0a;
+  --color-muted: #6b6b6b;
+  --color-line: #e3e3e3;
+  --color-line-strong: #bdbdbd;
+  --color-danger: #b42318;
+  --color-warning: #9a6700;
+}
+
+:root {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-canvas: #0a0a0a;
+    --color-sunken: #141414;
+    --color-ink: #f2f2f2;
+    --color-muted: #9a9a9a;
+    --color-line: #262626;
+    --color-line-strong: #454545;
+    --color-danger: #f97066;
+    --color-warning: #e3b341;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+    --color-canvas: #0a0a0a;
+    --color-sunken: #141414;
+    --color-ink: #f2f2f2;
+    --color-muted: #9a9a9a;
+    --color-line: #262626;
+    --color-line-strong: #454545;
+    --color-danger: #f97066;
+    --color-warning: #e3b341;
+    color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body {
+    @apply bg-canvas text-ink font-sans text-sm antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ink;
+  }
+}
