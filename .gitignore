@@ -1,0 +1,30 @@
+# Local configuration; keep templates available to commit.
+.env
+.env.*
+*.env
+!.env.example
+!.env.sample
+!.env.template
+
+# Go binaries and test output.
+/astrum
+/astrum.exe
+/bin/
+*.test
+*.test.exe
+/coverage/
+/coverage.out
+/coverage.html
+
+# Local logs and scratch files.
+*.log
+/tmp/
+
+# Editor and operating system files.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

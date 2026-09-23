@@ -1,0 +1,169 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: How long each scenario runs
+        default: 30s
+      concurrency:
+        description: Operations in flight at once
+        default: "32"
+      accounts:
+        description: Accounts to spread load over
+        default: "1000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DURATION: ${{ inputs.duration || '30s' }}
+  CONCURRENCY: ${{ inputs.concurrency || '32' }}
+  ACCOUNTS: ${{ inputs.accounts || '1000' }}
+
+jobs:
+  http:
+    name: HTTP scenarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: astrum
+          POSTGRES_PASSWORD: astrum
+          POSTGRES_DB: astrum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U astrum -d astrum"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://astrum:astrum@localhost:5432/astrum?sslmode=disable
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: |
+          go build -o bin/astrum ./cmd/astrum
+          go build -o bin/astrum-bench ./cmd/astrum-bench
+
+      - name: Start server
+        run: |
+          LEDGER_SEAL_KEY=$(openssl rand -hex 32)
+          export LEDGER_SEAL_KEY
+          key=$(bin/astrum keys create -name bench | sed -n 2p)
+          echo "::add-mask::$key"
+          echo "ASTRUM_KEY=$key" >> "$GITHUB_ENV"
+          nohup bin/astrum > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8080/healthz > /dev/null && exit 0
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - name: Run scenarios
+        run: |
+          mkdir -p results
+          for scenario in transfer batch pending hold read; do
+            echo "::group::$scenario"
+            bin/astrum-bench -scenario "$scenario" -duration "$DURATION" -concurrency "$CONCURRENCY" \
+              -accounts "$ACCOUNTS" -quiet -json > "results/$scenario.json"
+            echo "::endgroup::"
+          done
+          echo "::group::transfer on 2 hot accounts"
+          bin/astrum-bench -scenario transfer -duration "$DURATION" -concurrency "$CONCURRENCY" \
+            -accounts 2 -quiet -verify -json > results/hot-transfer.json
+          echo "::endgroup::"
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## HTTP benchmark"
+            echo
+            echo "$DURATION per scenario, $CONCURRENCY workers, Postgres 18 on a shared runner, so compare runs loosely."
+            echo
+            echo "| Scenario | Accounts | ops/s | tx/s | p50 | p99 | p99.9 | Failed |"
+            echo "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+            for file in results/*.json; do
+              jq -r --arg name "$(basename "$file" .json)" '
+                def ms: . / 1000000 | . * 100 | round / 100 | tostring + " ms";
+                "| \($name) | \(.accounts) | \(.operations_per_second | round) | \(.transactions_per_second | round) | \(.latency_ns.p50 | ms) | \(.latency_ns.p99 | ms) | \(.latency_ns.p999 | ms) | \(.failed) |"
+              ' "$file"
+            done
+            if [ -f results/hot-transfer.json ]; then
+              echo
+              echo "Integrity after the run: $(jq -r 'if .integrity.ok then "ok" else "FAILED" end' results/hot-transfer.json)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Server log
+        if: failure()
+        run: cat server.log
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bench-http-${{ github.sha }}
+          path: results/
+          if-no-files-found: ignore
+
+  engine:
+    name: In-process engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: astrum
+          POSTGRES_PASSWORD: astrum
+          POSTGRES_DB: astrum_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U astrum -d astrum_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ASTRUM_TEST_DATABASE_URL: postgres://astrum:astrum@localhost:5432/astrum_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run Go benchmarks
+        run: go test -run '^$' -bench . -benchmem -benchtime 5s -count 3 ./tests/ledger | tee engine.txt
+
+      - name: Summarize
+        run: |
+          {
+            echo "## Engine benchmark"
+            echo
+            echo '```'
+            grep -E '^(Benchmark|goos|goarch|cpu)' engine.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-engine-${{ github.sha }}
+          path: engine.txt
