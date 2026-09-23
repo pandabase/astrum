@@ -2,7 +2,8 @@ package ledger
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -55,7 +56,7 @@ func validateAccount(in CreateAccountInput) error {
 	return nil
 }
 
-func validateDetails(name, description string, metadata json.RawMessage, nameRequired bool) error {
+func validateDetails(name, description string, metadata jsontext.Value, nameRequired bool) error {
 	switch {
 	case nameRequired && strings.TrimSpace(name) == "":
 		return fmt.Errorf("%w: name is required", ErrInvalid)
@@ -166,7 +167,7 @@ func validateSchedule(in ScheduleInput) error {
 	return validatePost(in.PostInput)
 }
 
-func validateKeyAndText(key, description string, metadata json.RawMessage) error {
+func validateKeyAndText(key, description string, metadata jsontext.Value) error {
 	switch {
 	case strings.TrimSpace(key) == "" || len(key) > maxIdempotencyKeyLen:
 		return fmt.Errorf("%w: idempotency_key must be 1-%d characters", ErrInvalid, maxIdempotencyKeyLen)
@@ -176,7 +177,7 @@ func validateKeyAndText(key, description string, metadata json.RawMessage) error
 	return validateText(description, metadata)
 }
 
-func validateText(description string, metadata json.RawMessage) error {
+func validateText(description string, metadata jsontext.Value) error {
 	switch {
 	case len(description) > maxDescriptionLen:
 		return fmt.Errorf("%w: description exceeds %d characters", ErrInvalid, maxDescriptionLen)
@@ -188,7 +189,7 @@ func validateText(description string, metadata json.RawMessage) error {
 		return fmt.Errorf("%w: metadata must be valid UTF-8 without NUL", ErrInvalid)
 	}
 	if len(bytes.TrimSpace(metadata)) > 0 {
-		var obj map[string]json.RawMessage
+		var obj map[string]jsontext.Value
 		if err := json.Unmarshal(metadata, &obj); err != nil || obj == nil {
 			return fmt.Errorf("%w: metadata must be a JSON object", ErrInvalid)
 		}
@@ -196,15 +197,15 @@ func validateText(description string, metadata json.RawMessage) error {
 	return nil
 }
 
-func normalizeMetadata(raw json.RawMessage) json.RawMessage {
+func normalizeMetadata(raw jsontext.Value) jsontext.Value {
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return json.RawMessage(`{}`)
+		return jsontext.Value(`{}`)
 	}
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, raw); err != nil {
+	compact := jsontext.Value(bytes.Clone(raw))
+	if err := compact.Compact(); err != nil {
 		return raw
 	}
-	return buf.Bytes()
+	return compact
 }
 
 func storableText(s string) bool {

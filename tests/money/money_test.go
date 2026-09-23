@@ -1,7 +1,7 @@
 package money_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"math"
 	"math/big"
@@ -149,8 +149,7 @@ func TestAmountJSON(t *testing.T) {
 		d := doc{Amount: money.NewAmount(7)}
 		err := json.Unmarshal([]byte(bad), &d)
 		if bad == `{"amount":null}` {
-
-			if err != nil || d.Amount != money.NewAmount(7) {
+			if err != nil || !d.Amount.IsZero() {
 				t.Fatalf("Unmarshal(%s) = %s, %v", bad, d.Amount, err)
 			}
 			continue

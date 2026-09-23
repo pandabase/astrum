@@ -2,7 +2,8 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,7 +25,7 @@ func TestLedgers(t *testing.T) {
 	l, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{
 		Name:        "Payments",
 		Description: "card acquiring",
-		Metadata:    json.RawMessage(`{"region":"eu","limits":{"daily":"100","monthly":"1000"}}`),
+		Metadata:    jsontext.Value(`{"region":"eu","limits":{"daily":"100","monthly":"1000"}}`),
 	})
 	if err != nil || l.Name != "Payments" || l.Version != 0 {
 		t.Fatalf("CreateLedger = %+v, %v", l, err)
@@ -36,7 +37,7 @@ func TestLedgers(t *testing.T) {
 	t.Run("update merges metadata", func(t *testing.T) {
 		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{
 			Name:     str("Payments EU"),
-			Metadata: json.RawMessage(`{"region":null,"limits":{"daily":"200"},"tier":"gold"}`),
+			Metadata: jsontext.Value(`{"region":null,"limits":{"daily":"200"},"tier":"gold"}`),
 		})
 		if err != nil || got.Name != "Payments EU" || got.Description != "card acquiring" || got.Version != 1 {
 			t.Fatalf("UpdateLedger = %+v, %v", got, err)
@@ -48,7 +49,7 @@ func TestLedgers(t *testing.T) {
 	})
 
 	t.Run("unchanged update keeps the version", func(t *testing.T) {
-		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: str("Payments EU"), Metadata: json.RawMessage(`{"tier":"gold"}`)})
+		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: str("Payments EU"), Metadata: jsontext.Value(`{"tier":"gold"}`)})
 		if err != nil || got.Version != 1 {
 			t.Fatalf("UpdateLedger = %+v, %v; want version 1", got, err)
 		}
@@ -57,7 +58,7 @@ func TestLedgers(t *testing.T) {
 	t.Run("validation", func(t *testing.T) {
 		_, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: " "})
 		wantErr(t, err, ledger.ErrInvalid)
-		_, err = e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "x", Metadata: json.RawMessage(`"no"`)})
+		_, err = e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "x", Metadata: jsontext.Value(`"no"`)})
 		wantErr(t, err, ledger.ErrInvalid)
 		_, err = e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: str("")})
 		wantErr(t, err, ledger.ErrInvalid)
@@ -166,7 +167,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		before := e.get(t, cash.ID)
 		acc, err := e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{
 			Description: str("till"),
-			Metadata:    json.RawMessage(`{"branch":"soho"}`),
+			Metadata:    jsontext.Value(`{"branch":"soho"}`),
 		})
 		if err != nil || acc.Name != "Cash cash" || acc.Description != "till" || acc.Version != before.Version+1 {
 			t.Fatalf("UpdateAccount = %+v, %v", acc, err)
@@ -174,7 +175,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		if !jsonSame(t, acc.Metadata, `{"branch":"soho"}`) || acc.Posted.Amount != before.Posted.Amount {
 			t.Fatalf("after update = %+v", acc)
 		}
-		_, err = e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{Metadata: json.RawMessage(`[]`)})
+		_, err = e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{Metadata: jsontext.Value(`[]`)})
 		wantErr(t, err, ledger.ErrInvalid)
 		_, err = e.m.UpdateAccount(ctx, uuid.New(), ledger.UpdateInput{Name: str("x")})
 		wantErr(t, err, ledger.ErrNotFound)
@@ -275,7 +276,7 @@ func TestHTTPLedgers(t *testing.T) {
 	}
 }
 
-func jsonSame(t *testing.T, got json.RawMessage, want string) bool {
+func jsonSame(t *testing.T, got jsontext.Value, want string) bool {
 	t.Helper()
 	var g, w any
 	if err := json.Unmarshal(got, &g); err != nil {

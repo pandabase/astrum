@@ -3,7 +3,8 @@ package ledger
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -91,7 +92,7 @@ func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput
 	return ledger, nil
 }
 
-func applyUpdate(name, description string, metadata json.RawMessage, in UpdateInput, nameRequired bool) (string, string, json.RawMessage, error) {
+func applyUpdate(name, description string, metadata jsontext.Value, in UpdateInput, nameRequired bool) (string, string, jsontext.Value, error) {
 	if in.Name != nil {
 		name = *in.Name
 	}
@@ -100,7 +101,7 @@ func applyUpdate(name, description string, metadata json.RawMessage, in UpdateIn
 	}
 	switch trimmed := bytes.TrimSpace(in.Metadata); {
 	case bytes.Equal(trimmed, []byte("null")):
-		metadata = json.RawMessage(`{}`)
+		metadata = jsontext.Value(`{}`)
 	case len(trimmed) > 0:
 		patch, err := decodeObject(in.Metadata)
 		if err != nil {
@@ -110,7 +111,7 @@ func applyUpdate(name, description string, metadata json.RawMessage, in UpdateIn
 		if err != nil {
 			return "", "", nil, err
 		}
-		if metadata, err = json.Marshal(mergePatch(target, patch)); err != nil {
+		if metadata, err = json.Marshal(mergePatch(target, patch), json.Deterministic(true)); err != nil {
 			return "", "", nil, err
 		}
 	}
@@ -120,7 +121,7 @@ func applyUpdate(name, description string, metadata json.RawMessage, in UpdateIn
 	return name, description, normalizeMetadata(metadata), nil
 }
 
-func sameDetails(name, description string, metadata json.RawMessage, name2, description2 string, metadata2 json.RawMessage) bool {
+func sameDetails(name, description string, metadata jsontext.Value, name2, description2 string, metadata2 jsontext.Value) bool {
 	return name == name2 && description == description2 && jsonEqual(metadata, metadata2)
 }
 
@@ -142,14 +143,13 @@ func mergePatch(target, patch map[string]any) map[string]any {
 	return target
 }
 
-func decodeObject(raw json.RawMessage) (map[string]any, error) {
+func decodeObject(raw jsontext.Value) (map[string]any, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return map[string]any{}, nil
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var obj map[string]any
-	if err := dec.Decode(&obj); err != nil || obj == nil {
+	v, err := decodeJSON(raw)
+	obj, ok := v.(map[string]any)
+	if err != nil || !ok {
 		return nil, fmt.Errorf("%w: expected a JSON object", ErrInvalid)
 	}
 	return obj, nil

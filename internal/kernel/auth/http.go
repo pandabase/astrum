@@ -37,7 +37,7 @@ type keyResource struct {
 	RevokedAt  *time.Time `json:"revoked_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 
-	Secret string `json:"secret,omitempty"`
+	Secret string `json:"secret,omitzero"`
 }
 
 func toKey(k Key) keyResource {

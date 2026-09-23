@@ -2,7 +2,7 @@ package httpx_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -69,7 +69,7 @@ func TestJSONAndError(t *testing.T) {
 	w = httptest.NewRecorder()
 	httpx.Error(w, r.WithContext(logger.WithRequestID(r.Context(), "req-1")), http.StatusNotFound, httpx.CodeNotFound, "missing")
 	var got httpx.Problem
-	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+	if err := json.UnmarshalRead(w.Body, &got); err != nil {
 		t.Fatal(err)
 	}
 	want := httpx.Problem{Type: "urn:astrum:error:not_found", Title: "Not Found", Status: 404, Code: "not_found", Detail: "missing", RequestID: "req-1"}

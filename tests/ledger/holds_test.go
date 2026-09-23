@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"sync"
@@ -57,7 +57,7 @@ func TestHoldLifecycle(t *testing.T) {
 			IdempotencyKey: "capture-1",
 			Destination:    merchant.ID,
 			Amount:         amt(450),
-			Metadata:       json.RawMessage(`{"order":1e2}`),
+			Metadata:       jsontext.Value(`{"order":1e2}`),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -77,7 +77,7 @@ func TestHoldLifecycle(t *testing.T) {
 	t.Run("capture replay", func(t *testing.T) {
 
 		again, err := e.m.CaptureHold(ctx, hold.ID, ledger.CaptureInput{
-			IdempotencyKey: "capture-1", Destination: merchant.ID, Amount: amt(450), Metadata: json.RawMessage(`{"order":1e2}`),
+			IdempotencyKey: "capture-1", Destination: merchant.ID, Amount: amt(450), Metadata: jsontext.Value(`{"order":1e2}`),
 		})
 		if err != nil || again.Status != ledger.HoldCaptured {
 			t.Fatalf("replay = %+v, %v", again, err)
@@ -89,12 +89,12 @@ func TestHoldLifecycle(t *testing.T) {
 
 	t.Run("capture replay with different terms is rejected", func(t *testing.T) {
 		other := e.account(t, "USD", ledger.Debit)
-		base := ledger.CaptureInput{IdempotencyKey: "capture-1", Destination: merchant.ID, Amount: amt(450), Metadata: json.RawMessage(`{"order":100}`)}
+		base := ledger.CaptureInput{IdempotencyKey: "capture-1", Destination: merchant.ID, Amount: amt(450), Metadata: jsontext.Value(`{"order":100}`)}
 		for name, mutate := range map[string]func(*ledger.CaptureInput){
 			"destination": func(in *ledger.CaptureInput) { in.Destination = other.ID },
 			"amount":      func(in *ledger.CaptureInput) { in.Amount = amt(449) },
 			"description": func(in *ledger.CaptureInput) { in.Description = "different" },
-			"metadata":    func(in *ledger.CaptureInput) { in.Metadata = json.RawMessage(`{"order":101}`) },
+			"metadata":    func(in *ledger.CaptureInput) { in.Metadata = jsontext.Value(`{"order":101}`) },
 		} {
 			in := base
 			mutate(&in)

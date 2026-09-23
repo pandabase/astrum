@@ -46,8 +46,8 @@ type Report struct {
 	LedgerID              string           `json:"ledger_id"`
 	Concurrency           int              `json:"concurrency"`
 	Accounts              int              `json:"accounts"`
-	BatchSize             int              `json:"batch_size,omitempty"`
-	Rate                  float64          `json:"rate,omitempty"`
+	BatchSize             int              `json:"batch_size,omitzero"`
+	Rate                  float64          `json:"rate,omitzero"`
 	Seed                  uint64           `json:"seed"`
 	Elapsed               time.Duration    `json:"elapsed_ns"`
 	Operations            int64            `json:"operations"`
@@ -58,7 +58,7 @@ type Report struct {
 	TransactionsPerSecond float64          `json:"transactions_per_second"`
 	Errors                map[string]int64 `json:"errors"`
 	Latency               Latency          `json:"latency_ns"`
-	Integrity             *Integrity       `json:"integrity,omitempty"`
+	Integrity             *Integrity       `json:"integrity,omitzero"`
 }
 
 func (c *Config) normalize() error {

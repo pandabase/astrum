@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -83,9 +84,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 
 	if *asJSON {
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(report); err != nil {
+		if err := json.MarshalWrite(stdout, report, jsontext.WithIndent("  ")); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(stdout, "\n"); err != nil {
 			return err
 		}
 	} else if err := bench.WriteText(stdout, report); err != nil {

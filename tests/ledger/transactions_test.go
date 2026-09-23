@@ -2,7 +2,8 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"testing"
 
@@ -58,7 +59,7 @@ func TestPostBalancesOnNormalSide(t *testing.T) {
 	txn := e.post(t, ledger.PostInput{
 		IdempotencyKey: "deposit-1",
 		Description:    "customer deposit",
-		Metadata:       json.RawMessage(`{"psp_ref": "ch_123", "amount_minor": 10000}`),
+		Metadata:       jsontext.Value(`{"psp_ref": "ch_123", "amount_minor": 10000}`),
 		Postings: []ledger.Posting{
 			{AccountID: cash.ID, Side: ledger.Debit, Amount: amt(10_000)},
 			{AccountID: deposits.ID, Side: ledger.Credit, Amount: amt(10_000)},
@@ -93,7 +94,7 @@ func TestPostIdempotency(t *testing.T) {
 	b := e.account(t, "USD", ledger.Debit)
 
 	in := transfer("pay-42", a.ID, b.ID, 1_000)
-	in.Metadata = json.RawMessage(`{"order":"A1"}`)
+	in.Metadata = jsontext.Value(`{"order":"A1"}`)
 	first := e.post(t, in)
 
 	t.Run("replay returns original and applies once", func(t *testing.T) {
@@ -110,7 +111,7 @@ func TestPostIdempotency(t *testing.T) {
 
 	t.Run("metadata formatting does not break replay", func(t *testing.T) {
 		reformatted := in
-		reformatted.Metadata = json.RawMessage(`{ "order" : "A1" }`)
+		reformatted.Metadata = jsontext.Value(`{ "order" : "A1" }`)
 		if again, err := e.m.Post(ctx, reformatted); err != nil || again.ID != first.ID {
 			t.Fatalf("replay = %s, %v", again.ID, err)
 		}

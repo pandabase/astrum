@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -168,7 +168,7 @@ func postAs(t *testing.T, token, url, idempotencyKey, body string) map[string]an
 	}
 	defer resp.Body.Close()
 	var out map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &out); err != nil {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != http.StatusCreated {
@@ -189,7 +189,7 @@ func getJSON(t *testing.T, token, url string, out any) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := json.UnmarshalRead(resp.Body, out); err != nil {
 		t.Fatal(err)
 	}
 }

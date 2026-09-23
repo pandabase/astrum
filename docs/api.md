@@ -42,6 +42,7 @@ Examples below show JSON request bodies. Replace abbreviated IDs such as `acct_.
 | `description` | Up to 1,024 UTF-8 bytes; defaults to `""`.                                                                                                      |
 | `metadata`    | A JSON object, up to 16 KiB; defaults to `{}` on ledger resources that support it.                                                              |
 | Request body  | Up to 1 MiB for regular JSON endpoints; bulk requests allow 16 MiB.                                                                             |
+| JSON rules    | Field names are case-sensitive. Unknown fields, duplicate names and invalid UTF-8 are rejected with `400`.                                      |
 
 Resource objects include `object`, `id` and `created_at` unless noted otherwise. `created_at` is the creation timestamp. Currency objects use `code` instead of `id`. Lists, balances, batch results, entries, deletion acknowledgements and integrity reports have their own shapes.
 
@@ -802,6 +803,7 @@ Astrum reads environment variables directly; it does not load `.env` files. Migr
 | `DB_MAX_CONNS`               | `32`     | Maximum database connections.                                                                                     |
 | `LEDGER_WORKERS`             | `8`      | Must be below `DB_MAX_CONNS`.                                                                                     |
 | `LEDGER_MAX_BATCH`           | `256`    | Worker batch size; separate from API batch limits.                                                                |
+| `LEDGER_BATCH_CONCURRENCY`   | `4`      | Batch requests committed at once; others queue so overlapping batches don't wait on each other's account locks.   |
 | `DB_ALLOW_UNSAFE_DURABILITY` | `false`  | Allow unsafe database durability settings for local development.                                                  |
 | `EVENT_RETENTION`            | `720h`   | Retention for dispatched events without pending deliveries.                                                       |
 | `WEBHOOK_ALLOW_INSECURE`     | `false`  | Allow HTTP and private-network webhook URLs for local development.                                                |

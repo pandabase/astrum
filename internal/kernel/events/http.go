@@ -37,7 +37,7 @@ type endpointResource struct {
 	Version     int64      `json:"version"`
 	CreatedAt   time.Time  `json:"created_at"`
 
-	Secret string `json:"secret,omitempty"`
+	Secret string `json:"secret,omitzero"`
 }
 
 func toEndpoint(e Endpoint) endpointResource {

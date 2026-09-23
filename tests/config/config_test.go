@@ -21,7 +21,7 @@ func TestLoad(t *testing.T) {
 	t.Run("rejects bad numbers", func(t *testing.T) {
 		t.Setenv("DATABASE_URL", "postgres://localhost/astrum")
 		t.Setenv("LEDGER_SEAL_KEY", key)
-		for _, env := range []string{"DB_MAX_CONNS", "LEDGER_WORKERS", "LEDGER_MAX_BATCH"} {
+		for _, env := range []string{"DB_MAX_CONNS", "LEDGER_WORKERS", "LEDGER_MAX_BATCH", "LEDGER_BATCH_CONCURRENCY"} {
 			t.Setenv(env, "-1")
 			if _, err := config.Load(); err == nil {
 				t.Errorf("%s=-1 accepted", env)
@@ -63,15 +63,16 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("Load() error = %v", err)
 		}
 		want := config.Config{
-			DatabaseURL:    "postgres://localhost/astrum",
-			HTTPAddr:       ":8080",
-			LogLevel:       "info",
-			LogFormat:      "text",
-			DBMaxConns:     32,
-			LedgerWorkers:  8,
-			LedgerMaxBatch: 256,
-			LedgerSealKey:  key,
-			EventRetention: 30 * 24 * time.Hour,
+			DatabaseURL:            "postgres://localhost/astrum",
+			HTTPAddr:               ":8080",
+			LogLevel:               "info",
+			LogFormat:              "text",
+			DBMaxConns:             32,
+			LedgerWorkers:          8,
+			LedgerMaxBatch:         256,
+			LedgerBatchConcurrency: 4,
+			LedgerSealKey:          key,
+			EventRetention:         30 * 24 * time.Hour,
 		}
 		if cfg != want {
 			t.Fatalf("Load() = %+v, want %+v", cfg, want)
@@ -84,6 +85,7 @@ func TestLoad(t *testing.T) {
 		t.Setenv("DB_MAX_CONNS", "64")
 		t.Setenv("LEDGER_WORKERS", "16")
 		t.Setenv("LEDGER_MAX_BATCH", "512")
+		t.Setenv("LEDGER_BATCH_CONCURRENCY", "2")
 		t.Setenv("DB_ALLOW_UNSAFE_DURABILITY", "true")
 		t.Setenv("HTTP_ADDR", ":9090")
 		t.Setenv("LOG_LEVEL", "debug")
@@ -94,16 +96,17 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("Load() error = %v", err)
 		}
 		want := config.Config{
-			DatabaseURL:           "postgres://db/astrum",
-			HTTPAddr:              ":9090",
-			LogLevel:              "debug",
-			LogFormat:             "json",
-			DBMaxConns:            64,
-			AllowUnsafeDurability: true,
-			LedgerWorkers:         16,
-			LedgerMaxBatch:        512,
-			LedgerSealKey:         key,
-			EventRetention:        30 * 24 * time.Hour,
+			DatabaseURL:            "postgres://db/astrum",
+			HTTPAddr:               ":9090",
+			LogLevel:               "debug",
+			LogFormat:              "json",
+			DBMaxConns:             64,
+			AllowUnsafeDurability:  true,
+			LedgerWorkers:          16,
+			LedgerMaxBatch:         512,
+			LedgerBatchConcurrency: 2,
+			LedgerSealKey:          key,
+			EventRetention:         30 * 24 * time.Hour,
 		}
 		if cfg != want {
 			t.Fatalf("Load() = %+v, want %+v", cfg, want)

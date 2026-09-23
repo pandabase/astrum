@@ -30,7 +30,7 @@ type entry struct {
 
 type transaction struct {
 	Description string  `json:"description"`
-	Status      string  `json:"status,omitempty"`
+	Status      string  `json:"status,omitzero"`
 	Entries     []entry `json:"entries"`
 }
 

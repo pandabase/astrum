@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -39,7 +39,7 @@ func TestPendingLifecycle(t *testing.T) {
 	create := pending(transfer("invoice-1", a.ID, b.ID, 300))
 	create.ExternalID = "inv-1"
 	create.EffectiveAt = &yesterday
-	create.Metadata = json.RawMessage(`{"order":"1"}`)
+	create.Metadata = jsontext.Value(`{"order":"1"}`)
 	txn := e.post(t, create)
 	if txn.Status != ledger.TransactionPending || txn.Version != 1 || txn.PostedAt != nil || !txn.EffectiveAt.Equal(yesterday) {
 		t.Fatalf("created = %+v", txn)
@@ -73,7 +73,7 @@ func TestPendingLifecycle(t *testing.T) {
 	t.Run("update replaces entries as a new version", func(t *testing.T) {
 		updated, err := e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{
 			Description: str("smaller invoice"),
-			Metadata:    json.RawMessage(`{"order":null,"note":"revised"}`),
+			Metadata:    jsontext.Value(`{"order":null,"note":"revised"}`),
 			Postings:    transfer("", a.ID, b.ID, 250).Postings,
 		})
 		if err != nil || updated.Version != 2 || updated.Postings[0].Amount != amt(250) || updated.Description != "smaller invoice" {

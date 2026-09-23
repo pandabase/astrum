@@ -1,7 +1,7 @@
 package ledger
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/pandabase/astrum/internal/money"
@@ -27,7 +27,7 @@ func TestJSONEqual(t *testing.T) {
 		{``, `{}`, true},
 	}
 	for _, tt := range tests {
-		if got := jsonEqual(json.RawMessage(tt.a), json.RawMessage(tt.b)); got != tt.want {
+		if got := jsonEqual(jsontext.Value(tt.a), jsontext.Value(tt.b)); got != tt.want {
 			t.Errorf("jsonEqual(%s, %s) = %v, want %v", tt.a, tt.b, got, tt.want)
 		}
 	}

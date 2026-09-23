@@ -3,7 +3,7 @@ package ledger
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -802,7 +802,7 @@ func metadataFilter(m map[string]string) *string {
 	if len(m) == 0 {
 		return nil
 	}
-	raw, _ := json.Marshal(m)
+	raw, _ := json.Marshal(m, json.Deterministic(true))
 	return new(string(raw))
 }
 

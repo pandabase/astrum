@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -188,7 +188,7 @@ func TestMiddleware(t *testing.T) {
 		}
 		defer resp.Body.Close()
 		var out map[string]any
-		_ = json.NewDecoder(resp.Body).Decode(&out)
+		_ = json.UnmarshalRead(resp.Body, &out)
 		return resp.StatusCode, out, resp.Header
 	}
 

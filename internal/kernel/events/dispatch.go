@@ -6,7 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -215,7 +215,7 @@ func (s *Service) send(ctx context.Context, d claimed) {
 }
 
 func (s *Service) post(ctx context.Context, d claimed) (int, error) {
-	body, err := json.Marshal(render(d.event))
+	body, err := json.Marshal(render(d.event), json.Deterministic(true))
 
 	if err != nil {
 		return 0, err

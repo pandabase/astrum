@@ -3,7 +3,7 @@ package events
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"io/fs"
@@ -374,7 +374,7 @@ func TestHTTP(t *testing.T) {
 		}
 		defer resp.Body.Close()
 		var out map[string]any
-		_ = json.NewDecoder(resp.Body).Decode(&out)
+		_ = json.UnmarshalRead(resp.Body, &out)
 		if resp.StatusCode != want {
 			t.Fatalf("%s %s = %d %v, want %d", method, path, resp.StatusCode, out, want)
 		}

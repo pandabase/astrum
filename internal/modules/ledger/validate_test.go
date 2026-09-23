@@ -1,7 +1,7 @@
 package ledger
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"strings"
 	"testing"
@@ -67,17 +67,17 @@ func TestValidatePost(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid", func(*PostInput) {}, false},
-		{"metadata object", func(in *PostInput) { in.Metadata = json.RawMessage(`{"order":"42"}`) }, false},
+		{"metadata object", func(in *PostInput) { in.Metadata = jsontext.Value(`{"order":"42"}`) }, false},
 		{"missing key", func(in *PostInput) { in.IdempotencyKey = "" }, true},
 		{"key too long", func(in *PostInput) { in.IdempotencyKey = strings.Repeat("k", maxIdempotencyKeyLen+1) }, true},
 		{"key with NUL", func(in *PostInput) { in.IdempotencyKey = "k\x00" }, true},
 		{"description invalid utf8", func(in *PostInput) { in.Description = "\xc3\x28" }, true},
 		{"description too long", func(in *PostInput) { in.Description = strings.Repeat("d", maxDescriptionLen+1) }, true},
-		{"metadata array", func(in *PostInput) { in.Metadata = json.RawMessage(`[1]`) }, true},
-		{"metadata null", func(in *PostInput) { in.Metadata = json.RawMessage(`null`) }, true},
-		{"metadata with NUL", func(in *PostInput) { in.Metadata = json.RawMessage(`{"a":"\u0000"}`) }, true},
+		{"metadata array", func(in *PostInput) { in.Metadata = jsontext.Value(`[1]`) }, true},
+		{"metadata null", func(in *PostInput) { in.Metadata = jsontext.Value(`null`) }, true},
+		{"metadata with NUL", func(in *PostInput) { in.Metadata = jsontext.Value(`{"a":"\u0000"}`) }, true},
 		{"metadata too large", func(in *PostInput) {
-			in.Metadata = json.RawMessage(`{"a":"` + strings.Repeat("x", maxMetadataBytes) + `"}`)
+			in.Metadata = jsontext.Value(`{"a":"` + strings.Repeat("x", maxMetadataBytes) + `"}`)
 		}, true},
 		{"single posting", func(in *PostInput) { in.Postings = in.Postings[:1] }, true},
 		{"too many postings", func(in *PostInput) { in.Postings = make([]Posting, maxPostings+1) }, true},
@@ -143,7 +143,7 @@ func TestTransactionMatches(t *testing.T) {
 	a, b := uuid.New(), uuid.New()
 	txn := Transaction{
 		Description: "coffee",
-		Metadata:    json.RawMessage(`{"order": "42", "tip": 1}`),
+		Metadata:    jsontext.Value(`{"order": "42", "tip": 1}`),
 		Postings: []Posting{
 			{AccountID: a, Side: Debit, Amount: amt(450), Currency: "USD"},
 			{AccountID: b, Side: Credit, Amount: amt(450), Currency: "USD"},
@@ -153,7 +153,7 @@ func TestTransactionMatches(t *testing.T) {
 		return PostInput{
 			IdempotencyKey: "k",
 			Description:    "coffee",
-			Metadata:       json.RawMessage(`{"tip":1,"order":"42"}`),
+			Metadata:       jsontext.Value(`{"tip":1,"order":"42"}`),
 			Postings: []Posting{
 				{AccountID: a, Side: Debit, Amount: amt(450)},
 				{AccountID: b, Side: Credit, Amount: amt(450)},
@@ -168,7 +168,7 @@ func TestTransactionMatches(t *testing.T) {
 	}{
 		{"identical modulo key order and whitespace", func(*PostInput) {}, true},
 		{"explicit matching currency", func(in *PostInput) { in.Postings[0].Currency = "USD" }, true},
-		{"different metadata", func(in *PostInput) { in.Metadata = json.RawMessage(`{"order":"43","tip":1}`) }, false},
+		{"different metadata", func(in *PostInput) { in.Metadata = jsontext.Value(`{"order":"43","tip":1}`) }, false},
 		{"missing metadata", func(in *PostInput) { in.Metadata = nil }, false},
 		{"different currency", func(in *PostInput) { in.Postings[0].Currency = "EUR" }, false},
 		{"different description", func(in *PostInput) { in.Description = "tea" }, false},
@@ -187,7 +187,7 @@ func TestTransactionMatches(t *testing.T) {
 		})
 	}
 
-	empty := Transaction{Metadata: json.RawMessage(`{}`), Postings: txn.Postings}
+	empty := Transaction{Metadata: jsontext.Value(`{}`), Postings: txn.Postings}
 	if !empty.matches(PostInput{Postings: base().Postings}) {
 		t.Error("empty metadata should match omitted metadata")
 	}

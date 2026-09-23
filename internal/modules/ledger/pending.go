@@ -2,7 +2,7 @@ package ledger
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"time"
 
@@ -221,7 +221,7 @@ func checkPartial(pending, posted []Posting) error {
 	return nil
 }
 
-func applyTransactionUpdate(current Transaction, in UpdateTransactionInput) (string, json.RawMessage, error) {
+func applyTransactionUpdate(current Transaction, in UpdateTransactionInput) (string, jsontext.Value, error) {
 	_, description, metadata, err := applyUpdate("", current.Description, current.Metadata,
 		UpdateInput{Description: in.Description, Metadata: in.Metadata}, false)
 	return description, metadata, err

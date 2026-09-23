@@ -21,6 +21,8 @@ type service struct {
 	log     *log.Logger
 	batcher *batcher
 	sealer  *sealer
+
+	batchSlots chan struct{}
 }
 
 func (s *service) createCurrency(ctx context.Context, in CreateCurrencyInput) (Currency, error) {
@@ -277,7 +279,13 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	}
 
 	if len(entries) > 0 {
+		select {
+		case s.batchSlots <- struct{}{}:
+		case <-ctx.Done():
+			return nil, s.fail(l, "post batch", ctx.Err(), start)
+		}
 		outcomes, err := runEntries(ctx, s, entries, atomic)
+		<-s.batchSlots
 		if err != nil {
 			return nil, s.fail(l, "post batch", err, start)
 		}

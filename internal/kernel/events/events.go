@@ -3,7 +3,8 @@ package events
 import (
 	"context"
 	"embed"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -25,10 +26,10 @@ import (
 var migrations embed.FS
 
 type Event struct {
-	ID        uuid.UUID       `json:"id"`
-	Type      string          `json:"type"`
-	Data      json.RawMessage `json:"data"`
-	CreatedAt time.Time       `json:"created_at"`
+	ID        uuid.UUID      `json:"id"`
+	Type      string         `json:"type"`
+	Data      jsontext.Value `json:"data"`
+	CreatedAt time.Time      `json:"created_at"`
 }
 
 func New(eventType string, resource any) (Event, error) {
@@ -36,7 +37,7 @@ func New(eventType string, resource any) (Event, error) {
 	if err != nil {
 		return Event{}, err
 	}
-	data, err := json.Marshal(resource)
+	data, err := json.Marshal(resource, json.Deterministic(true))
 	if err != nil {
 		return Event{}, fmt.Errorf("events: encode %s: %w", eventType, err)
 	}

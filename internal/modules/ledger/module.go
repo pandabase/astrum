@@ -23,6 +23,8 @@ type Config struct {
 
 	MaxBatch int
 
+	BatchConcurrency int
+
 	QueueSize int
 
 	CommitTimeout time.Duration
@@ -38,21 +40,31 @@ func (c Config) withDefaults() Config {
 	if c.Workers <= 0 {
 		c.Workers = 8
 	}
+
 	if c.MaxBatch <= 0 {
 		c.MaxBatch = 256
 	}
+
+	if c.BatchConcurrency <= 0 {
+		c.BatchConcurrency = 4
+	}
+
 	if c.QueueSize <= 0 {
 		c.QueueSize = 4096
 	}
+
 	if c.CommitTimeout <= 0 {
 		c.CommitTimeout = 30 * time.Second
 	}
+
 	if c.SweepInterval <= 0 {
 		c.SweepInterval = time.Second
 	}
+
 	if c.SweepBatch <= 0 {
 		c.SweepBatch = 500
 	}
+
 	return c
 }
 
@@ -67,9 +79,10 @@ func New(pool *pgxpool.Pool, logger *log.Logger, cfg Config) (*Module, error) {
 	}
 	cfg = cfg.withDefaults()
 	svc := &service{
-		pool:   pool,
-		log:    logger.WithPrefix("ledger"),
-		sealer: &sealer{key: bytes.Clone(cfg.SealKey)},
+		pool:       pool,
+		log:        logger.WithPrefix("ledger"),
+		sealer:     &sealer{key: bytes.Clone(cfg.SealKey)},
+		batchSlots: make(chan struct{}, cfg.BatchConcurrency),
 	}
 	svc.batcher = newBatcher(svc, cfg)
 	return &Module{svc: svc, cfg: cfg}, nil

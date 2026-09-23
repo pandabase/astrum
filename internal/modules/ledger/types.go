@@ -2,9 +2,10 @@ package ledger
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -81,24 +82,24 @@ type CreateCurrencyInput struct {
 }
 
 type Ledger struct {
-	ID          uuid.UUID       `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
-	Version     int64           `json:"version"`
-	CreatedAt   time.Time       `json:"created_at"`
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata"`
+	Version     int64          `json:"version"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 type CreateLedgerInput struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type UpdateInput struct {
-	Name        *string         `json:"name"`
-	Description *string         `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	Name        *string        `json:"name"`
+	Description *string        `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ListLedgersInput struct {
@@ -108,16 +109,16 @@ type ListLedgersInput struct {
 }
 
 type Account struct {
-	ID               uuid.UUID       `json:"id"`
-	LedgerID         uuid.UUID       `json:"ledger_id"`
-	Code             string          `json:"code"`
-	Name             string          `json:"name"`
-	Description      string          `json:"description"`
-	Metadata         json.RawMessage `json:"metadata"`
-	Currency         money.Currency  `json:"currency"`
-	CurrencyExponent int             `json:"currency_exponent"`
-	NormalSide       Side            `json:"normal_side"`
-	AllowNegative    bool            `json:"allow_negative"`
+	ID               uuid.UUID      `json:"id"`
+	LedgerID         uuid.UUID      `json:"ledger_id"`
+	Code             string         `json:"code"`
+	Name             string         `json:"name"`
+	Description      string         `json:"description"`
+	Metadata         jsontext.Value `json:"metadata"`
+	Currency         money.Currency `json:"currency"`
+	CurrencyExponent int            `json:"currency_exponent"`
+	NormalSide       Side           `json:"normal_side"`
+	AllowNegative    bool           `json:"allow_negative"`
 
 	OverdraftLimit money.Amount `json:"overdraft_limit"`
 
@@ -134,14 +135,14 @@ type Account struct {
 type CreateAccountInput struct {
 	LedgerID uuid.UUID `json:"ledger_id"`
 
-	Code           string          `json:"code"`
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	Currency       money.Currency  `json:"currency"`
-	NormalSide     Side            `json:"normal_side"`
-	AllowNegative  bool            `json:"allow_negative"`
-	OverdraftLimit money.Amount    `json:"overdraft_limit"`
+	Code           string         `json:"code"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
+	Currency       money.Currency `json:"currency"`
+	NormalSide     Side           `json:"normal_side"`
+	AllowNegative  bool           `json:"allow_negative"`
+	OverdraftLimit money.Amount   `json:"overdraft_limit"`
 }
 
 type ListAccountsInput struct {
@@ -239,27 +240,27 @@ type Posting struct {
 	AccountID uuid.UUID      `json:"account_id"`
 	Side      Side           `json:"side"`
 	Amount    money.Amount   `json:"amount"`
-	Currency  money.Currency `json:"currency,omitempty"`
+	Currency  money.Currency `json:"currency,omitzero"`
 
-	PendingBalance   *BalanceCondition `json:"pending_balance_amount,omitempty"`
-	PostedBalance    *BalanceCondition `json:"posted_balance_amount,omitempty"`
-	AvailableBalance *BalanceCondition `json:"available_balance_amount,omitempty"`
+	PendingBalance   *BalanceCondition `json:"pending_balance_amount,omitzero"`
+	PostedBalance    *BalanceCondition `json:"posted_balance_amount,omitzero"`
+	AvailableBalance *BalanceCondition `json:"available_balance_amount,omitzero"`
 
-	LockVersion *int64 `json:"lock_version,omitempty"`
+	LockVersion *int64 `json:"lock_version,omitzero"`
 
-	Resulting *Balances `json:"resulting_balances,omitempty"`
+	Resulting *Balances `json:"resulting_balances,omitzero"`
 
 	balanceAfter money.Amount
 }
 
 type BalanceMonitor struct {
-	ID          uuid.UUID       `json:"id"`
-	AccountID   uuid.UUID       `json:"account_id"`
-	Condition   AlertCondition  `json:"alert_condition"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
-	Version     int64           `json:"version"`
-	CreatedAt   time.Time       `json:"created_at"`
+	ID          uuid.UUID      `json:"id"`
+	AccountID   uuid.UUID      `json:"account_id"`
+	Condition   AlertCondition `json:"alert_condition"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata"`
+	Version     int64          `json:"version"`
+	CreatedAt   time.Time      `json:"created_at"`
 
 	Triggered bool `json:"triggered"`
 }
@@ -296,10 +297,10 @@ func (c AlertCondition) holds(b Balances) bool {
 }
 
 type CreateBalanceMonitorInput struct {
-	AccountID   uuid.UUID       `json:"account_id"`
-	Condition   AlertCondition  `json:"alert_condition"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	AccountID   uuid.UUID      `json:"account_id"`
+	Condition   AlertCondition `json:"alert_condition"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ListBalanceMonitorsInput struct {
@@ -372,25 +373,25 @@ func (p Posting) signedAmount() money.Amount {
 }
 
 type Category struct {
-	ID          uuid.UUID       `json:"id"`
-	LedgerID    uuid.UUID       `json:"ledger_id"`
-	Currency    money.Currency  `json:"currency"`
-	NormalSide  Side            `json:"normal_side"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
-	Version     int64           `json:"version"`
-	CreatedAt   time.Time       `json:"created_at"`
-	Balances    Balances        `json:"balances"`
+	ID          uuid.UUID      `json:"id"`
+	LedgerID    uuid.UUID      `json:"ledger_id"`
+	Currency    money.Currency `json:"currency"`
+	NormalSide  Side           `json:"normal_side"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata"`
+	Version     int64          `json:"version"`
+	CreatedAt   time.Time      `json:"created_at"`
+	Balances    Balances       `json:"balances"`
 }
 
 type CreateCategoryInput struct {
-	LedgerID    uuid.UUID       `json:"ledger_id"`
-	Currency    money.Currency  `json:"currency"`
-	NormalSide  Side            `json:"normal_side"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	LedgerID    uuid.UUID      `json:"ledger_id"`
+	Currency    money.Currency `json:"currency"`
+	NormalSide  Side           `json:"normal_side"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ListCategoriesInput struct {
@@ -431,8 +432,8 @@ type CreateBulkInput struct {
 type BulkResult struct {
 	Index         int        `json:"index"`
 	TransactionID *uuid.UUID `json:"transaction_id,omitempty"`
-	ErrorCode     *string    `json:"error_code,omitempty"`
-	ErrorDetail   *string    `json:"error_detail,omitempty"`
+	ErrorCode     *string    `json:"error_code,omitzero"`
+	ErrorDetail   *string    `json:"error_detail,omitzero"`
 }
 
 type Settlement struct {
@@ -444,12 +445,12 @@ type Settlement struct {
 	Currency         money.Currency `json:"currency"`
 	UpperBound       *time.Time     `json:"effective_at_upper_bound,omitempty"`
 
-	Amount        money.Amount    `json:"amount"`
-	EntryCount    int             `json:"entry_count"`
-	TransactionID *uuid.UUID      `json:"transaction_id,omitempty"`
-	Description   string          `json:"description"`
-	Metadata      json.RawMessage `json:"metadata"`
-	CreatedAt     time.Time       `json:"created_at"`
+	Amount        money.Amount   `json:"amount"`
+	EntryCount    int            `json:"entry_count"`
+	TransactionID *uuid.UUID     `json:"transaction_id,omitempty"`
+	Description   string         `json:"description"`
+	Metadata      jsontext.Value `json:"metadata"`
+	CreatedAt     time.Time      `json:"created_at"`
 }
 
 type CreateSettlementInput struct {
@@ -457,9 +458,9 @@ type CreateSettlementInput struct {
 	SettledAccountID uuid.UUID `json:"settled_account_id"`
 	ContraAccountID  uuid.UUID `json:"contra_account_id"`
 
-	UpperBound  *time.Time      `json:"effective_at_upper_bound,omitempty"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	UpperBound  *time.Time     `json:"effective_at_upper_bound,omitempty"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ListHoldsInput struct {
@@ -498,18 +499,18 @@ const (
 )
 
 type PostInput struct {
-	IdempotencyKey string          `json:"idempotency_key"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	Postings       []Posting       `json:"postings"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
+	Postings       []Posting      `json:"postings"`
 
-	Status TransactionStatus `json:"status,omitempty"`
+	Status TransactionStatus `json:"status,omitzero"`
 
 	EffectiveAt *time.Time `json:"effective_at,omitempty"`
 
-	ExternalID string `json:"external_id,omitempty"`
+	ExternalID string `json:"external_id,omitzero"`
 
-	ArchiveOnLockFailure bool `json:"archive_on_balance_lock_failure,omitempty"`
+	ArchiveOnLockFailure bool `json:"archive_on_balance_lock_failure,omitzero"`
 }
 
 func (in PostInput) status() TransactionStatus {
@@ -523,11 +524,11 @@ type Transaction struct {
 	ID             uuid.UUID         `json:"id"`
 	LedgerID       uuid.UUID         `json:"ledger_id"`
 	IdempotencyKey string            `json:"idempotency_key"`
-	ExternalID     string            `json:"external_id,omitempty"`
+	ExternalID     string            `json:"external_id,omitzero"`
 	Status         TransactionStatus `json:"status"`
 	Version        int               `json:"version"`
 	Description    string            `json:"description"`
-	Metadata       json.RawMessage   `json:"metadata"`
+	Metadata       jsontext.Value    `json:"metadata"`
 	ReversesID     *uuid.UUID        `json:"reverses_id,omitempty"`
 
 	Postings    []Posting  `json:"postings"`
@@ -579,10 +580,10 @@ func sameContent(stored, in PostInput) bool {
 }
 
 type UpdateTransactionInput struct {
-	Description *string         `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
-	Postings    []Posting       `json:"postings"`
-	EffectiveAt *time.Time      `json:"effective_at"`
+	Description *string        `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
+	Postings    []Posting      `json:"postings"`
+	EffectiveAt *time.Time     `json:"effective_at"`
 }
 
 type PostPendingInput struct {
@@ -590,9 +591,9 @@ type PostPendingInput struct {
 }
 
 type BatchResult struct {
-	Transaction *Transaction `json:"transaction,omitempty"`
-	Replayed    bool         `json:"replayed,omitempty"`
-	Error       string       `json:"error,omitempty"`
+	Transaction *Transaction `json:"transaction,omitzero"`
+	Replayed    bool         `json:"replayed,omitzero"`
+	Error       string       `json:"error,omitzero"`
 	Err         error        `json:"-"`
 }
 
@@ -634,23 +635,23 @@ type CreateHoldInput struct {
 	IdempotencyKey string         `json:"idempotency_key"`
 	AccountID      uuid.UUID      `json:"account_id"`
 	Amount         money.Amount   `json:"amount"`
-	Currency       money.Currency `json:"currency,omitempty"`
+	Currency       money.Currency `json:"currency,omitzero"`
 	Description    string         `json:"description"`
 	ExpiresAt      time.Time      `json:"expires_at"`
 }
 
 type CaptureInput struct {
-	IdempotencyKey string          `json:"idempotency_key"`
-	Destination    uuid.UUID       `json:"destination_account_id"`
-	Amount         money.Amount    `json:"amount"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	Destination    uuid.UUID      `json:"destination_account_id"`
+	Amount         money.Amount   `json:"amount"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ReverseInput struct {
-	IdempotencyKey string          `json:"idempotency_key"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
 }
 
 type ScheduleStatus string
@@ -674,7 +675,7 @@ type ScheduledTransaction struct {
 	Request        PostInput      `json:"request"`
 	Status         ScheduleStatus `json:"status"`
 	TransactionID  *uuid.UUID     `json:"transaction_id,omitempty"`
-	Failure        *string        `json:"failure,omitempty"`
+	Failure        *string        `json:"failure,omitzero"`
 	CreatedAt      time.Time      `json:"created_at"`
 	ResolvedAt     *time.Time     `json:"resolved_at,omitempty"`
 }
@@ -686,19 +687,73 @@ type VerifyReport struct {
 	ChainHead string `json:"chain_head"`
 }
 
-func jsonEqual(a, b json.RawMessage) bool {
-	decode := func(raw json.RawMessage) (any, bool) {
+func jsonEqual(a, b jsontext.Value) bool {
+	decode := func(raw jsontext.Value) (any, bool) {
 		if len(bytes.TrimSpace(raw)) == 0 {
 			return map[string]any{}, true
 		}
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.UseNumber()
-		var v any
-		return v, dec.Decode(&v) == nil
+		v, err := decodeJSON(raw)
+		return v, err == nil
 	}
 	av, okA := decode(a)
 	bv, okB := decode(b)
 	return okA && okB && jsonValueEqual(av, bv)
+}
+
+func decodeJSON(raw []byte) (any, error) {
+	dec := jsontext.NewDecoder(bytes.NewReader(raw), jsontext.AllowDuplicateNames(true))
+	v, err := readJSON(dec)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
+		return nil, errors.New("ledger: trailing data after JSON value")
+	}
+	return v, nil
+}
+
+func readJSON(dec *jsontext.Decoder) (any, error) {
+	tok, err := dec.ReadToken()
+	if err != nil {
+		return nil, err
+	}
+	switch tok.Kind() {
+	case jsontext.KindBeginObject:
+		obj := map[string]any{}
+		for dec.PeekKind() != jsontext.KindEndObject {
+			name, err := dec.ReadToken()
+			if err != nil {
+				return nil, err
+			}
+			key := name.String()
+			v, err := readJSON(dec)
+			if err != nil {
+				return nil, err
+			}
+			obj[key] = v
+		}
+		_, err := dec.ReadToken()
+		return obj, err
+	case jsontext.KindBeginArray:
+		arr := []any{}
+		for dec.PeekKind() != jsontext.KindEndArray {
+			v, err := readJSON(dec)
+			if err != nil {
+				return nil, err
+			}
+			arr = append(arr, v)
+		}
+		_, err := dec.ReadToken()
+		return arr, err
+	case jsontext.KindString:
+		return tok.String(), nil
+	case jsontext.KindNumber:
+		return jsontext.Value(tok.String()), nil
+	case jsontext.KindTrue, jsontext.KindFalse:
+		return tok.Bool(), nil
+	default:
+		return nil, nil
+	}
 }
 
 func jsonValueEqual(a, b any) bool {
@@ -726,15 +781,15 @@ func jsonValueEqual(a, b any) bool {
 			}
 		}
 		return true
-	case json.Number:
-		b, ok := b.(json.Number)
+	case jsontext.Value:
+		b, ok := b.(jsontext.Value)
 		return ok && canonicalNumber(a) == canonicalNumber(b)
 	default:
 		return a == b
 	}
 }
 
-func canonicalNumber(n json.Number) string {
+func canonicalNumber(n jsontext.Value) string {
 	s := string(n)
 	sign := ""
 	if strings.HasPrefix(s, "-") {

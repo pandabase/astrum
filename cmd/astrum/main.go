@@ -84,9 +84,10 @@ func run(ctx context.Context, cfg config.Config) error {
 		Retention:         cfg.EventRetention,
 	})
 	ledgerModule, err := ledger.New(pool, base, ledger.Config{
-		Workers:  cfg.LedgerWorkers,
-		MaxBatch: cfg.LedgerMaxBatch,
-		SealKey:  []byte(cfg.LedgerSealKey),
+		Workers:          cfg.LedgerWorkers,
+		MaxBatch:         cfg.LedgerMaxBatch,
+		BatchConcurrency: cfg.LedgerBatchConcurrency,
+		SealKey:          []byte(cfg.LedgerSealKey),
 	})
 	if err != nil {
 		return err

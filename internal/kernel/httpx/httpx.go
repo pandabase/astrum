@@ -1,8 +1,8 @@
 package httpx
 
 import (
-	"encoding/json"
-	"errors"
+	"bytes"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,16 +48,15 @@ func DecodeBulk(w http.ResponseWriter, r *http.Request, v any) error {
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any, optional bool, limit int64) error {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
-		if optional && errors.Is(err, io.EOF) {
-			return nil
-		}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
 		return fmt.Errorf("invalid request body: %w", err)
 	}
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("invalid request body: trailing data")
+	if optional && len(bytes.TrimSpace(body)) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(body, v, json.RejectUnknownMembers(true)); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
 	}
 	return nil
 }
@@ -71,8 +70,8 @@ type Problem struct {
 	Title     string `json:"title"`
 	Status    int    `json:"status"`
 	Code      string `json:"code"`
-	Detail    string `json:"detail,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
+	Detail    string `json:"detail,omitzero"`
+	RequestID string `json:"request_id,omitzero"`
 }
 
 func NewProblem(r *http.Request, status int, code, detail string) Problem {
@@ -93,7 +92,11 @@ func Error(w http.ResponseWriter, r *http.Request, status int, code, detail stri
 func write(w http.ResponseWriter, r *http.Request, status int, contentType string, v any) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
+	if err := json.MarshalWrite(w, v, json.Deterministic(true)); err != nil {
+		log.FromContext(r.Context()).Error("encode response", "err", err)
+		return
+	}
+	if _, err := io.WriteString(w, "\n"); err != nil {
 		log.FromContext(r.Context()).Error("encode response", "err", err)
 	}
 }

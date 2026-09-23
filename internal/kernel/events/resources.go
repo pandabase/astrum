@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/url"
@@ -42,11 +42,11 @@ type (
 )
 
 type eventResource struct {
-	Object    string          `json:"object"`
-	ID        eventID         `json:"id"`
-	Type      string          `json:"type"`
-	Data      json.RawMessage `json:"data"`
-	CreatedAt time.Time       `json:"created_at"`
+	Object    string         `json:"object"`
+	ID        eventID        `json:"id"`
+	Type      string         `json:"type"`
+	Data      jsontext.Value `json:"data"`
+	CreatedAt time.Time      `json:"created_at"`
 }
 
 func render(e Event) eventResource {

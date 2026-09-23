@@ -18,8 +18,9 @@ type Config struct {
 
 	AllowUnsafeDurability bool
 
-	LedgerWorkers  int
-	LedgerMaxBatch int
+	LedgerWorkers          int
+	LedgerMaxBatch         int
+	LedgerBatchConcurrency int
 
 	LedgerSealKey string
 
@@ -55,6 +56,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.LedgerMaxBatch, err = intEnv("LEDGER_MAX_BATCH", 256); err != nil {
+		return Config{}, err
+	}
+	if cfg.LedgerBatchConcurrency, err = intEnv("LEDGER_BATCH_CONCURRENCY", 4); err != nil {
 		return Config{}, err
 	}
 	if cfg.AllowUnsafeDurability, err = boolEnv("DB_ALLOW_UNSAFE_DURABILITY"); err != nil {

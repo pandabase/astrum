@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -23,7 +23,7 @@ func dated(key string, from, to uuid.UUID, amount int64, d int, metadata string)
 	in := transfer(key, from, to, amount)
 	in.EffectiveAt = at(day(d).Add(12 * time.Hour))
 	if metadata != "" {
-		in.Metadata = json.RawMessage(metadata)
+		in.Metadata = jsontext.Value(metadata)
 	}
 	return in
 }
@@ -272,10 +272,10 @@ func TestMetadataFilters(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted, func(in *ledger.CreateAccountInput) {
-		in.Metadata = json.RawMessage(`{"vendor":"acme","tier":"gold"}`)
+		in.Metadata = jsontext.Value(`{"vendor":"acme","tier":"gold"}`)
 	})
 	b := e.account(t, "USD", ledger.Debit, unrestricted, func(in *ledger.CreateAccountInput) {
-		in.Metadata = json.RawMessage(`{"vendor":"globex"}`)
+		in.Metadata = jsontext.Value(`{"vendor":"globex"}`)
 	})
 	e.post(t, dated("x", a.ID, b.ID, 1, 1, `{"invoice":"9","channel":"web"}`))
 	e.post(t, dated("y", a.ID, b.ID, 1, 1, `{"invoice":"10"}`))

@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -181,7 +181,7 @@ func TestCategoryQueries(t *testing.T) {
 	root := e.addAccount(t, e.category(t, "root", ledger.Debit), a)
 	child := e.addAccount(t, e.category(t, "child", ledger.Debit), b)
 	e.nest(t, root, child)
-	updated, err := e.m.UpdateCategory(ctx, child.ID, ledger.UpdateInput{Metadata: json.RawMessage(`{"team":"ops"}`)})
+	updated, err := e.m.UpdateCategory(ctx, child.ID, ledger.UpdateInput{Metadata: jsontext.Value(`{"team":"ops"}`)})
 	if err != nil || updated.Version != 1 {
 		t.Fatalf("update = %+v, %v", updated, err)
 	}

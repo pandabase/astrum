@@ -1,7 +1,7 @@
 package ledger
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"strconv"
 	"strings"
 	"time"
@@ -48,13 +48,13 @@ type (
 )
 
 type ledgerResource struct {
-	Object      string          `json:"object"`
-	ID          ledgerID        `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
-	Version     int64           `json:"version"`
-	CreatedAt   time.Time       `json:"created_at"`
+	Object      string         `json:"object"`
+	ID          ledgerID       `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata"`
+	Version     int64          `json:"version"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 func toLedger(l Ledger) ledgerResource {
@@ -70,17 +70,17 @@ func toLedger(l Ledger) ledgerResource {
 }
 
 type categoryResource struct {
-	Object      string          `json:"object"`
-	ID          categoryID      `json:"id"`
-	LedgerID    ledgerID        `json:"ledger_id"`
-	Currency    money.Currency  `json:"currency"`
-	NormalSide  Side            `json:"normal_side"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
-	Version     int64           `json:"version"`
-	Balances    Balances        `json:"balances"`
-	CreatedAt   time.Time       `json:"created_at"`
+	Object      string         `json:"object"`
+	ID          categoryID     `json:"id"`
+	LedgerID    ledgerID       `json:"ledger_id"`
+	Currency    money.Currency `json:"currency"`
+	NormalSide  Side           `json:"normal_side"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata"`
+	Version     int64          `json:"version"`
+	Balances    Balances       `json:"balances"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 func toCategory(c Category) categoryResource {
@@ -100,12 +100,12 @@ func toCategory(c Category) categoryResource {
 }
 
 type categoryRequest struct {
-	LedgerID    ledgerID        `json:"ledger_id"`
-	Currency    money.Currency  `json:"currency"`
-	NormalSide  Side            `json:"normal_side"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	LedgerID    ledgerID       `json:"ledger_id"`
+	Currency    money.Currency `json:"currency"`
+	NormalSide  Side           `json:"normal_side"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type deleted struct {
@@ -121,16 +121,16 @@ type alertCondition struct {
 }
 
 type monitorResource struct {
-	Object         string          `json:"object"`
-	ID             monitorID       `json:"id"`
-	AccountID      accountID       `json:"account_id"`
-	AlertCondition alertCondition  `json:"alert_condition"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata"`
-	Version        int64           `json:"version"`
-	Triggered      bool            `json:"triggered"`
+	Object         string         `json:"object"`
+	ID             monitorID      `json:"id"`
+	AccountID      accountID      `json:"account_id"`
+	AlertCondition alertCondition `json:"alert_condition"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata"`
+	Version        int64          `json:"version"`
+	Triggered      bool           `json:"triggered"`
 
-	Balances  *Balances `json:"balances,omitempty"`
+	Balances  *Balances `json:"balances,omitzero"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -154,10 +154,10 @@ func toMonitor(m BalanceMonitor, balances *Balances) monitorResource {
 }
 
 type monitorRequest struct {
-	AccountID      accountID       `json:"account_id"`
-	AlertCondition alertCondition  `json:"alert_condition"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	AccountID      accountID      `json:"account_id"`
+	AlertCondition alertCondition `json:"alert_condition"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
 }
 
 func (in monitorRequest) create() CreateBalanceMonitorInput {
@@ -182,24 +182,24 @@ func toCurrency(c Currency) currencyResource {
 }
 
 type accountResource struct {
-	Object           string          `json:"object"`
-	ID               accountID       `json:"id"`
-	LedgerID         ledgerID        `json:"ledger_id"`
-	Code             string          `json:"code"`
-	Name             string          `json:"name"`
-	Description      string          `json:"description"`
-	Metadata         json.RawMessage `json:"metadata"`
-	Currency         money.Currency  `json:"currency"`
-	CurrencyExponent int             `json:"currency_exponent"`
-	NormalSide       Side            `json:"normal_side"`
-	AllowNegative    bool            `json:"allow_negative"`
-	OverdraftLimit   money.Amount    `json:"overdraft_limit"`
-	Balances         balances        `json:"balances"`
-	Held             money.Amount    `json:"held"`
-	Status           AccountStatus   `json:"status"`
-	LockVersion      int64           `json:"lock_version"`
-	StatusChangedAt  *time.Time      `json:"status_changed_at"`
-	CreatedAt        time.Time       `json:"created_at"`
+	Object           string         `json:"object"`
+	ID               accountID      `json:"id"`
+	LedgerID         ledgerID       `json:"ledger_id"`
+	Code             string         `json:"code"`
+	Name             string         `json:"name"`
+	Description      string         `json:"description"`
+	Metadata         jsontext.Value `json:"metadata"`
+	Currency         money.Currency `json:"currency"`
+	CurrencyExponent int            `json:"currency_exponent"`
+	NormalSide       Side           `json:"normal_side"`
+	AllowNegative    bool           `json:"allow_negative"`
+	OverdraftLimit   money.Amount   `json:"overdraft_limit"`
+	Balances         balances       `json:"balances"`
+	Held             money.Amount   `json:"held"`
+	Status           AccountStatus  `json:"status"`
+	LockVersion      int64          `json:"lock_version"`
+	StatusChangedAt  *time.Time     `json:"status_changed_at"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type balances struct {
@@ -235,12 +235,12 @@ type entryLine struct {
 	AccountID              accountID         `json:"account_id"`
 	Side                   Side              `json:"side"`
 	Amount                 money.Amount      `json:"amount"`
-	Currency               money.Currency    `json:"currency,omitempty"`
-	PendingBalanceAmount   *BalanceCondition `json:"pending_balance_amount,omitempty"`
-	PostedBalanceAmount    *BalanceCondition `json:"posted_balance_amount,omitempty"`
-	AvailableBalanceAmount *BalanceCondition `json:"available_balance_amount,omitempty"`
-	LockVersion            *int64            `json:"lock_version,omitempty"`
-	ResultingBalances      *Balances         `json:"resulting_balances,omitempty"`
+	Currency               money.Currency    `json:"currency,omitzero"`
+	PendingBalanceAmount   *BalanceCondition `json:"pending_balance_amount,omitzero"`
+	PostedBalanceAmount    *BalanceCondition `json:"posted_balance_amount,omitzero"`
+	AvailableBalanceAmount *BalanceCondition `json:"available_balance_amount,omitzero"`
+	LockVersion            *int64            `json:"lock_version,omitzero"`
+	ResultingBalances      *Balances         `json:"resulting_balances,omitzero"`
 }
 
 func toEntries(postings []Posting) []entryLine {
@@ -283,7 +283,7 @@ type transactionResource struct {
 	Status         TransactionStatus `json:"status"`
 	Version        int               `json:"version"`
 	Description    string            `json:"description"`
-	Metadata       json.RawMessage   `json:"metadata"`
+	Metadata       jsontext.Value    `json:"metadata"`
 	ReversesID     *transactionID    `json:"reverses_id"`
 	Entries        []entryLine       `json:"entries"`
 	EffectiveAt    time.Time         `json:"effective_at"`
@@ -423,20 +423,20 @@ type bulkRequest struct {
 }
 
 type settlementResource struct {
-	Object                string          `json:"object"`
-	ID                    settlementID    `json:"id"`
-	IdempotencyKey        string          `json:"idempotency_key"`
-	LedgerID              ledgerID        `json:"ledger_id"`
-	SettledAccountID      accountID       `json:"settled_account_id"`
-	ContraAccountID       accountID       `json:"contra_account_id"`
-	Currency              money.Currency  `json:"currency"`
-	EffectiveAtUpperBound *time.Time      `json:"effective_at_upper_bound"`
-	Amount                money.Amount    `json:"amount"`
-	EntryCount            int             `json:"entry_count"`
-	TransactionID         *transactionID  `json:"transaction_id"`
-	Description           string          `json:"description"`
-	Metadata              json.RawMessage `json:"metadata"`
-	CreatedAt             time.Time       `json:"created_at"`
+	Object                string         `json:"object"`
+	ID                    settlementID   `json:"id"`
+	IdempotencyKey        string         `json:"idempotency_key"`
+	LedgerID              ledgerID       `json:"ledger_id"`
+	SettledAccountID      accountID      `json:"settled_account_id"`
+	ContraAccountID       accountID      `json:"contra_account_id"`
+	Currency              money.Currency `json:"currency"`
+	EffectiveAtUpperBound *time.Time     `json:"effective_at_upper_bound"`
+	Amount                money.Amount   `json:"amount"`
+	EntryCount            int            `json:"entry_count"`
+	TransactionID         *transactionID `json:"transaction_id"`
+	Description           string         `json:"description"`
+	Metadata              jsontext.Value `json:"metadata"`
+	CreatedAt             time.Time      `json:"created_at"`
 }
 
 func toSettlement(st Settlement) settlementResource {
@@ -459,11 +459,11 @@ func toSettlement(st Settlement) settlementResource {
 }
 
 type settlementRequest struct {
-	SettledAccountID      accountID       `json:"settled_account_id"`
-	ContraAccountID       accountID       `json:"contra_account_id"`
-	EffectiveAtUpperBound *time.Time      `json:"effective_at_upper_bound"`
-	Description           string          `json:"description"`
-	Metadata              json.RawMessage `json:"metadata,omitempty"`
+	SettledAccountID      accountID      `json:"settled_account_id"`
+	ContraAccountID       accountID      `json:"contra_account_id"`
+	EffectiveAtUpperBound *time.Time     `json:"effective_at_upper_bound"`
+	Description           string         `json:"description"`
+	Metadata              jsontext.Value `json:"metadata,omitzero"`
 }
 
 type balancesResource struct {
@@ -548,24 +548,24 @@ func toHold(h Hold) holdResource {
 }
 
 type scheduleResource struct {
-	Object         string          `json:"object"`
-	ID             scheduleID      `json:"id"`
-	IdempotencyKey string          `json:"idempotency_key"`
-	ExecuteAt      time.Time       `json:"execute_at"`
-	Status         ScheduleStatus  `json:"status"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata"`
-	Entries        []entryLine     `json:"entries"`
-	TransactionID  *transactionID  `json:"transaction_id"`
-	Failure        *string         `json:"failure"`
-	CreatedAt      time.Time       `json:"created_at"`
-	ResolvedAt     *time.Time      `json:"resolved_at"`
+	Object         string         `json:"object"`
+	ID             scheduleID     `json:"id"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	ExecuteAt      time.Time      `json:"execute_at"`
+	Status         ScheduleStatus `json:"status"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata"`
+	Entries        []entryLine    `json:"entries"`
+	TransactionID  *transactionID `json:"transaction_id"`
+	Failure        *string        `json:"failure"`
+	CreatedAt      time.Time      `json:"created_at"`
+	ResolvedAt     *time.Time     `json:"resolved_at"`
 }
 
 func toSchedule(st ScheduledTransaction) scheduleResource {
 	metadata := st.Request.Metadata
 	if len(metadata) == 0 {
-		metadata = json.RawMessage(`{}`)
+		metadata = jsontext.Value(`{}`)
 	}
 	return scheduleResource{
 		Object:         "scheduled_transaction",
@@ -591,21 +591,21 @@ type integrityReport struct {
 }
 
 type ledgerRequest struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type accountRequest struct {
-	LedgerID       ledgerID        `json:"ledger_id"`
-	Code           string          `json:"code"`
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-	Currency       money.Currency  `json:"currency"`
-	NormalSide     Side            `json:"normal_side"`
-	AllowNegative  bool            `json:"allow_negative"`
-	OverdraftLimit money.Amount    `json:"overdraft_limit"`
+	LedgerID       ledgerID       `json:"ledger_id"`
+	Code           string         `json:"code"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description"`
+	Metadata       jsontext.Value `json:"metadata,omitzero"`
+	Currency       money.Currency `json:"currency"`
+	NormalSide     Side           `json:"normal_side"`
+	AllowNegative  bool           `json:"allow_negative"`
+	OverdraftLimit money.Amount   `json:"overdraft_limit"`
 }
 
 func (in accountRequest) create() CreateAccountInput {
@@ -629,7 +629,7 @@ type currencyRequest struct {
 
 type transactionRequest struct {
 	Description string            `json:"description"`
-	Metadata    json.RawMessage   `json:"metadata,omitempty"`
+	Metadata    jsontext.Value    `json:"metadata,omitzero"`
 	Entries     []entryLine       `json:"entries"`
 	Status      TransactionStatus `json:"status"`
 	EffectiveAt *time.Time        `json:"effective_at"`
@@ -653,10 +653,10 @@ func (in transactionRequest) post(key string) PostInput {
 }
 
 type updateTransactionRequest struct {
-	Description *string         `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
-	Entries     []entryLine     `json:"entries"`
-	EffectiveAt *time.Time      `json:"effective_at"`
+	Description *string        `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
+	Entries     []entryLine    `json:"entries"`
+	EffectiveAt *time.Time     `json:"effective_at"`
 }
 
 type postRequest struct {
@@ -685,23 +685,23 @@ type batchError struct {
 }
 
 type reverseRequest struct {
-	Description string          `json:"description"`
-	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	Description string         `json:"description"`
+	Metadata    jsontext.Value `json:"metadata,omitzero"`
 }
 
 type holdRequest struct {
 	AccountID   accountID      `json:"account_id"`
 	Amount      money.Amount   `json:"amount"`
-	Currency    money.Currency `json:"currency,omitempty"`
+	Currency    money.Currency `json:"currency,omitzero"`
 	Description string         `json:"description"`
 	ExpiresAt   time.Time      `json:"expires_at"`
 }
 
 type captureRequest struct {
-	DestinationAccountID accountID       `json:"destination_account_id"`
-	Amount               money.Amount    `json:"amount"`
-	Description          string          `json:"description"`
-	Metadata             json.RawMessage `json:"metadata,omitempty"`
+	DestinationAccountID accountID      `json:"destination_account_id"`
+	Amount               money.Amount   `json:"amount"`
+	Description          string         `json:"description"`
+	Metadata             jsontext.Value `json:"metadata,omitzero"`
 }
 
 type scheduleRequest struct {

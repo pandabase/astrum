@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -183,4 +184,67 @@ func BenchmarkBatch1000(b *testing.B) {
 		}
 	}
 	b.ReportMetric(float64(b.N*1000)/b.Elapsed().Seconds(), "tx/s")
+}
+
+func BenchmarkBatchContended(b *testing.B) {
+	const (
+		accounts  = 1000
+		workers   = 32
+		batchSize = 100
+	)
+	e := setup(b)
+	ids := make([]uuid.UUID, accounts)
+	for i := range ids {
+		ids[i] = e.account(b, "USD", ledger.Debit, unrestricted).ID
+	}
+	ctx := context.Background()
+
+	var (
+		next      atomic.Int64
+		failed    atomic.Int64
+		mu        sync.Mutex
+		latencies []time.Duration
+		wg        sync.WaitGroup
+	)
+	b.ResetTimer()
+	for w := range workers {
+		wg.Go(func() {
+			rng := rand.New(rand.NewPCG(uint64(w), 11))
+			for {
+				n := next.Add(1)
+				if n > int64(b.N) {
+					return
+				}
+				batch := make([]ledger.PostInput, batchSize)
+				for j := range batch {
+					from := ids[rng.IntN(accounts)]
+					to := ids[rng.IntN(accounts)]
+					for to == from {
+						to = ids[rng.IntN(accounts)]
+					}
+					batch[j] = transfer(fmt.Sprintf("c-%d-%d", n, j), from, to, 1)
+				}
+				start := time.Now()
+				_, err := e.m.PostBatch(ctx, batch, false)
+				elapsed := time.Since(start)
+				if err != nil {
+					failed.Add(1)
+					continue
+				}
+				mu.Lock()
+				latencies = append(latencies, elapsed)
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	b.StopTimer()
+
+	if n := failed.Load(); n > 0 {
+		b.Fatalf("%d batches failed", n)
+	}
+	slices.Sort(latencies)
+	b.ReportMetric(float64(b.N*batchSize)/b.Elapsed().Seconds(), "tx/s")
+	b.ReportMetric(float64(latencies[len(latencies)/2].Milliseconds()), "p50-ms")
+	b.ReportMetric(float64(latencies[len(latencies)*99/100].Milliseconds()), "p99-ms")
 }

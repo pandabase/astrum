@@ -1,7 +1,8 @@
 package bench
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"maps"
@@ -10,11 +11,13 @@ import (
 	"time"
 )
 
-func (l Latency) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]int64{
-		"mean": int64(l.Mean), "p50": int64(l.P50), "p90": int64(l.P90),
-		"p99": int64(l.P99), "p999": int64(l.P999), "max": int64(l.Max),
-	})
+var nanoseconds = json.WithMarshalers(json.MarshalToFunc(func(enc *jsontext.Encoder, d time.Duration) error {
+	return enc.WriteToken(jsontext.Int(int64(d)))
+}))
+
+func (r Report) MarshalJSONTo(enc *jsontext.Encoder) error {
+	type plain Report
+	return json.MarshalEncode(enc, plain(r), nanoseconds, json.Deterministic(true))
 }
 
 func WriteText(w io.Writer, r Report) error {
