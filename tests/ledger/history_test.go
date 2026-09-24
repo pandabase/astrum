@@ -27,6 +27,7 @@ func dated(key string, from, to uuid.UUID, amount int64, d int, metadata string)
 }
 
 func TestListEntries(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -121,6 +122,7 @@ func TestListEntries(t *testing.T) {
 }
 
 func TestHistoricalBalances(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -177,6 +179,7 @@ func TestStatements(t *testing.T) {
 	e.post(t, dated("in-2", b.ID, a.ID, 40, 6, ""))
 	e.post(t, dated("after", a.ID, b.ID, 7, 20, ""))
 
+	e.settle(t)
 	st, err := e.m.CreateStatement(ctx, ledger.CreateStatementInput{
 		AccountID: b.ID, Description: "January", From: day(2), Until: day(10),
 	})
@@ -198,6 +201,7 @@ func TestStatements(t *testing.T) {
 	if err != nil || len(entries) != 2 {
 		t.Fatalf("statement entries = %+v, %v", entries, err)
 	}
+	e.settle(t)
 	fresh, err := e.m.CreateStatement(ctx, ledger.CreateStatementInput{AccountID: b.ID, From: day(2), Until: day(10)})
 	if err != nil || fresh.EntryCount != 3 || fresh.Ending.Amount != amt(1_065) {
 		t.Fatalf("new statement = %+v, %v", fresh, err)
@@ -267,6 +271,7 @@ func TestStatementIgnoresInFlight(t *testing.T) {
 }
 
 func TestMetadataFilters(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted, func(in *ledger.CreateAccountInput) {
@@ -297,6 +302,7 @@ func TestMetadataFilters(t *testing.T) {
 }
 
 func TestHTTPHistory(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", "")

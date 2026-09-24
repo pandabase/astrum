@@ -14,6 +14,7 @@ import (
 )
 
 func TestProblemForEdge(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		err    error
 		status int
@@ -97,6 +98,7 @@ func TestProblemForEdge(t *testing.T) {
 }
 
 func TestWriteErrorEdge(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	writeError(w, httptest.NewRequest(http.MethodGet, "/", nil), fmt.Errorf("%w: code is required", ErrInvalid))
 	var p httpx.Problem
@@ -109,6 +111,7 @@ func TestWriteErrorEdge(t *testing.T) {
 }
 
 func TestCursorCodecsEdge(t *testing.T) {
+	t.Parallel()
 	for _, v := range []int64{0, 1, -1, 1 << 62, -1 << 63} {
 		b, err := decodeEdgeCursor(encodeInt64Cursor(v))
 		if err != nil {

@@ -49,6 +49,7 @@ func feStatement(t *testing.T, e *env, account uuid.UUID, from, until time.Time)
 }
 
 func TestHistoryEdgeBalanceWindows(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	src := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -129,6 +130,7 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 }
 
 func TestHistoryEdgeSubMicrosecondBalanceWindowTruncates(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	src := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -345,6 +347,7 @@ func TestHistoryEdgeListStatements(t *testing.T) {
 }
 
 func TestHistoryEdgeAccountEntries(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	src := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -402,6 +405,7 @@ func TestHistoryEdgeAccountEntries(t *testing.T) {
 }
 
 func TestHistoryEdgeListEntriesBounds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	src := e.account(t, "USD", ledger.Credit, unrestricted)

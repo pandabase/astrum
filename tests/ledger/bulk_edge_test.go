@@ -46,6 +46,7 @@ func feProcessAll(t *testing.T, e *env) int {
 }
 
 func TestBulkEdgeSizeAndKeys(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -94,6 +95,7 @@ func TestBulkEdgeSizeAndKeys(t *testing.T) {
 }
 
 func TestBulkEdgeOutcomes(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, MaxBatch: 3})
 	ctx := context.Background()
 	rich := e.funded(t, 100)
@@ -180,6 +182,7 @@ func TestBulkEdgeOutcomes(t *testing.T) {
 }
 
 func TestBulkEdgeReplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -253,6 +256,7 @@ func TestBulkEdgeReplay(t *testing.T) {
 }
 
 func TestBulkEdgeResultsPaging(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -302,6 +306,7 @@ func TestBulkEdgeResultsPaging(t *testing.T) {
 }
 
 func TestBulkEdgeClaims(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, MaxBatch: 5})
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)

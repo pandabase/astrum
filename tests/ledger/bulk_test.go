@@ -13,6 +13,7 @@ import (
 )
 
 func TestBulkRequest(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, MaxBatch: 100})
 	ctx := context.Background()
 	a := e.funded(t, 500)
@@ -94,6 +95,7 @@ func TestBulkRequest(t *testing.T) {
 }
 
 func TestBulkResumesAfterCrash(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, MaxBatch: 4})
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -144,6 +146,7 @@ func TestBulkResumesAfterCrash(t *testing.T) {
 }
 
 func TestConcurrentBulkWorkers(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, MaxBatch: 10})
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -180,6 +183,7 @@ func TestConcurrentBulkWorkers(t *testing.T) {
 }
 
 func TestHTTPBulk(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", "")

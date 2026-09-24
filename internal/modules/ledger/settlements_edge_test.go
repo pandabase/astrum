@@ -11,6 +11,7 @@ import (
 )
 
 func TestSettlementsEdgeMatches(t *testing.T) {
+	t.Parallel()
 	settled, contra := uuid.New(), uuid.New()
 	bound := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	st := Settlement{SettledAccountID: settled, ContraAccountID: contra, UpperBound: &bound, Description: "d", Metadata: jsontext.Value(`{}`)}
@@ -49,6 +50,7 @@ func TestSettlementsEdgeMatches(t *testing.T) {
 }
 
 func TestSettlementsEdgeValidate(t *testing.T) {
+	t.Parallel()
 	a, b := uuid.New(), uuid.New()
 	tests := []struct {
 		name string

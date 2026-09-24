@@ -35,6 +35,7 @@ func availableAtLeast(n int64) func(*ledger.Posting) {
 }
 
 func TestBalanceConditions(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -102,6 +103,7 @@ func TestBalanceConditions(t *testing.T) {
 }
 
 func TestLockVersion(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -130,6 +132,7 @@ func TestLockVersion(t *testing.T) {
 }
 
 func TestArchiveOnLockFailure(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -175,6 +178,7 @@ func TestArchiveOnLockFailure(t *testing.T) {
 }
 
 func TestConcurrentLocksHold(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -209,6 +213,7 @@ func TestConcurrentLocksHold(t *testing.T) {
 }
 
 func TestHTTPBalanceLocks(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", `,"allow_negative":true`)

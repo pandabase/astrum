@@ -8,6 +8,7 @@ import (
 )
 
 func TestHoldsEdgeMatches(t *testing.T) {
+	t.Parallel()
 	account := uuid.New()
 	expires := time.Date(2026, 3, 1, 12, 0, 0, 123456000, time.UTC)
 	h := Hold{AccountID: account, Amount: amt(50), Currency: "USD", Description: "auth", ExpiresAt: expires}
@@ -37,6 +38,7 @@ func TestHoldsEdgeMatches(t *testing.T) {
 }
 
 func TestHoldsEdgeReserveRelease(t *testing.T) {
+	t.Parallel()
 	id := uuid.New()
 	tests := []struct {
 		name    string

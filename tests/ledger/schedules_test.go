@@ -15,6 +15,7 @@ func scheduleInput(key string, from, to uuid.UUID, amount int64, at time.Time) l
 }
 
 func TestScheduleExecutesExactlyOnce(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -56,6 +57,7 @@ func TestScheduleExecutesExactlyOnce(t *testing.T) {
 }
 
 func TestScheduleFailureIsRecorded(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -79,6 +81,7 @@ func TestScheduleFailureIsRecorded(t *testing.T) {
 }
 
 func TestScheduleCancelAndReplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -119,6 +122,7 @@ func TestScheduleCancelAndReplay(t *testing.T) {
 }
 
 func TestConcurrentSchedulers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 10_000)
@@ -151,6 +155,7 @@ func TestConcurrentSchedulers(t *testing.T) {
 }
 
 func TestListSchedules(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)

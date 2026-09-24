@@ -20,6 +20,7 @@ func feAccountInput(e *env, code string) ledger.CreateAccountInput {
 }
 
 func TestCrudEdgeCurrencies(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -105,6 +106,7 @@ func TestCrudEdgeCurrencies(t *testing.T) {
 }
 
 func TestCrudEdgeAccountValidation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	tests := []struct {
@@ -156,6 +158,7 @@ func TestCrudEdgeAccountValidation(t *testing.T) {
 }
 
 func TestCrudEdgeDuplicateCodes(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	base := feAccountInput(e, "dup")
@@ -231,6 +234,7 @@ func TestCrudEdgeDuplicateCodes(t *testing.T) {
 }
 
 func TestCrudEdgeAccountStatus(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -337,6 +341,7 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 }
 
 func TestCrudEdgeLockVersion(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.account(t, "USD", ledger.Debit)
@@ -398,6 +403,7 @@ func TestCrudEdgeLockVersion(t *testing.T) {
 }
 
 func TestCrudEdgeMetadataMergePatch(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc, err := e.m.CreateAccount(ctx, ledger.CreateAccountInput{
@@ -458,6 +464,7 @@ func TestCrudEdgeMetadataMergePatch(t *testing.T) {
 }
 
 func TestCrudEdgeLedgers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 

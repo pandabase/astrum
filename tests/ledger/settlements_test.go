@@ -19,6 +19,7 @@ func settle(key string, settled, contra uuid.UUID) ledger.CreateSettlementInput 
 }
 
 func TestSettlement(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	cash := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -140,6 +141,7 @@ func TestSettlement(t *testing.T) {
 }
 
 func TestConcurrentSettlements(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acme := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -172,6 +174,7 @@ func TestConcurrentSettlements(t *testing.T) {
 }
 
 func TestHTTPSettlements(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	cash := a.account("cash", "debit", `,"allow_negative":true`)
 	vendor := a.account("vendor", "credit", `,"allow_negative":true`)

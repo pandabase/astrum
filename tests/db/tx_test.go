@@ -13,6 +13,7 @@ import (
 )
 
 func TestRetryable(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  error
@@ -36,6 +37,7 @@ func TestRetryable(t *testing.T) {
 }
 
 func TestErrorAccessors(t *testing.T) {
+	t.Parallel()
 	err := fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: "23505", ConstraintName: "things_key"})
 	if db.Code(err) != "23505" || db.Constraint(err) != "things_key" {
 		t.Fatalf("Code/Constraint = %q/%q", db.Code(err), db.Constraint(err))
@@ -46,6 +48,7 @@ func TestErrorAccessors(t *testing.T) {
 }
 
 func TestRunTxRetriesTransientFailures(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `CREATE TABLE counter (n int NOT NULL)`); err != nil {
@@ -77,6 +80,7 @@ func TestRunTxRetriesTransientFailures(t *testing.T) {
 }
 
 func TestRunTxStopsOnPermanentFailure(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	attempts := 0
 	boom := errors.New("permanent")
@@ -90,6 +94,7 @@ func TestRunTxStopsOnPermanentFailure(t *testing.T) {
 }
 
 func TestRunTxGivesUp(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	attempts := 0
 	err := db.RunTx(context.Background(), pool, func(pgx.Tx) error {
@@ -102,6 +107,7 @@ func TestRunTxGivesUp(t *testing.T) {
 }
 
 func TestRunTxHonoursCancellation(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	err := db.RunTx(ctx, pool, func(pgx.Tx) error {
@@ -114,6 +120,7 @@ func TestRunTxHonoursCancellation(t *testing.T) {
 }
 
 func TestSessionIsHardened(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 
@@ -138,6 +145,7 @@ func TestSessionIsHardened(t *testing.T) {
 }
 
 func TestCheckDurabilityRejectsAsyncCommit(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)

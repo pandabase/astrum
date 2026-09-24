@@ -92,6 +92,7 @@ func heTransfer(from, to, amount string) string {
 }
 
 func TestHeStackRoles(t *testing.T) {
+	t.Parallel()
 	s := heNewStack(t)
 	src := s.account("src", true)
 	dst := s.account("dst", false)
@@ -149,6 +150,7 @@ func TestHeStackRoles(t *testing.T) {
 }
 
 func TestHeStackJSONRules(t *testing.T) {
+	t.Parallel()
 	s := heNewStack(t)
 	deep := func(n int) string { return strings.Repeat(`{"a":`, n) + `1` + strings.Repeat(`}`, n) }
 	tests := []struct {
@@ -251,6 +253,7 @@ func TestHeStackJSONRules(t *testing.T) {
 }
 
 func TestHeStackBodyLimits(t *testing.T) {
+	t.Parallel()
 	s := heNewStack(t)
 	pad := func(body string, size int) string { return body + strings.Repeat(" ", size-len(body)) }
 	ledger := `{"name":"big"}`
@@ -293,6 +296,7 @@ func TestHeStackBodyLimits(t *testing.T) {
 }
 
 func TestHeStackIdempotency(t *testing.T) {
+	t.Parallel()
 	s := heNewStack(t)
 	src, dst := s.account("idem-src", true), s.account("idem-dst", false)
 
@@ -415,6 +419,7 @@ func (s *heStack) heCountLedgers(name string) int {
 }
 
 func TestHeStackPathTricks(t *testing.T) {
+	t.Parallel()
 	s := heNewStack(t)
 	for _, tt := range []struct {
 		method, path string

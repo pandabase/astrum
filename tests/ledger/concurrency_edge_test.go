@@ -14,6 +14,7 @@ import (
 )
 
 func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -153,6 +154,7 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 }
 
 func TestConcurrencyEdgeExactExhaustion(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -209,6 +211,7 @@ func TestConcurrencyEdgeExactExhaustion(t *testing.T) {
 }
 
 func TestConcurrencyEdgeOpposingTransfers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 500)

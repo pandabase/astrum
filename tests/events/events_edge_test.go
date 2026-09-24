@@ -261,6 +261,7 @@ func (r *edgeReceiver) got(path string) []edgeHit {
 }
 
 func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
+	t.Parallel()
 	strict := newEdgeEnv(t, events.Config{})
 	lax := edgeEnvOn(t, strict.pool, events.Config{AllowInsecureURLs: true})
 	long := func(n int) string {
@@ -371,6 +372,7 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 }
 
 func TestEventsEdgeEndpointLifecycleHTTP(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{})
 	var ids []string
 	for i := range 5 {
@@ -487,6 +489,7 @@ func TestEventsEdgeEndpointLifecycleHTTP(t *testing.T) {
 }
 
 func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retries: []time.Duration{time.Hour}})
 	rcv := newEdgeReceiver(t, false)
 	rcv.set("/fail", http.StatusInternalServerError)
@@ -631,6 +634,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 var edgeSignature = regexp.MustCompile(`^t=(\d+),v1=([0-9a-f]{64})$`)
 
 func TestEventsEdgeSignedRequest(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true})
 	rcv := newEdgeReceiver(t, false)
 	ep := e.endpoint(rcv.srv.URL + "/hook")
@@ -699,6 +703,7 @@ func TestEventsEdgeSignedRequest(t *testing.T) {
 }
 
 func TestEventsEdgeVerify(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"a":1}`)
 	at := time.Unix(1_900_000_000, 0)
 	sig := events.Sign("whsec_s", at, body)
@@ -732,6 +737,7 @@ func TestEventsEdgeVerify(t *testing.T) {
 }
 
 func TestEventsEdgeResponseStatuses(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retries: []time.Duration{time.Hour}})
 	rcv := newEdgeReceiver(t, false)
 	statuses := []int{200, 201, 202, 204, 299, 300, 301, 302, 303, 304, 307, 308, 400, 401, 404, 410, 429, 500, 502, 503}
@@ -771,6 +777,7 @@ func TestEventsEdgeResponseStatuses(t *testing.T) {
 }
 
 func TestEventsEdgeBackoffSchedule(t *testing.T) {
+	t.Parallel()
 	retries := []time.Duration{time.Hour, 2 * time.Hour, 90 * time.Minute}
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retries: retries})
 	rcv := newEdgeReceiver(t, false)
@@ -814,6 +821,7 @@ func TestEventsEdgeBackoffSchedule(t *testing.T) {
 }
 
 func TestEventsEdgeNoRetries(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retries: []time.Duration{}})
 	rcv := newEdgeReceiver(t, false)
 	rcv.set("/h", http.StatusTeapot)
@@ -827,6 +835,7 @@ func TestEventsEdgeNoRetries(t *testing.T) {
 }
 
 func TestEventsEdgeRedirectNotFollowed(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retries: []time.Duration{time.Hour}})
 	target := newEdgeReceiver(t, false)
 	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -846,6 +855,7 @@ func TestEventsEdgeRedirectNotFollowed(t *testing.T) {
 }
 
 func TestEventsEdgeTimeout(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Timeout: 200 * time.Millisecond, Retries: []time.Duration{time.Hour}})
 	stop := make(chan struct{})
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -873,6 +883,7 @@ func TestEventsEdgeTimeout(t *testing.T) {
 }
 
 func TestEventsEdgeRefusesNonPublicAddresses(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{Retries: []time.Duration{time.Hour}})
 	rcv := newEdgeReceiver(t, true)
 	ep := e.endpoint("https://hooks.example.com/hook")
@@ -898,6 +909,7 @@ func (f edgeFailingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 func TestEventsEdgeLongErrorsAreTruncated(t *testing.T) {
+	t.Parallel()
 	const url = "https://hooks.example.com/x"
 	prefix := `Post "` + url + `": `
 	tests := []struct {
@@ -935,6 +947,7 @@ func TestEventsEdgeLongErrorsAreTruncated(t *testing.T) {
 }
 
 func TestEventsEdgeSubscriptions(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true})
 	rcv := newEdgeReceiver(t, false)
 	subs := map[string][]string{
@@ -1008,6 +1021,7 @@ func TestEventsEdgeSubscriptions(t *testing.T) {
 }
 
 func TestEventsEdgeEndpointChangesAfterDispatch(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true})
 	rcv := newEdgeReceiver(t, false)
 	ep := e.endpoint(rcv.srv.URL+"/old", "hold.*")
@@ -1040,6 +1054,7 @@ func TestEventsEdgeEndpointChangesAfterDispatch(t *testing.T) {
 }
 
 func TestEventsEdgeRetention(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t, events.Config{AllowInsecureURLs: true, Retention: 24 * time.Hour, PruneBatch: 1, Retries: []time.Duration{}})
 	ctx := context.Background()
 	old := func(typ string, age time.Duration) events.Event {

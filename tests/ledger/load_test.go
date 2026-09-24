@@ -16,6 +16,7 @@ import (
 )
 
 func TestConcurrentTransfersConserveMoney(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -73,6 +74,7 @@ func TestConcurrentTransfersConserveMoney(t *testing.T) {
 }
 
 func TestConcurrentSameIdempotencyKey(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 1_000)
 	b := e.account(t, "USD", ledger.Debit)
@@ -105,6 +107,7 @@ func TestConcurrentSameIdempotencyKey(t *testing.T) {
 }
 
 func TestThroughput(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("throughput test")
 	}

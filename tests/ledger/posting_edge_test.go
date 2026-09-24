@@ -47,6 +47,7 @@ func peViews(t testing.TB, e *env, id uuid.UUID) [3]money.Amount {
 }
 
 func TestPostingEdgeValidation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -150,6 +151,7 @@ func TestPostingEdgeValidation(t *testing.T) {
 }
 
 func TestPostingEdgePostingCount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 10_000)
@@ -195,6 +197,7 @@ func TestPostingEdgePostingCount(t *testing.T) {
 }
 
 func TestPostingEdgeAmountBounds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	top := money.MaxAmount()
@@ -287,6 +290,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 }
 
 func TestPostingEdgeRepeatedAccounts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -354,6 +358,7 @@ func TestPostingEdgeRepeatedAccounts(t *testing.T) {
 }
 
 func TestPostingEdgeCurrencies(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	usdA := e.funded(t, 100)
@@ -413,6 +418,7 @@ func TestPostingEdgeCurrencies(t *testing.T) {
 }
 
 func TestPostingEdgeCrossLedger(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -445,6 +451,7 @@ func TestPostingEdgeCrossLedger(t *testing.T) {
 }
 
 func TestPostingEdgeEffectiveAt(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -510,6 +517,7 @@ func TestPostingEdgeEffectiveAt(t *testing.T) {
 }
 
 func TestPostingEdgeAccountStatus(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	src := e.funded(t, 1_000)
@@ -566,6 +574,7 @@ func TestPostingEdgeAccountStatus(t *testing.T) {
 }
 
 func TestPostingEdgeOverdraft(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -644,6 +653,7 @@ func TestPostingEdgeOverdraft(t *testing.T) {
 }
 
 func TestPostingEdgeNormalSideMath(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	debit := e.account(t, "USD", ledger.Debit)

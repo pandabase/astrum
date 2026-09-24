@@ -101,6 +101,7 @@ func peOutcomes(t *testing.T, reqs []*request) []outcome {
 }
 
 func TestBatchEdgeGroupCommitSkipsCancelledRequests(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{})
 	x := e.account(t, Debit, false)
 	cancelled, cancel := context.WithCancel(context.Background())
@@ -140,6 +141,7 @@ func TestBatchEdgeGroupCommitSkipsCancelledRequests(t *testing.T) {
 }
 
 func TestBatchEdgeGroupFailureRetriesIndividually(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{})
 	x, y, z := e.account(t, Debit, false), e.account(t, Debit, false), e.account(t, Debit, false)
 	far := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -172,6 +174,7 @@ func TestBatchEdgeGroupFailureRetriesIndividually(t *testing.T) {
 }
 
 func TestBatchEdgeGroupDomainFailuresStayLocal(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{})
 	x, y := e.account(t, Debit, false), e.account(t, Debit, false)
 
@@ -202,6 +205,7 @@ func TestBatchEdgeGroupDomainFailuresStayLocal(t *testing.T) {
 }
 
 func TestBatchEdgeGroupConflictThenMatchingReplay(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{})
 	x := e.account(t, Debit, false)
 	first := []*request{peRequest(context.Background(), peTransfer("shared", e.open.ID, x.ID, 1))}
@@ -226,6 +230,7 @@ func TestBatchEdgeGroupConflictThenMatchingReplay(t *testing.T) {
 }
 
 func TestBatchEdgeQueuedRequestCancelledBeforeWorkersRun(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{Workers: 1, QueueSize: 1})
 	x := e.account(t, Debit, false)
 	b := e.m.svc.batcher
@@ -268,6 +273,7 @@ func TestBatchEdgeQueuedRequestCancelledBeforeWorkersRun(t *testing.T) {
 }
 
 func TestBatchEdgeSubmitHonoursFullQueue(t *testing.T) {
+	t.Parallel()
 	e := peSetup(t, Config{Workers: 1, QueueSize: 1})
 	x := e.account(t, Debit, false)
 	b := e.m.svc.batcher

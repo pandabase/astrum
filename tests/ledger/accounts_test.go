@@ -13,6 +13,7 @@ import (
 )
 
 func TestFrozenAccount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -105,6 +106,7 @@ func TestFrozenAccount(t *testing.T) {
 }
 
 func TestCloseAccount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -147,6 +149,7 @@ func TestCloseAccount(t *testing.T) {
 }
 
 func TestAccountStatusInvariants(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	funded := e.funded(t, 100)

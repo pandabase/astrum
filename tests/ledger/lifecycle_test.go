@@ -30,6 +30,7 @@ func wantBalance(t *testing.T, name string, got ledger.Balance, debits, credits,
 }
 
 func TestPendingLifecycle(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -127,6 +128,7 @@ func TestPendingLifecycle(t *testing.T) {
 }
 
 func TestPartialPost(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -170,6 +172,7 @@ func TestPartialPost(t *testing.T) {
 }
 
 func TestArchive(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -202,6 +205,7 @@ func TestArchive(t *testing.T) {
 }
 
 func TestExternalIDs(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -241,6 +245,7 @@ func TestExternalIDs(t *testing.T) {
 }
 
 func TestPendingOnFrozenAndClosedAccounts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -265,6 +270,7 @@ func TestPendingOnFrozenAndClosedAccounts(t *testing.T) {
 }
 
 func TestConcurrentPostAndArchive(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 10_000)
@@ -301,6 +307,7 @@ func TestConcurrentPostAndArchive(t *testing.T) {
 }
 
 func TestLifecycleSchemaInvariants(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -354,6 +361,7 @@ func TestLifecycleSchemaInvariants(t *testing.T) {
 }
 
 func TestWidePendingAmounts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	if _, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 18}); err != nil {
@@ -380,6 +388,7 @@ func TestWidePendingAmounts(t *testing.T) {
 }
 
 func TestHTTPLifecycle(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", "")

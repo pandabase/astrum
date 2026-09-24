@@ -14,6 +14,7 @@ import (
 )
 
 func TestCurrencies(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -112,6 +113,7 @@ func TestCurrencies(t *testing.T) {
 }
 
 func TestWideAmounts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	if _, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 18}); err != nil {
@@ -171,6 +173,7 @@ func TestWideAmounts(t *testing.T) {
 }
 
 func TestHTTPCurrencies(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 
 	eth := a.must(http.StatusCreated, http.MethodPost, "/v1/currencies", "", `{"code":"ETH","exponent":18}`)

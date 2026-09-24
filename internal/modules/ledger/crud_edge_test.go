@@ -10,6 +10,7 @@ import (
 )
 
 func TestCrudEdgeMergePatchRFC7396(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		target string
@@ -64,6 +65,7 @@ func TestCrudEdgeMergePatchRFC7396(t *testing.T) {
 }
 
 func TestCrudEdgeMergePatchDoesNotAliasPatch(t *testing.T) {
+	t.Parallel()
 	patch := map[string]any{"a": map[string]any{"b": jsontext.Value("1")}}
 	got := mergePatch(nil, patch)
 	got["a"].(map[string]any)["c"] = jsontext.Value("2")
@@ -73,6 +75,7 @@ func TestCrudEdgeMergePatchDoesNotAliasPatch(t *testing.T) {
 }
 
 func TestCrudEdgeApplyUpdateNames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		in           UpdateInput
@@ -105,6 +108,7 @@ func TestCrudEdgeApplyUpdateNames(t *testing.T) {
 }
 
 func TestCrudEdgeSameDetails(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		a, b string
@@ -130,6 +134,7 @@ func TestCrudEdgeSameDetails(t *testing.T) {
 }
 
 func TestCrudEdgeValidateCurrency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		code     money.Currency
 		exponent int
@@ -157,6 +162,7 @@ func TestCrudEdgeValidateCurrency(t *testing.T) {
 }
 
 func TestCrudEdgeSameTerms(t *testing.T) {
+	t.Parallel()
 	acc := Account{Currency: "USD", NormalSide: Debit, AllowNegative: true, OverdraftLimit: amt(5), Name: "a", Metadata: jsontext.Value(`{"x":1}`)}
 	base := CreateAccountInput{Currency: "USD", NormalSide: Debit, AllowNegative: true, OverdraftLimit: amt(5)}
 	tests := []struct {

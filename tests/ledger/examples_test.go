@@ -25,6 +25,7 @@ type docBlock struct {
 }
 
 func TestDocExamples(t *testing.T) {
+	t.Parallel()
 	for _, tool := range []string{"bash", "curl", "jq"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Skipf("%s is not installed", tool)

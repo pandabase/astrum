@@ -15,6 +15,7 @@ import (
 )
 
 func TestIdempotencyEdgeReplayedFlag(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -37,6 +38,7 @@ func TestIdempotencyEdgeReplayedFlag(t *testing.T) {
 }
 
 func TestIdempotencyEdgeMetadataNumbers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -110,6 +112,7 @@ func TestIdempotencyEdgeMetadataNumbers(t *testing.T) {
 }
 
 func TestIdempotencyEdgePayloadFields(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -197,6 +200,7 @@ func TestIdempotencyEdgePayloadFields(t *testing.T) {
 }
 
 func TestIdempotencyEdgeKeyScope(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -245,6 +249,7 @@ func TestIdempotencyEdgeKeyScope(t *testing.T) {
 }
 
 func TestIdempotencyEdgeRejectionsDoNotConsumeKeys(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -301,6 +306,7 @@ func TestIdempotencyEdgeRejectionsDoNotConsumeKeys(t *testing.T) {
 }
 
 func TestIdempotencyEdgeBatchKeys(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -404,6 +410,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 }
 
 func TestIdempotencyEdgeExternalIDs(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -490,6 +497,7 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 }
 
 func TestIdempotencyEdgeConcurrentDifferentBodies(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)

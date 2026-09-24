@@ -110,6 +110,27 @@ func (e *env) balance(t testing.TB, id uuid.UUID) int64 {
 	return small(t, e.get(t, id).Posted.Amount)
 }
 
+func (e *env) settle(t testing.TB) {
+	t.Helper()
+	ctx := context.Background()
+	var xid string
+	if err := e.pool.QueryRow(ctx, `SELECT pg_current_xact_id()::text`).Scan(&xid); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		var done bool
+		if err := e.pool.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot()) > $1::xid8`, xid).Scan(&done); err != nil {
+			t.Fatal(err)
+		}
+		if done {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("older transactions are still in flight")
+		}
+	}
+}
+
 func (e *env) verify(t testing.TB) {
 	t.Helper()
 	if _, err := e.m.Seal(context.Background()); err != nil {

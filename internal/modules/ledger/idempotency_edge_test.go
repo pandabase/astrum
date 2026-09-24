@@ -9,6 +9,7 @@ import (
 )
 
 func TestIdempotencyEdgeNumberEquality(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		a, b string
 		want bool
@@ -47,6 +48,7 @@ func TestIdempotencyEdgeNumberEquality(t *testing.T) {
 }
 
 func TestIdempotencyEdgeStructuralEquality(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		a, b string
@@ -71,6 +73,7 @@ func TestIdempotencyEdgeStructuralEquality(t *testing.T) {
 }
 
 func TestIdempotencyEdgePendingRequestMatching(t *testing.T) {
+	t.Parallel()
 	a, b := uuid.New(), uuid.New()
 	at := time.Date(2026, 5, 6, 7, 8, 9, 123_456_000, time.UTC)
 	request := PostInput{

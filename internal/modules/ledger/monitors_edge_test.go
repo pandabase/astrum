@@ -11,6 +11,7 @@ import (
 )
 
 func TestMonitorsEdgeConditionHolds(t *testing.T) {
+	t.Parallel()
 	balances := Balances{
 		Pending:   Balance{Amount: amt(20)},
 		Posted:    Balance{Amount: amt(10)},
@@ -47,6 +48,7 @@ func TestMonitorsEdgeConditionHolds(t *testing.T) {
 }
 
 func TestMonitorsEdgeValidate(t *testing.T) {
+	t.Parallel()
 	id := uuid.New()
 	tests := []struct {
 		name string
@@ -71,6 +73,7 @@ func TestMonitorsEdgeValidate(t *testing.T) {
 }
 
 func TestMonitorsEdgeCrossedFiresOnEntryOnly(t *testing.T) {
+	t.Parallel()
 	id := uuid.New()
 	m := BalanceMonitor{ID: uuid.New(), AccountID: id, Condition: AlertCondition{Field: "posted", Operator: "gte", Value: amt(10)}}
 	tests := []struct {

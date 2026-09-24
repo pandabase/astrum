@@ -21,6 +21,7 @@ func feFilters(n int) map[string]string {
 }
 
 func TestPaginationEdgeLedgers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	var ledgers []ledger.Ledger
@@ -75,6 +76,7 @@ func TestPaginationEdgeLedgers(t *testing.T) {
 }
 
 func TestPaginationEdgeAccounts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})

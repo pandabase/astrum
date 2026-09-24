@@ -76,6 +76,7 @@ func start(t *testing.T) server {
 }
 
 func TestScenarios(t *testing.T) {
+	t.Parallel()
 	s := start(t)
 	tests := []struct {
 		scenario     string
@@ -123,6 +124,7 @@ func TestScenarios(t *testing.T) {
 }
 
 func TestHotAccounts(t *testing.T) {
+	t.Parallel()
 	s := start(t)
 	report, err := bench.Run(context.Background(), bench.Config{
 		URL: s.url, Key: s.writer, Scenario: "transfer", Operations: 40, Concurrency: 8, Accounts: 2, Verify: true,
@@ -133,6 +135,7 @@ func TestHotAccounts(t *testing.T) {
 }
 
 func TestDurationAndRate(t *testing.T) {
+	t.Parallel()
 	s := start(t)
 	var ticks atomic.Int64
 	report, err := bench.Run(context.Background(), bench.Config{
@@ -154,6 +157,7 @@ func TestDurationAndRate(t *testing.T) {
 }
 
 func TestRejectsBadSetup(t *testing.T) {
+	t.Parallel()
 	s := start(t)
 	base := bench.Config{URL: s.url, Key: s.writer, Scenario: "transfer", Operations: 1, Concurrency: 1, Accounts: 2}
 	tests := []struct {
@@ -184,6 +188,7 @@ func TestRejectsBadSetup(t *testing.T) {
 }
 
 func TestFailuresAreCountedByCode(t *testing.T) {
+	t.Parallel()
 	var posts atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {

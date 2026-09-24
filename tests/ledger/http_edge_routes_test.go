@@ -169,6 +169,7 @@ func heWantProblem(t *testing.T, r heResp, status int, code string) {
 }
 
 func TestHeRoutesMalformedIDs(t *testing.T) {
+	t.Parallel()
 	_, c := heNewLedgerServer(t)
 	for prefix, routes := range heIDRoutes() {
 		for _, rt := range routes {
@@ -190,6 +191,7 @@ func TestHeRoutesMalformedIDs(t *testing.T) {
 }
 
 func TestHeRoutesUnknownIDs(t *testing.T) {
+	t.Parallel()
 	_, c := heNewLedgerServer(t)
 	for prefix, routes := range heIDRoutes() {
 		for _, rt := range routes {
@@ -206,6 +208,7 @@ func TestHeRoutesUnknownIDs(t *testing.T) {
 }
 
 func TestHeRoutesMalformedMembers(t *testing.T) {
+	t.Parallel()
 	_, c := heNewLedgerServer(t)
 	cat := heID("cat")
 	for _, method := range []string{http.MethodPut, http.MethodDelete} {
@@ -221,6 +224,7 @@ func TestHeRoutesMalformedMembers(t *testing.T) {
 }
 
 func TestHeRoutesIdempotencyKeyRequired(t *testing.T) {
+	t.Parallel()
 	_, c := heNewLedgerServer(t)
 	for _, rt := range []heRoute{
 		{http.MethodPost, "/v1/transactions", `{}`, true},
@@ -255,6 +259,7 @@ func TestHeRoutesIdempotencyKeyRequired(t *testing.T) {
 }
 
 func TestHeRoutesMethodNotAllowed(t *testing.T) {
+	t.Parallel()
 	_, c := heNewLedgerServer(t)
 	tests := []struct {
 		method, path string
@@ -320,6 +325,7 @@ func TestHeRoutesMethodNotAllowed(t *testing.T) {
 func heCursor(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
 func TestHeRoutesListQueryValidation(t *testing.T) {
+	t.Parallel()
 	e, c := heNewLedgerServer(t)
 	acct := typeid.Encode("acct", e.open.ID)
 	uuidRoutes := []string{
@@ -390,6 +396,7 @@ func TestHeRoutesListQueryValidation(t *testing.T) {
 }
 
 func TestHeRoutesFilterValidation(t *testing.T) {
+	t.Parallel()
 	e, c := heNewLedgerServer(t)
 	acct := typeid.Encode("acct", e.open.ID)
 	ldg := typeid.Encode("ldg", e.ledger.ID)

@@ -33,6 +33,7 @@ func feRollUp(t *testing.T, e *env, id uuid.UUID) ledger.Balances {
 }
 
 func TestCategoriesEdgeUnnest(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	x := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -116,6 +117,7 @@ func TestCategoriesEdgeUnnest(t *testing.T) {
 }
 
 func TestCategoriesEdgeGraph(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -220,6 +222,7 @@ func TestCategoriesEdgeGraph(t *testing.T) {
 }
 
 func TestCategoriesEdgeNormalSides(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	debit := e.account(t, "USD", ledger.Debit, unrestricted)
 	credit := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -250,6 +253,7 @@ func TestCategoriesEdgeNormalSides(t *testing.T) {
 }
 
 func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	eurSrc := e.account(t, "EUR", ledger.Credit, unrestricted)
@@ -301,6 +305,7 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 }
 
 func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -375,6 +380,7 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 }
 
 func TestCategoriesEdgeUpdate(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	c, err := e.m.CreateCategory(ctx, ledger.CreateCategoryInput{
@@ -431,6 +437,7 @@ func TestCategoriesEdgeUpdate(t *testing.T) {
 }
 
 func TestCategoriesEdgeCreateAndList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 

@@ -38,6 +38,7 @@ func feFired(t *testing.T, e *env, id uuid.UUID) int {
 }
 
 func TestMonitorsEdgeThresholds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 100)
@@ -89,6 +90,7 @@ func TestMonitorsEdgeThresholds(t *testing.T) {
 }
 
 func TestMonitorsEdgeCrossingAtThreshold(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 100)
@@ -135,6 +137,7 @@ func TestMonitorsEdgeCrossingAtThreshold(t *testing.T) {
 }
 
 func TestMonitorsEdgeHoldReleases(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 100)
@@ -180,6 +183,7 @@ func TestMonitorsEdgeHoldReleases(t *testing.T) {
 }
 
 func TestMonitorsEdgeMany(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
@@ -203,6 +207,7 @@ func TestMonitorsEdgeMany(t *testing.T) {
 }
 
 func TestMonitorsEdgeAccountStatus(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	closed := e.account(t, "USD", ledger.Debit)
@@ -241,6 +246,7 @@ func TestMonitorsEdgeAccountStatus(t *testing.T) {
 }
 
 func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 10)
@@ -319,6 +325,7 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 }
 
 func TestMonitorsEdgeList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 10)

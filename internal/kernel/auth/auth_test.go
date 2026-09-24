@@ -33,6 +33,7 @@ func create(t *testing.T, s *Service, name string, role Role) (Key, string) {
 }
 
 func TestParseToken(t *testing.T) {
+	t.Parallel()
 	valid := "sk_01h455vb4pex5vsknk084sn02q_" + strings.Repeat("A", 43)
 	if _, ok := parseToken(valid); !ok {
 		t.Fatalf("parseToken(%s) failed", valid)
@@ -53,6 +54,7 @@ func TestParseToken(t *testing.T) {
 }
 
 func TestAuthenticate(t *testing.T) {
+	t.Parallel()
 	s := setup(t)
 	ctx := context.Background()
 	k, token := create(t, s, "ops", RoleAdmin)
@@ -94,7 +96,7 @@ func TestAuthenticate(t *testing.T) {
 	})
 
 	t.Run("expired", func(t *testing.T) {
-		soon := time.Now().Add(100 * time.Millisecond)
+		soon := time.Now().Add(2 * time.Second)
 		_, token, err := s.Create(ctx, CreateInput{Name: "short", Role: RoleWrite, ExpiresAt: &soon})
 		if err != nil {
 			t.Fatal(err)
@@ -102,7 +104,7 @@ func TestAuthenticate(t *testing.T) {
 		if _, err := s.Authenticate(ctx, token); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(time.Until(soon) + 50*time.Millisecond)
 		_, err = s.Authenticate(ctx, token)
 		wantUnauthenticated(t, err)
 	})
@@ -161,6 +163,7 @@ func wantUnauthenticated(t *testing.T, err error) {
 }
 
 func TestMiddleware(t *testing.T) {
+	t.Parallel()
 	s := setup(t)
 	mux := http.NewServeMux()
 	s.Routes(mux)

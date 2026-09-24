@@ -59,6 +59,7 @@ func countTypes(evs []map[string]any) map[string]int {
 }
 
 func TestLedgerEmitsEvents(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -150,6 +151,7 @@ func TestLedgerEmitsEvents(t *testing.T) {
 }
 
 func TestBalanceMonitorCrossings(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 150)
@@ -243,6 +245,7 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 }
 
 func TestWebhookEndToEnd(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	svc := events.NewService(e.pool, testdb.Logger(), events.Config{AllowInsecureURLs: true})
 	var (
@@ -312,6 +315,7 @@ func TestWebhookEndToEnd(t *testing.T) {
 }
 
 func TestHTTPBalanceMonitors(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	cash := a.account("cash", "debit", `,"allow_negative":true`)
 	m := a.must(http.StatusCreated, http.MethodPost, "/v1/balance_monitors", "", fmt.Sprintf(

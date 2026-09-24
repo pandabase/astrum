@@ -132,6 +132,7 @@ func requirePrefix(t *testing.T, v any, prefix string) string {
 }
 
 func TestHTTPEndToEnd(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := requirePrefix(t, a.account("cash", "debit", ""), "acct")
@@ -243,6 +244,7 @@ func TestHTTPEndToEnd(t *testing.T) {
 }
 
 func TestHTTPErrors(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	x := a.account("x", "debit", "")
 	y := a.account("y", "debit", "")
@@ -320,6 +322,7 @@ func TestHTTPErrors(t *testing.T) {
 }
 
 func TestHTTPAccountStatus(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", "")
@@ -349,6 +352,7 @@ func TestHTTPAccountStatus(t *testing.T) {
 }
 
 func TestHTTPListHoldsAndSchedules(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	cash := a.account("cash", "debit", "")

@@ -49,6 +49,7 @@ func feCreditFunded(t *testing.T, e *env, amount int64) ledger.Account {
 }
 
 func TestHoldsEdgeReserveBoundaries(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	later := time.Now().Add(time.Hour)
@@ -104,6 +105,7 @@ func TestHoldsEdgeReserveBoundaries(t *testing.T) {
 }
 
 func TestHoldsEdgeValidation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 100)
@@ -157,6 +159,7 @@ func TestHoldsEdgeValidation(t *testing.T) {
 }
 
 func TestHoldsEdgeReplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 100)
@@ -247,6 +250,7 @@ func TestHoldsEdgeReplay(t *testing.T) {
 }
 
 func TestHoldsEdgeExpiry(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 1_000)
@@ -307,6 +311,7 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 }
 
 func TestHoldsEdgeSweepBatches(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, SweepBatch: 2})
 	ctx := context.Background()
 	acc := e.funded(t, 1_000)
@@ -340,6 +345,7 @@ func TestHoldsEdgeSweepBatches(t *testing.T) {
 }
 
 func TestHoldsEdgeConcurrentSweeps(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, SweepBatch: 3})
 	ctx := context.Background()
 	const total = 30
@@ -390,6 +396,7 @@ func TestHoldsEdgeConcurrentSweeps(t *testing.T) {
 }
 
 func TestHoldsEdgeCapture(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	later := time.Now().Add(time.Hour)
@@ -499,6 +506,7 @@ func TestHoldsEdgeCapture(t *testing.T) {
 }
 
 func TestHoldsEdgeTerminalStates(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	merchant := e.account(t, "USD", ledger.Debit)
@@ -564,6 +572,7 @@ func TestHoldsEdgeTerminalStates(t *testing.T) {
 }
 
 func TestHoldsEdgeConcurrentVoidAndCapture(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 10_000)
@@ -601,6 +610,7 @@ func TestHoldsEdgeConcurrentVoidAndCapture(t *testing.T) {
 }
 
 func TestHoldsEdgeCloseAccountWithHolds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -644,6 +654,7 @@ func TestHoldsEdgeCloseAccountWithHolds(t *testing.T) {
 }
 
 func TestHoldsEdgeList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acc := e.funded(t, 1_000)

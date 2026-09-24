@@ -24,6 +24,7 @@ func holdInput(key string, account uuid.UUID, amount int64, ttl time.Duration) l
 }
 
 func TestHoldLifecycle(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 1_000)
@@ -121,6 +122,7 @@ func TestHoldLifecycle(t *testing.T) {
 }
 
 func TestHoldVoidAndReplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 500)
@@ -159,6 +161,7 @@ func TestHoldVoidAndReplay(t *testing.T) {
 }
 
 func TestHoldCaptureRules(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 500)
@@ -183,6 +186,7 @@ func TestHoldCaptureRules(t *testing.T) {
 }
 
 func TestHoldExpiry(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 500)
@@ -221,6 +225,7 @@ func TestHoldExpiry(t *testing.T) {
 }
 
 func TestConcurrentCapturesOnlyOneWins(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 1_000)
@@ -262,6 +267,7 @@ func TestConcurrentCapturesOnlyOneWins(t *testing.T) {
 }
 
 func TestListHolds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	customer := e.funded(t, 1_000)

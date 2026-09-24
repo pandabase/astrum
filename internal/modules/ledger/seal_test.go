@@ -28,6 +28,7 @@ func sealFixture() Transaction {
 }
 
 func TestEntryHashV1(t *testing.T) {
+	t.Parallel()
 	const want = "100840c7cfe176bc6fe127ea9b13c12a307715783eeecc1ae164f0325db30fab"
 	if got := hex.EncodeToString(entryHash(sealFixture())); got != want {
 		t.Fatalf("entryHash = %s, want %s", got, want)
@@ -35,6 +36,7 @@ func TestEntryHashV1(t *testing.T) {
 }
 
 func TestEntryHashV2(t *testing.T) {
+	t.Parallel()
 	wide := sealFixture()
 	wide.Postings[0].balanceAfter = money.MustParseAmount("18446744073709553066")
 	if hex.EncodeToString(entryHash(wide)) == hex.EncodeToString(entryHash(sealFixture())) {
@@ -43,6 +45,7 @@ func TestEntryHashV2(t *testing.T) {
 }
 
 func TestEntryHashV3(t *testing.T) {
+	t.Parallel()
 	base := sealFixture()
 	base.EffectiveAt = base.CreatedAt
 	base.PostedAt = &base.CreatedAt

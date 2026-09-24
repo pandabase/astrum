@@ -33,6 +33,7 @@ func peCondition(op string, v money.Amount) *ledger.BalanceCondition {
 }
 
 func TestLocksEdgeOperatorMatrix(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit)
@@ -107,6 +108,7 @@ func TestLocksEdgeOperatorMatrix(t *testing.T) {
 }
 
 func TestLocksEdgeSignsAndCombinations(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -216,6 +218,7 @@ func TestLocksEdgeSignsAndCombinations(t *testing.T) {
 }
 
 func TestLocksEdgeLockVersion(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -308,6 +311,7 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 }
 
 func TestLocksEdgeArchiveOnFailure(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)

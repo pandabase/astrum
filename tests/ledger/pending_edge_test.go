@@ -13,6 +13,7 @@ import (
 )
 
 func TestPendingEdgeReservationBoundary(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -76,6 +77,7 @@ func TestPendingEdgeReservationBoundary(t *testing.T) {
 }
 
 func TestPendingEdgeCreditNormal(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	liability := e.account(t, "USD", ledger.Credit)
@@ -101,6 +103,7 @@ func TestPendingEdgeCreditNormal(t *testing.T) {
 }
 
 func TestPendingEdgeStateTransitions(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -223,6 +226,7 @@ func TestPendingEdgeStateTransitions(t *testing.T) {
 }
 
 func TestPendingEdgeConcurrentResolution(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -266,6 +270,7 @@ func TestPendingEdgeConcurrentResolution(t *testing.T) {
 }
 
 func TestPendingEdgeManyPendingsExhaustFunds(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)

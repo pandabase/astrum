@@ -9,6 +9,7 @@ import (
 )
 
 func TestSchedulesEdgeMatches(t *testing.T) {
+	t.Parallel()
 	a, b := uuid.New(), uuid.New()
 	when := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	request := PostInput{

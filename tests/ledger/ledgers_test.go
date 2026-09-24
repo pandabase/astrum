@@ -17,6 +17,7 @@ import (
 )
 
 func TestLedgers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -94,6 +95,7 @@ func TestLedgers(t *testing.T) {
 }
 
 func TestAccountsBelongToOneLedger(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})
@@ -211,6 +213,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 }
 
 func TestHTTPLedgers(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 
 	l := a.must(http.StatusCreated, http.MethodPost, "/v1/ledgers", "", `{"name":"Wallets","metadata":{"env":"eu"}}`)

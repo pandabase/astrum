@@ -61,6 +61,7 @@ func (f *fixture) available(t *testing.T, name string) int64 {
 }
 
 func TestApplyFundsChecks(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		accounts map[string]accountState
@@ -136,6 +137,7 @@ func TestApplyFundsChecks(t *testing.T) {
 }
 
 func TestApplyIsSequential(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{"a": {}, "b": {}, "open": {allowNegative: true}})
 
 	if _, err := f.state.apply(f.transfer("a", "b", 100), nil); !errors.Is(err, ErrInsufficientFunds) {
@@ -158,6 +160,7 @@ func TestApplyIsSequential(t *testing.T) {
 }
 
 func TestApplyBalanceAfterAndVersions(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{"open": {allowNegative: true, version: 7}, "a": {}})
 
 	postings, err := f.state.apply(PostInput{IdempotencyKey: "k", Postings: []Posting{
@@ -187,6 +190,7 @@ func TestApplyBalanceAfterAndVersions(t *testing.T) {
 }
 
 func TestApplyRejections(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{
 		"usd":   {allowNegative: true},
 		"usd2":  {allowNegative: true},
@@ -218,6 +222,7 @@ func TestApplyRejections(t *testing.T) {
 }
 
 func TestReserveAndRelease(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{"a": {postedDebits: amt(100)}, "b": {}})
 	a := f.ids["a"]
 
@@ -247,6 +252,7 @@ func TestReserveAndRelease(t *testing.T) {
 }
 
 func TestAccountBelowFloorCanBeRepaired(t *testing.T) {
+	t.Parallel()
 
 	f := newFixture(t, map[string]accountState{"a": {postedCredits: amt(500)}, "open": {allowNegative: true}})
 
@@ -259,6 +265,7 @@ func TestAccountBelowFloorCanBeRepaired(t *testing.T) {
 }
 
 func TestNonOpenAccountsRejectMovement(t *testing.T) {
+	t.Parallel()
 	for _, status := range []AccountStatus{AccountFrozen, AccountClosed} {
 		t.Run(string(status), func(t *testing.T) {
 			f := newFixture(t, map[string]accountState{"a": {status: status, postedDebits: amt(100), held: amt(40)}, "b": {}})
@@ -287,6 +294,7 @@ func TestNonOpenAccountsRejectMovement(t *testing.T) {
 func amt(n int64) money.Amount { return money.NewAmount(n) }
 
 func TestPendingTransitions(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{"a": {postedDebits: amt(100)}, "b": {}})
 	in := f.transfer("a", "b", 70)
 	in.Status = TransactionPending
@@ -318,6 +326,7 @@ func TestPendingTransitions(t *testing.T) {
 }
 
 func TestBalanceViews(t *testing.T) {
+	t.Parallel()
 	a := accountState{
 		normalSide:     Credit,
 		postedDebits:   amt(20),
@@ -349,6 +358,7 @@ func TestBalanceViews(t *testing.T) {
 }
 
 func TestCheckPartial(t *testing.T) {
+	t.Parallel()
 	a, b, c := uuid.New(), uuid.New(), uuid.New()
 	pending := []Posting{
 		{AccountID: a, Side: Credit, Amount: amt(100)},

@@ -11,6 +11,7 @@ import (
 )
 
 func TestValidateAccount(t *testing.T) {
+	t.Parallel()
 	valid := CreateAccountInput{LedgerID: uuid.New(), Code: "assets:cash", Currency: "USD", NormalSide: Debit}
 
 	tests := []struct {
@@ -50,6 +51,7 @@ func TestValidateAccount(t *testing.T) {
 }
 
 func TestValidatePost(t *testing.T) {
+	t.Parallel()
 	a, b := uuid.New(), uuid.New()
 	valid := func() PostInput {
 		return PostInput{
@@ -103,6 +105,7 @@ func TestValidatePost(t *testing.T) {
 }
 
 func TestValidateHoldCaptureSchedule(t *testing.T) {
+	t.Parallel()
 	future := time.Now().Add(time.Hour)
 	tests := []struct {
 		name string
@@ -139,6 +142,7 @@ func TestValidateHoldCaptureSchedule(t *testing.T) {
 }
 
 func TestTransactionMatches(t *testing.T) {
+	t.Parallel()
 	a, b := uuid.New(), uuid.New()
 	txn := Transaction{
 		Description: "coffee",

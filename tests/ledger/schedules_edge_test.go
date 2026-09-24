@@ -47,6 +47,7 @@ func feDrain(t *testing.T, e *env) (executed, failed int) {
 }
 
 func TestSchedulesEdgeValidation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -85,6 +86,7 @@ func TestSchedulesEdgeValidation(t *testing.T) {
 }
 
 func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	rich := e.funded(t, 1_000)
@@ -168,6 +170,7 @@ func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
 }
 
 func TestSchedulesEdgeKeyConflictWithExistingSchedule(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -190,6 +193,7 @@ func TestSchedulesEdgeKeyConflictWithExistingSchedule(t *testing.T) {
 }
 
 func TestSchedulesEdgeEffectiveAtIsPreserved(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -214,6 +218,7 @@ func TestSchedulesEdgeEffectiveAtIsPreserved(t *testing.T) {
 }
 
 func TestSchedulesEdgeReplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -287,6 +292,7 @@ func TestSchedulesEdgeReplay(t *testing.T) {
 }
 
 func TestSchedulesEdgeCancel(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -365,6 +371,7 @@ func TestSchedulesEdgeCancel(t *testing.T) {
 }
 
 func TestSchedulesEdgeSweepBatches(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, SweepBatch: 2})
 	ctx := context.Background()
 	a := e.funded(t, 3)
@@ -395,6 +402,7 @@ func TestSchedulesEdgeSweepBatches(t *testing.T) {
 }
 
 func TestSchedulesEdgeConcurrentSweepsRunEachOnce(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{SweepInterval: time.Hour, SweepBatch: 4})
 	ctx := context.Background()
 	a := e.funded(t, 100_000)
@@ -449,6 +457,7 @@ func TestSchedulesEdgeConcurrentSweepsRunEachOnce(t *testing.T) {
 }
 
 func TestSchedulesEdgeList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)

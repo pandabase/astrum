@@ -111,6 +111,7 @@ func fakeConfig(url string) bench.Config {
 }
 
 func TestEdgeRunSetupFailures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		api  *fakeAPI
@@ -154,6 +155,7 @@ func TestEdgeRunSetupFailures(t *testing.T) {
 }
 
 func TestEdgeRunAdminKeyAccepted(t *testing.T) {
+	t.Parallel()
 	api := &fakeAPI{role: "admin"}
 	report, err := bench.Run(context.Background(), fakeConfig(api.serve(t)))
 	if err != nil || report.Succeeded != 6 {
@@ -162,6 +164,7 @@ func TestEdgeRunAdminKeyAccepted(t *testing.T) {
 }
 
 func TestEdgeRunSetupRequests(t *testing.T) {
+	t.Parallel()
 	api := &fakeAPI{}
 	cfg := fakeConfig(api.serve(t) + "//")
 	cfg.Accounts = 20
@@ -214,6 +217,7 @@ func TestEdgeRunSetupRequests(t *testing.T) {
 }
 
 func TestEdgeRunScenarioRequests(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		scenario string
 		paths    []string
@@ -277,6 +281,7 @@ func TestEdgeRunScenarioRequests(t *testing.T) {
 }
 
 func TestEdgeRunTwoStepFailures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		scenario string
 		failOn   int64
@@ -315,6 +320,7 @@ func TestEdgeRunTwoStepFailures(t *testing.T) {
 }
 
 func TestEdgeRunTransportErrors(t *testing.T) {
+	t.Parallel()
 	api := &fakeAPI{txn: func(_ int64, w http.ResponseWriter, _ *http.Request) bool {
 		conn, _, err := http.NewResponseController(w).Hijack()
 		if err == nil {
@@ -332,6 +338,7 @@ func TestEdgeRunTransportErrors(t *testing.T) {
 }
 
 func TestEdgeRunCancelReportsPartialResults(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	api := &fakeAPI{txn: func(n int64, _ http.ResponseWriter, _ *http.Request) bool {
@@ -355,6 +362,7 @@ func TestEdgeRunCancelReportsPartialResults(t *testing.T) {
 }
 
 func TestEdgeRunCancelWithVerify(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	api := &fakeAPI{txn: func(n int64, _ http.ResponseWriter, _ *http.Request) bool {
@@ -376,6 +384,7 @@ func TestEdgeRunCancelWithVerify(t *testing.T) {
 }
 
 func TestEdgeRunIntegrity(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		integrity string
@@ -411,6 +420,7 @@ func TestEdgeRunIntegrity(t *testing.T) {
 }
 
 func TestEdgeRunSeedReproducesOperations(t *testing.T) {
+	t.Parallel()
 	bodies := func() []string {
 		api := &fakeAPI{}
 		cfg := fakeConfig(api.serve(t))
@@ -437,6 +447,7 @@ func TestEdgeRunSeedReproducesOperations(t *testing.T) {
 }
 
 func TestEdgeRunRandomSeedIsReported(t *testing.T) {
+	t.Parallel()
 	api := &fakeAPI{}
 	cfg := fakeConfig(api.serve(t))
 	cfg.Seed = 0
@@ -447,6 +458,7 @@ func TestEdgeRunRandomSeedIsReported(t *testing.T) {
 }
 
 func TestEdgeRunCustomHTTPClient(t *testing.T) {
+	t.Parallel()
 	var used atomic.Int64
 	api := &fakeAPI{}
 	url := api.serve(t)
@@ -468,6 +480,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestEdgeRunDroppedConnectionRetriedByIdempotencyKey(t *testing.T) {
+	t.Parallel()
 	api := &fakeAPI{txn: func(n int64, w http.ResponseWriter, _ *http.Request) bool {
 		if n != 1 {
 			return false

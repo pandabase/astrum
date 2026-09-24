@@ -8,6 +8,7 @@ import (
 )
 
 func TestJSONEqual(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		a, b string
 		want bool
@@ -34,6 +35,7 @@ func TestJSONEqual(t *testing.T) {
 }
 
 func TestBalanceConditionViolation(t *testing.T) {
+	t.Parallel()
 	p := func(n int64) *money.Amount { a := money.NewAmount(n); return &a }
 	tests := []struct {
 		name string

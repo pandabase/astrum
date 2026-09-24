@@ -22,6 +22,7 @@ func peResolve(state *ledgerState, in PostInput) (o outcome, err error) {
 }
 
 func TestPostingEdgeLockVersionDoesNotMaskValidation(t *testing.T) {
+	t.Parallel()
 	stale := int64(1 << 40)
 	tests := []struct {
 		name  string
@@ -55,6 +56,7 @@ func TestPostingEdgeLockVersionDoesNotMaskValidation(t *testing.T) {
 }
 
 func TestPostingEdgeFundsBoundaries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		account accountState
@@ -103,6 +105,7 @@ func TestPostingEdgeFundsBoundaries(t *testing.T) {
 }
 
 func TestPostingEdgeRejectedTransitionIsAtomic(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, map[string]accountState{
 		"a":    {postedDebits: amt(100), pendingCredits: amt(10), version: 3},
 		"b":    {version: 5},

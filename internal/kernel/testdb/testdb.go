@@ -18,6 +18,8 @@ import (
 
 const EnvURL = "ASTRUM_TEST_DATABASE_URL"
 
+var slots = make(chan struct{}, 4)
+
 func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 	t.Helper()
 
@@ -25,6 +27,9 @@ func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 	if url == "" || testing.Short() {
 		t.Skipf("integration test: set %s to run", EnvURL)
 	}
+
+	slots <- struct{}{}
+	t.Cleanup(func() { <-slots })
 
 	ctx := context.Background()
 	schema := "test_" + randomSuffix(t)

@@ -13,6 +13,7 @@ import (
 )
 
 func TestCreateAccount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -51,6 +52,7 @@ func TestCreateAccount(t *testing.T) {
 }
 
 func TestPostBalancesOnNormalSide(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 
 	cash := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -88,6 +90,7 @@ func TestPostBalancesOnNormalSide(t *testing.T) {
 }
 
 func TestPostIdempotency(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 5_000)
@@ -132,6 +135,7 @@ func TestPostIdempotency(t *testing.T) {
 }
 
 func TestPostRejections(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	usdA := e.funded(t, 100)
@@ -179,6 +183,7 @@ func TestPostRejections(t *testing.T) {
 }
 
 func TestPostBalanceOverflow(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.account(t, "USD", ledger.Debit, unrestricted)
 	b := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -193,6 +198,7 @@ func TestPostBalanceOverflow(t *testing.T) {
 }
 
 func TestBatchAtomic(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -237,6 +243,7 @@ func TestBatchAtomic(t *testing.T) {
 }
 
 func TestBatchPartial(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100)
@@ -285,6 +292,7 @@ func TestBatchPartial(t *testing.T) {
 }
 
 func TestBatchLimits(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	_, err := e.m.PostBatch(context.Background(), nil, true)
 	wantErr(t, err, ledger.ErrInvalid)
@@ -295,6 +303,7 @@ func TestBatchLimits(t *testing.T) {
 }
 
 func TestReverse(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -345,6 +354,7 @@ func TestReverse(t *testing.T) {
 }
 
 func TestStatement(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	deposits := e.account(t, "USD", ledger.Credit)

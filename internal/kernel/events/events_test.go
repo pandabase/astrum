@@ -22,6 +22,7 @@ import (
 )
 
 func TestSignAndVerify(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"id":"evt_1"}`)
 	now := time.Unix(1_800_000_000, 0)
 	sig := Sign("whsec_x", now, body)
@@ -53,6 +54,7 @@ func TestSignAndVerify(t *testing.T) {
 }
 
 func TestSubscribed(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		types []string
 		event string
@@ -74,6 +76,7 @@ func TestSubscribed(t *testing.T) {
 }
 
 func TestPublicOnly(t *testing.T) {
+	t.Parallel()
 	for addr, ok := range map[string]bool{
 		"93.184.216.34:443":   true,
 		"[2606:4700::1]:443":  true,
@@ -178,6 +181,7 @@ func drain(t *testing.T, s *Service, want int) {
 }
 
 func TestDeliverySignedAndFiltered(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{})
 	ctx := context.Background()
 	rcv := newReceiver(t)
@@ -234,6 +238,7 @@ func TestDeliverySignedAndFiltered(t *testing.T) {
 }
 
 func TestRetriesThenFails(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{Retries: []time.Duration{time.Millisecond, time.Millisecond}})
 	ctx := context.Background()
 	rcv := newReceiver(t)
@@ -277,6 +282,7 @@ func TestRetriesThenFails(t *testing.T) {
 }
 
 func TestLeaseRecoversCrashedSender(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{Lease: 50 * time.Millisecond, Timeout: 10 * time.Millisecond})
 	ctx := context.Background()
 	rcv := newReceiver(t)
@@ -298,6 +304,7 @@ func TestLeaseRecoversCrashedSender(t *testing.T) {
 }
 
 func TestDispatchWaitsForInFlight(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{})
 	ctx := context.Background()
 	rcv := newReceiver(t)
@@ -331,6 +338,7 @@ func TestDispatchWaitsForInFlight(t *testing.T) {
 }
 
 func TestEndpointValidation(t *testing.T) {
+	t.Parallel()
 	strict := NewService(nil, testdb.Logger(), Config{})
 	for _, tt := range []struct {
 		url   string
@@ -358,6 +366,7 @@ func TestEndpointValidation(t *testing.T) {
 }
 
 func TestHTTP(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{})
 	mux := http.NewServeMux()
 	s.Routes(mux)
@@ -427,6 +436,7 @@ func idAtRandom(t time.Time) uuid.UUID {
 }
 
 func TestPrune(t *testing.T) {
+	t.Parallel()
 	s := setup(t, Config{Retention: 24 * time.Hour, PruneBatch: 2, Retries: []time.Duration{time.Hour}})
 	ctx := context.Background()
 	ok, failing := newReceiver(t), newReceiver(t)

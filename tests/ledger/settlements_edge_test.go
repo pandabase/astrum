@@ -33,6 +33,7 @@ func feUnsettled(t *testing.T, e *env, account uuid.UUID) int {
 }
 
 func TestSettlementsEdgeValidation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acme := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -82,6 +83,7 @@ func TestSettlementsEdgeValidation(t *testing.T) {
 }
 
 func TestSettlementsEdgeZeroNet(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	payouts := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -130,6 +132,7 @@ func TestSettlementsEdgeZeroNet(t *testing.T) {
 }
 
 func TestSettlementsEdgeUpperBound(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acme := e.account(t, "USD", ledger.Credit, unrestricted)
@@ -195,6 +198,7 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 }
 
 func TestSettlementsEdgeMovesMoney(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -268,6 +272,7 @@ func TestSettlementsEdgeMovesMoney(t *testing.T) {
 }
 
 func TestSettlementsEdgeConcurrency(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -336,6 +341,7 @@ func TestSettlementsEdgeConcurrency(t *testing.T) {
 }
 
 func TestSettlementsEdgeGetAndList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	acme := e.account(t, "USD", ledger.Credit, unrestricted)

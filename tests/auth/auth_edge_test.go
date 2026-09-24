@@ -105,6 +105,7 @@ func (e *edgeEnv) must(want int, method, path, token, body string) map[string]an
 }
 
 func TestAuthEdgeAuthorizationHeader(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	_, token := e.key("reader", auth.RoleRead)
 	e.key("remaining admin", auth.RoleAdmin)
@@ -192,6 +193,7 @@ func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 }
 
 func TestAuthEdgeRoles(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	_, admin := e.key("admin", auth.RoleAdmin)
 	_, writer := e.key("writer", auth.RoleWrite)
@@ -254,6 +256,7 @@ func TestAuthEdgeRoles(t *testing.T) {
 }
 
 func TestAuthEdgeKeyAdminPathTricks(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	e.key("admin", auth.RoleAdmin)
 	_, writer := e.key("writer", auth.RoleWrite)
@@ -313,6 +316,7 @@ func TestAuthEdgeKeyAdminPathTricks(t *testing.T) {
 }
 
 func TestAuthEdgeInvalidUTF8PathRejected(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	_, reader := e.key("reader", auth.RoleRead)
 	resp := e.call(http.MethodPost, "/v1/%ff", reader, "")
@@ -326,6 +330,7 @@ func TestAuthEdgeInvalidUTF8PathRejected(t *testing.T) {
 }
 
 func TestAuthEdgeMe(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	k, admin := e.key("ops", auth.RoleAdmin)
 	me := e.must(200, http.MethodGet, "/v1/me", admin, "")
@@ -367,6 +372,7 @@ func TestAuthEdgeMe(t *testing.T) {
 }
 
 func TestAuthEdgeMeWithoutMiddleware(t *testing.T) {
+	t.Parallel()
 	svc := auth.New(nil, testdb.Logger())
 	mux := http.NewServeMux()
 	svc.Routes(mux)
@@ -381,6 +387,7 @@ func TestAuthEdgeMeWithoutMiddleware(t *testing.T) {
 }
 
 func TestAuthEdgeCreate(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	adminKey, admin := e.key("admin", auth.RoleAdmin)
 	tests := []struct {
@@ -432,6 +439,7 @@ func TestAuthEdgeCreate(t *testing.T) {
 }
 
 func TestAuthEdgeListKeys(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	_, admin := e.key("admin", auth.RoleAdmin)
 	for i := range 6 {
@@ -504,6 +512,7 @@ func TestAuthEdgeListKeys(t *testing.T) {
 }
 
 func TestAuthEdgeRevoke(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	adminKey, admin := e.key("admin", auth.RoleAdmin)
 	_, backup := e.key("backup", auth.RoleAdmin)
@@ -591,44 +600,48 @@ func TestAuthEdgeRevoke(t *testing.T) {
 }
 
 func TestAuthEdgeConcurrentRevokesKeepOneAdmin(t *testing.T) {
+	t.Parallel()
 	for round := range 5 {
-		e := newEdgeEnv(t)
-		a, _ := e.key(fmt.Sprintf("a-%d", round), auth.RoleAdmin)
-		b, _ := e.key(fmt.Sprintf("b-%d", round), auth.RoleAdmin)
-		var (
-			wg       sync.WaitGroup
-			refused  atomic.Int32
-			revoked  atomic.Int32
-			failures = make(chan error, 2)
-		)
-		for _, k := range []auth.Key{a, b} {
-			wg.Go(func() {
-				_, err := e.svc.Revoke(context.Background(), k.ID)
-				switch {
-				case err == nil:
-					revoked.Add(1)
-				case errors.Is(err, auth.ErrLastAdmin):
-					refused.Add(1)
-				default:
-					failures <- err
-				}
-			})
-		}
-		wg.Wait()
-		close(failures)
-		for err := range failures {
-			t.Fatal(err)
-		}
-		if revoked.Load() != 1 || refused.Load() != 1 {
-			t.Fatalf("revoked %d, refused %d, want 1 and 1", revoked.Load(), refused.Load())
-		}
-		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
-			t.Fatalf("active admins = %d, %v", n, err)
-		}
+		t.Run(fmt.Sprint(round), func(t *testing.T) {
+			e := newEdgeEnv(t)
+			a, _ := e.key(fmt.Sprintf("a-%d", round), auth.RoleAdmin)
+			b, _ := e.key(fmt.Sprintf("b-%d", round), auth.RoleAdmin)
+			var (
+				wg       sync.WaitGroup
+				refused  atomic.Int32
+				revoked  atomic.Int32
+				failures = make(chan error, 2)
+			)
+			for _, k := range []auth.Key{a, b} {
+				wg.Go(func() {
+					_, err := e.svc.Revoke(context.Background(), k.ID)
+					switch {
+					case err == nil:
+						revoked.Add(1)
+					case errors.Is(err, auth.ErrLastAdmin):
+						refused.Add(1)
+					default:
+						failures <- err
+					}
+				})
+			}
+			wg.Wait()
+			close(failures)
+			for err := range failures {
+				t.Fatal(err)
+			}
+			if revoked.Load() != 1 || refused.Load() != 1 {
+				t.Fatalf("revoked %d, refused %d, want 1 and 1", revoked.Load(), refused.Load())
+			}
+			if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
+				t.Fatalf("active admins = %d, %v", n, err)
+			}
+		})
 	}
 }
 
 func TestAuthEdgeWebhookEndpointsAreAdminOnly(t *testing.T) {
+	t.Parallel()
 	e := newEdgeEnv(t)
 	_, reader := e.key("reader", auth.RoleRead)
 	_, writer := e.key("writer", auth.RoleWrite)

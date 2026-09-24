@@ -46,6 +46,7 @@ func (e *env) nest(t *testing.T, parent, child ledger.Category) ledger.Category 
 }
 
 func TestCategoryRollUp(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	cash := e.account(t, "USD", ledger.Debit, unrestricted)
@@ -107,6 +108,7 @@ func TestCategoryRollUp(t *testing.T) {
 }
 
 func TestCategoryGraphRules(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 
@@ -174,6 +176,7 @@ func TestCategoryGraphRules(t *testing.T) {
 }
 
 func TestCategoryQueries(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.account(t, "USD", ledger.Debit)
@@ -224,6 +227,7 @@ func TestCategoryQueries(t *testing.T) {
 }
 
 func TestConcurrentOppositeNesting(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	for i := range 10 {
@@ -246,6 +250,7 @@ func TestConcurrentOppositeNesting(t *testing.T) {
 }
 
 func TestHTTPCategories(t *testing.T) {
+	t.Parallel()
 	a := newAPI(t)
 	equity := a.account("equity", "credit", `,"allow_negative":true`)
 	acme := a.account("acme", "credit", `,"allow_negative":true`)

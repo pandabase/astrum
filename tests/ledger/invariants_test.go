@@ -13,6 +13,7 @@ import (
 )
 
 func TestDatabaseInvariants(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 

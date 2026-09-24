@@ -9,6 +9,7 @@ import (
 )
 
 func TestHistoryEdgeNarrow(t *testing.T) {
+	t.Parallel()
 	d := func(n int) *time.Time {
 		v := time.Date(2026, 1, n, 0, 0, 0, 0, time.UTC)
 		return &v
@@ -37,6 +38,7 @@ func TestHistoryEdgeNarrow(t *testing.T) {
 }
 
 func TestHistoryEdgeValidateRange(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	later, earlier := now.Add(time.Nanosecond), now.Add(-time.Nanosecond)
 	tests := []struct {
@@ -60,6 +62,7 @@ func TestHistoryEdgeValidateRange(t *testing.T) {
 }
 
 func TestHistoryEdgeValidateStatement(t *testing.T) {
+	t.Parallel()
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	id := uuid.New()
 	tests := []struct {

@@ -67,6 +67,7 @@ func peAwaitWaiters(t testing.TB, e *env, want int) {
 }
 
 func TestBatchEdgeSizes(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 100_000)
@@ -117,6 +118,7 @@ func TestBatchEdgeSizes(t *testing.T) {
 }
 
 func TestBatchEdgeValidationAndAlignment(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
@@ -173,6 +175,7 @@ func TestBatchEdgeValidationAndAlignment(t *testing.T) {
 }
 
 func TestBatchEdgeAtomicAbort(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
@@ -225,6 +228,7 @@ func TestBatchEdgeAtomicAbort(t *testing.T) {
 }
 
 func TestBatchEdgeCancellation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
@@ -247,6 +251,7 @@ func TestBatchEdgeCancellation(t *testing.T) {
 }
 
 func TestBatchEdgeConcurrencyCap(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config int
@@ -300,6 +305,7 @@ func TestBatchEdgeConcurrencyCap(t *testing.T) {
 }
 
 func TestBatchEdgeCancelWhileWaitingForSlot(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{BatchConcurrency: 1, SweepInterval: time.Hour})
 	a := e.funded(t, 1_000)
 	b := e.account(t, "USD", ledger.Debit)
@@ -352,6 +358,7 @@ func TestBatchEdgeCancelWhileWaitingForSlot(t *testing.T) {
 }
 
 func TestBatchEdgeSlotReleasedAfterPanic(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{BatchConcurrency: 1, SweepInterval: time.Hour})
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
@@ -376,6 +383,7 @@ func TestBatchEdgeSlotReleasedAfterPanic(t *testing.T) {
 }
 
 func TestBatchEdgeNonAtomicIsolatesWriteTimeFailures(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)

@@ -123,6 +123,7 @@ func problemCode(t *testing.T, r edgeResp) string {
 }
 
 func TestIdempotencyEdgeReplayIsByteIdentical(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	for _, status := range []int{200, 201, 202, 400, 401, 403, 404, 409, 410, 422, 429} {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
@@ -155,6 +156,7 @@ func TestIdempotencyEdgeReplayIsByteIdentical(t *testing.T) {
 }
 
 func TestIdempotencyEdgeServerErrorsAreNotStored(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	for _, status := range []int{500, 502, 503, 504} {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
@@ -179,6 +181,7 @@ func TestIdempotencyEdgeServerErrorsAreNotStored(t *testing.T) {
 }
 
 func TestIdempotencyEdgeResponseShapes(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 
 	t.Run("no body and no status", func(t *testing.T) {
@@ -234,6 +237,7 @@ func TestIdempotencyEdgeResponseShapes(t *testing.T) {
 }
 
 func TestIdempotencyEdgeRequestFingerprint(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	base := h.send(http.MethodPost, "/v1/things?x=1", []string{"fp"}, `{"a":1}`)
 	if base.status != http.StatusCreated {
@@ -279,6 +283,7 @@ func TestIdempotencyEdgeRequestFingerprint(t *testing.T) {
 }
 
 func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodOptions, "PROPFIND"} {
 		t.Run("ignored for "+method, func(t *testing.T) {
@@ -367,6 +372,7 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 }
 
 func TestIdempotencyEdgeScope(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, func(r *http.Request) string { return r.Header.Get("X-Tenant") })
 	as := func(tenant, body string) edgeResp {
 		t.Helper()
@@ -399,6 +405,7 @@ func TestIdempotencyEdgeScope(t *testing.T) {
 }
 
 func TestIdempotencyEdgeConcurrentSameKey(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	h.release = make(chan struct{})
 	const clients = 12
@@ -435,6 +442,7 @@ func TestIdempotencyEdgeConcurrentSameKey(t *testing.T) {
 }
 
 func TestIdempotencyEdgeConcurrentDifferentBodyWhileInFlight(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	h.release = make(chan struct{})
 	done := make(chan edgeResp, 1)
@@ -456,6 +464,7 @@ func TestIdempotencyEdgeConcurrentDifferentBodyWhileInFlight(t *testing.T) {
 }
 
 func TestIdempotencyEdgeBodyLimit(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	atLimit := strings.Repeat("x", httpx.MaxBulkBodyBytes)
 	r := h.post("limit", atLimit)
@@ -489,6 +498,7 @@ func TestIdempotencyEdgeBodyLimit(t *testing.T) {
 }
 
 func TestIdempotencyEdgeRunAndPrune(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	h.post("fresh", `{}`)
 	if n, err := h.svc.Prune(context.Background()); err != nil || n != 0 {
@@ -512,6 +522,7 @@ func TestIdempotencyEdgeRunAndPrune(t *testing.T) {
 }
 
 func TestIdempotencyEdgeSecretsAreNeverStored(t *testing.T) {
+	t.Parallel()
 	h := newEdgeHarness(t, nil)
 	first := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{}`)
 	if first.status != http.StatusCreated || !strings.Contains(string(first.body), "sk_edge_secret_value") {

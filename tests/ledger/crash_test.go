@@ -14,6 +14,7 @@ import (
 )
 
 func TestCrashBeforeCommitLeavesNoTrace(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -57,6 +58,7 @@ func TestCrashBeforeCommitLeavesNoTrace(t *testing.T) {
 }
 
 func TestClientDisconnectsAtRandomMoments(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 1_000_000)
 	b := e.account(t, "USD", ledger.Debit)
@@ -82,6 +84,7 @@ func TestClientDisconnectsAtRandomMoments(t *testing.T) {
 }
 
 func TestShutdownDrainsQueuedEntries(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	a := e.funded(t, 1_000_000)
 	b := e.account(t, "USD", ledger.Debit)
@@ -143,6 +146,7 @@ func TestShutdownDrainsQueuedEntries(t *testing.T) {
 }
 
 func TestHotAccountContention(t *testing.T) {
+	t.Parallel()
 	e := setupWith(t, ledger.Config{Workers: 8, MaxBatch: 1, SweepInterval: time.Hour})
 	hot := e.funded(t, 1_000_000)
 

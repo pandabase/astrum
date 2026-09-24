@@ -24,6 +24,7 @@ func peReverse(t testing.TB, e *env, id uuid.UUID, key string) ledger.Transactio
 }
 
 func TestReversalEdgeChains(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -62,6 +63,7 @@ func TestReversalEdgeChains(t *testing.T) {
 }
 
 func TestReversalEdgeIdempotency(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -120,6 +122,7 @@ func TestReversalEdgeIdempotency(t *testing.T) {
 }
 
 func TestReversalEdgeNonPosted(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)
@@ -160,6 +163,7 @@ func TestReversalEdgeNonPosted(t *testing.T) {
 }
 
 func TestReversalEdgeAccountsAndCurrencies(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	usdA := e.funded(t, 100)
@@ -197,6 +201,7 @@ func TestReversalEdgeAccountsAndCurrencies(t *testing.T) {
 }
 
 func TestReversalEdgeConcurrent(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	a := e.funded(t, 1_000)

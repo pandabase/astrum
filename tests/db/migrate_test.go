@@ -11,6 +11,7 @@ import (
 )
 
 func TestMigrate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := testdb.New(t, nil)
 	logger := testdb.Logger()
@@ -53,6 +54,7 @@ func TestMigrate(t *testing.T) {
 }
 
 func TestMigrateFailureRollsBack(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := testdb.New(t, nil)
 
@@ -81,6 +83,7 @@ func TestMigrateFailureRollsBack(t *testing.T) {
 }
 
 func TestMigrateModulesAreIndependent(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := testdb.New(t, nil)
 	logger := testdb.Logger()
@@ -104,6 +107,7 @@ func TestMigrateModulesAreIndependent(t *testing.T) {
 }
 
 func TestMigrateRejectsModifiedMigration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := testdb.New(t, nil)
 

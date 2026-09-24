@@ -57,6 +57,7 @@ func send(h http.Handler, method, key, body string) *httptest.ResponseRecorder {
 }
 
 func TestReplay(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	handler := h.handler()
 
@@ -84,6 +85,7 @@ func TestReplay(t *testing.T) {
 }
 
 func TestClientErrorsAreReplayed(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.status.Store(http.StatusUnprocessableEntity)
 	handler := h.handler()
@@ -99,6 +101,7 @@ func TestClientErrorsAreReplayed(t *testing.T) {
 }
 
 func TestKeyReuseWithDifferentRequest(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	handler := h.handler()
 
@@ -126,6 +129,7 @@ func TestKeyReuseWithDifferentRequest(t *testing.T) {
 }
 
 func TestServerErrorReleasesKey(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.status.Store(http.StatusInternalServerError)
 	handler := h.handler()
@@ -145,6 +149,7 @@ func TestServerErrorReleasesKey(t *testing.T) {
 }
 
 func TestPanicReleasesKey(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	panicking := h.svc.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
@@ -165,6 +170,7 @@ func TestPanicReleasesKey(t *testing.T) {
 }
 
 func TestConcurrentRequestIsRejectedWhileInFlight(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.release = make(chan struct{})
 	handler := h.handler()
@@ -188,6 +194,7 @@ func TestConcurrentRequestIsRejectedWhileInFlight(t *testing.T) {
 }
 
 func TestRetryStormExecutesOnce(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	handler := h.handler()
 
@@ -216,6 +223,7 @@ func TestRetryStormExecutesOnce(t *testing.T) {
 }
 
 func TestStaleLockCanBeTakenOver(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 
 	h.svc.lockTimeout = 500 * time.Millisecond
@@ -238,6 +246,7 @@ func TestStaleLockCanBeTakenOver(t *testing.T) {
 }
 
 func TestPassThrough(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	handler := h.handler()
 
@@ -262,6 +271,7 @@ func TestPassThrough(t *testing.T) {
 }
 
 func TestKeyTooLong(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	w := send(h.handler(), http.MethodPost, strings.Repeat("k", maxKeyLen+1), `{}`)
 	if w.Code != http.StatusBadRequest {
@@ -270,6 +280,7 @@ func TestKeyTooLong(t *testing.T) {
 }
 
 func TestBodyTooLarge(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	w := send(h.handler(), http.MethodPost, "big", strings.Repeat("x", maxBodySize+1))
 	if w.Code != http.StatusRequestEntityTooLarge {
@@ -289,6 +300,7 @@ func waitFor(t *testing.T, cond func() bool) {
 }
 
 func TestTakenOverRequestCannotClobber(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ctx := context.Background()
 	hash := requestHash(httptest.NewRequest(http.MethodPost, "/v1/things", nil), []byte(`{}`))
@@ -320,6 +332,7 @@ func TestTakenOverRequestCannotClobber(t *testing.T) {
 }
 
 func TestPrune(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	handler := h.handler()
 	send(handler, http.MethodPost, "old", `{}`)
@@ -339,6 +352,7 @@ func TestPrune(t *testing.T) {
 }
 
 func TestScopedKeys(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.svc.Scope = func(r *http.Request) string { return r.Header.Get("X-Caller") }
 	handler := h.handler()
