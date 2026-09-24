@@ -138,7 +138,7 @@ export default function Lifecycle({ loaderData }: Route.ComponentProps) {
               <Select
                 name="transaction_id"
                 defaultValue={lifecycle.focus}
-                className="max-w-full sm:w-[32rem]"
+                className="max-w-full sm:w-lg"
               >
                 {choices.map((t) => (
                   <option key={t.id} value={t.id}>
