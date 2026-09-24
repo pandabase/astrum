@@ -103,11 +103,11 @@ All API routes except `GET /healthz` require:
 Authorization: Bearer sk_...
 ```
 
-| Role    | Access                                                                          |
-| ------- | ------------------------------------------------------------------------------- |
-| `read`  | GET/HEAD requests, except API keys and webhook endpoints.                       |
-| `write` | Read and change resources, except API keys and webhook endpoints.               |
-| `admin` | All routes, including API keys and webhook endpoints, which can expose secrets. |
+| Role    | Access                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------- |
+| `read`  | GET/HEAD requests, except API keys and webhook endpoints.                                                       |
+| `write` | Read and change resources, except API keys and webhook endpoints.                                               |
+| `admin` | All routes, including API keys and webhook endpoints, which can expose secrets, and closing accounting periods. |
 
 Keys grant access across the server; they are not restricted to a ledger. Expired and revoked keys return `401`. Revocation reaches other instances within the 10-second authentication cache window. The last active admin key can't be revoked (`409 last_admin_key`); create another admin key first.
 
@@ -165,12 +165,13 @@ Keys are limited to 255 bytes. Batch and bulk items append `/0`, `/1`, etc. to t
 
 A ledger groups accounts that can transact with each other. Transactions cannot cross ledger boundaries.
 
-| Method | Endpoint           | Result                                  |
-| ------ | ------------------ | --------------------------------------- |
-| POST   | `/v1/ledgers`      | `201`: ledger.                          |
-| GET    | `/v1/ledgers`      | `200`: list; supports metadata filters. |
-| GET    | `/v1/ledgers/{id}` | `200`: ledger.                          |
-| PATCH  | `/v1/ledgers/{id}` | `200`: updated ledger.                  |
+| Method | Endpoint                        | Result                                            |
+| ------ | ------------------------------- | ------------------------------------------------- |
+| POST   | `/v1/ledgers`                   | `201`: ledger.                                    |
+| GET    | `/v1/ledgers`                   | `200`: list; supports metadata filters.           |
+| GET    | `/v1/ledgers/{id}`              | `200`: ledger.                                    |
+| PATCH  | `/v1/ledgers/{id}`              | `200`: updated ledger.                            |
+| POST   | `/v1/ledgers/{id}/close_period` | `200`: ledger with its new lock date. Admin only. |
 
 Create with **required** `name`, plus optional `description` and `metadata`. PATCH accepts the same fields.
 
@@ -189,12 +190,25 @@ Create with **required** `name`, plus optional `description` and `metadata`. PAT
   "name": "Payments",
   "description": "Customer wallets",
   "metadata": { "region": "us" },
+  "closed_before": null,
   "version": 0,
   "created_at": "2026-09-01T00:00:00Z"
 }
 ```
 
 `version` tracks updates. Ledgers have no delete endpoint.
+
+### Close a period
+
+Close a period after you report on it, so no one can post into it later. Set `closed_before` to the end of the period; the request body requires the field:
+
+```json
+{ "closed_before": "2026-09-01T00:00:00Z" }
+```
+
+Once it is set, new transactions, pending transactions and changes to pending ones with an `effective_at` before that time return `409 period_closed`, including entries in a batch. Archiving a pending transaction is still allowed, and reversals are dated now, so neither changes a closed period. Replays of requests that succeeded before the close still return their original result. The database enforces the same rule.
+
+The request returns after older in-flight database transactions finish, so nothing can land in the period once it has responded. If one stays open past your request timeout, retry the same request. `closed_before` can't be in the future. To reopen, send an earlier time, or `null` to reopen every period.
 
 ## Currencies
 
@@ -772,20 +786,23 @@ Use `code` for application logic and `detail` for a readable explanation. `X-Req
 }
 ```
 
-| Status | Codes                                                                                                                                                                                                                                                                                                     |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400    | `invalid_request`, `idempotency_key_required`                                                                                                                                                                                                                                                             |
-| 401    | `unauthorized`                                                                                                                                                                                                                                                                                            |
-| 403    | `forbidden`                                                                                                                                                                                                                                                                                               |
-| 404    | `not_found`                                                                                                                                                                                                                                                                                               |
-| 409    | `lock_version_conflict`, `currency_exists`, `account_exists`, `transaction_not_pending`, `transaction_not_posted`, `external_id_exists`, `account_not_empty`, `already_reversed`, `hold_not_pending`, `schedule_not_pending`, `idempotency_key_in_use`, `idempotency_key_completed`, `last_admin_key`      |
-| 413    | `request_too_large`                                                                                                                                                                                                                                                                                       |
-| 422    | `validation_error`, `category_cycle`, `category_too_deep`, `category_mismatch`, `balance_lock_failed`, `unknown_ledger`, `unknown_currency`, `cross_ledger_transaction`, `insufficient_funds`, `unbalanced_transaction`, `account_not_open`, `amount_overflow`, `batch_aborted`, `idempotency_key_reused` |
-| 500    | `internal_error`                                                                                                                                                                                                                                                                                          |
-| 503    | `service_unavailable`                                                                                                                                                                                                                                                                                     |
-| 504    | `timeout`                                                                                                                                                                                                                                                                                                 |
+| Status | Codes                                                                                                                                                                                                                                                                                                                  |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `invalid_request`, `idempotency_key_required`                                                                                                                                                                                                                                                                          |
+| 401    | `unauthorized`                                                                                                                                                                                                                                                                                                         |
+| 403    | `forbidden`                                                                                                                                                                                                                                                                                                            |
+| 404    | `not_found`                                                                                                                                                                                                                                                                                                            |
+| 409    | `period_closed`, `lock_version_conflict`, `currency_exists`, `account_exists`, `transaction_not_pending`, `transaction_not_posted`, `external_id_exists`, `account_not_empty`, `already_reversed`, `hold_not_pending`, `schedule_not_pending`, `idempotency_key_in_use`, `idempotency_key_completed`, `last_admin_key` |
+| 413    | `request_too_large`                                                                                                                                                                                                                                                                                                    |
+| 422    | `validation_error`, `category_cycle`, `category_too_deep`, `category_mismatch`, `balance_lock_failed`, `unknown_ledger`, `unknown_currency`, `cross_ledger_transaction`, `insufficient_funds`, `unbalanced_transaction`, `account_not_open`, `amount_overflow`, `batch_aborted`, `idempotency_key_reused`              |
+| 429    | `rate_limited`                                                                                                                                                                                                                                                                                                         |
+| 500    | `internal_error`                                                                                                                                                                                                                                                                                                       |
+| 503    | `service_unavailable`                                                                                                                                                                                                                                                                                                  |
+| 504    | `timeout`                                                                                                                                                                                                                                                                                                              |
 
 Malformed JSON, unknown body fields and invalid TypeIDs return `400`; valid JSON that violates a business rule generally returns `422`. Body-size failures from a JSON decoder currently return `400 invalid_request`; the idempotency middleware returns `413 request_too_large` when its 16 MiB limit is exceeded. Unknown routes or unsupported methods may use the HTTP router’s plain-text errors instead of a problem object.
+
+A `429 rate_limited` response includes a `Retry-After` header with the number of seconds to wait. Limits apply per API key on each server instance.
 
 For a timeout or connection loss, retry the identical request with the same idempotency key. For a changed request, use a new key. Batch responses are the exception to the problem-object format: inspect their per-item results.
 
@@ -793,21 +810,23 @@ For a timeout or connection loss, retry the identical request with the same idem
 
 Astrum reads environment variables directly; it does not load `.env` files. Migrations run on startup.
 
-| Variable                     | Default  | Purpose                                                                                                           |
-| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`               | Required | PostgreSQL connection URL.                                                                                        |
-| `LEDGER_SEAL_KEY`            | Required | At least 32 bytes. Keep outside the database and reuse across restarts; startup checks it against the seal chain. |
-| `HTTP_ADDR`                  | `:8080`  | API listen address.                                                                                               |
-| `LOG_LEVEL`                  | `info`   | Logging level.                                                                                                    |
-| `LOG_FORMAT`                 | `text`   | `text`, `json` or `logfmt`.                                                                                       |
-| `DB_MAX_CONNS`               | `32`     | Maximum database connections.                                                                                     |
-| `LEDGER_WORKERS`             | `8`      | Must be below `DB_MAX_CONNS`.                                                                                     |
-| `LEDGER_MAX_BATCH`           | `256`    | Worker batch size; separate from API batch limits.                                                                |
-| `LEDGER_BATCH_CONCURRENCY`   | `4`      | Batch requests committed at once; others queue so overlapping batches don't wait on each other's account locks.   |
-| `DB_ALLOW_UNSAFE_DURABILITY` | `false`  | Allow unsafe database durability settings for local development.                                                  |
-| `EVENT_RETENTION`            | `720h`   | Retention for dispatched events without pending deliveries.                                                       |
-| `WEBHOOK_ALLOW_INSECURE`     | `false`  | Allow HTTP and private-network webhook URLs for local development.                                                |
-| `WEB_DIR`                    | Unset    | Built web interface to serve, such as `web/build/client`.                                                         |
+| Variable                     | Default            | Purpose                                                                                                           |
+| ---------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`               | Required           | PostgreSQL connection URL.                                                                                        |
+| `LEDGER_SEAL_KEY`            | Required           | At least 32 bytes. Keep outside the database and reuse across restarts; startup checks it against the seal chain. |
+| `HTTP_ADDR`                  | `:8080`            | API listen address.                                                                                               |
+| `LOG_LEVEL`                  | `info`             | Logging level.                                                                                                    |
+| `LOG_FORMAT`                 | `text`             | `text`, `json` or `logfmt`.                                                                                       |
+| `DB_MAX_CONNS`               | `32`               | Maximum database connections.                                                                                     |
+| `LEDGER_WORKERS`             | `8`                | Must be below `DB_MAX_CONNS`.                                                                                     |
+| `LEDGER_MAX_BATCH`           | `256`              | Worker batch size; separate from API batch limits.                                                                |
+| `LEDGER_BATCH_CONCURRENCY`   | `4`                | Batch requests committed at once; others queue so overlapping batches don't wait on each other's account locks.   |
+| `DB_ALLOW_UNSAFE_DURABILITY` | `false`            | Allow unsafe database durability settings for local development.                                                  |
+| `EVENT_RETENTION`            | `720h`             | Retention for dispatched events without pending deliveries.                                                       |
+| `WEBHOOK_ALLOW_INSECURE`     | `false`            | Allow HTTP and private-network webhook URLs for local development.                                                |
+| `WEB_DIR`                    | Unset              | Built web interface to serve, such as `web/build/client`.                                                         |
+| `RATE_LIMIT`                 | `1000`             | Requests per second allowed for each API key on each server instance. `0` turns the limit off.                    |
+| `RATE_LIMIT_BURST`           | Twice `RATE_LIMIT` | Requests a key can make at once before `RATE_LIMIT` applies.                                                      |
 
 ### Development and benchmarks
 

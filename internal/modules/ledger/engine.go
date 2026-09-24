@@ -146,6 +146,13 @@ func resolveEntry(
 	}
 
 	status := e.in.status()
+	effectiveAt := now
+	if e.in.EffectiveAt != nil {
+		effectiveAt = *e.in.EffectiveAt
+	}
+	if a, ok := state.accounts[e.in.Postings[0].AccountID]; ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
+		return outcome{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, a.closedBefore.UTC().Format(time.RFC3339Nano))}
+	}
 	ledgerID, postings, err := state.transition(change{add: e.in.Postings, status: status, releases: e.releases})
 	if err != nil {
 		if !e.in.ArchiveOnLockFailure || !(errors.Is(err, ErrBalanceLock) || errors.Is(err, ErrLockVersion)) {
@@ -173,11 +180,8 @@ func resolveEntry(
 		Metadata:       normalizeMetadata(e.in.Metadata),
 		ReversesID:     e.reverses,
 		Postings:       postings,
-		EffectiveAt:    now,
+		EffectiveAt:    effectiveAt,
 		CreatedAt:      now,
-	}
-	if e.in.EffectiveAt != nil {
-		txn.EffectiveAt = *e.in.EffectiveAt
 	}
 	switch status {
 	case TransactionPosted:

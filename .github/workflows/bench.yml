@@ -49,6 +49,7 @@ jobs:
     env:
       DATABASE_URL: postgres://astrum:astrum@localhost:5432/astrum?sslmode=disable
       LOG_LEVEL: warn
+      RATE_LIMIT: "0"
     steps:
       - uses: actions/checkout@v7
 

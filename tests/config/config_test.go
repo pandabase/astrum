@@ -71,6 +71,8 @@ func TestLoad(t *testing.T) {
 			LedgerWorkers:          8,
 			LedgerMaxBatch:         256,
 			LedgerBatchConcurrency: 4,
+			RateLimit:              1000,
+			RateLimitBurst:         2000,
 			LedgerSealKey:          key,
 			EventRetention:         30 * 24 * time.Hour,
 		}
@@ -86,6 +88,7 @@ func TestLoad(t *testing.T) {
 		t.Setenv("LEDGER_WORKERS", "16")
 		t.Setenv("LEDGER_MAX_BATCH", "512")
 		t.Setenv("LEDGER_BATCH_CONCURRENCY", "2")
+		t.Setenv("RATE_LIMIT", "0")
 		t.Setenv("DB_ALLOW_UNSAFE_DURABILITY", "true")
 		t.Setenv("HTTP_ADDR", ":9090")
 		t.Setenv("LOG_LEVEL", "debug")
@@ -105,6 +108,8 @@ func TestLoad(t *testing.T) {
 			LedgerWorkers:          16,
 			LedgerMaxBatch:         512,
 			LedgerBatchConcurrency: 2,
+			RateLimit:              0,
+			RateLimitBurst:         1,
 			LedgerSealKey:          key,
 			EventRetention:         30 * 24 * time.Hour,
 		}

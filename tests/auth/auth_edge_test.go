@@ -668,3 +668,23 @@ func TestAuthEdgeWebhookEndpointsAreAdminOnly(t *testing.T) {
 		t.Errorf("prefix match leaked to a sibling path")
 	}
 }
+
+func TestAuthEdgeClosePeriodIsAdminOnly(t *testing.T) {
+	t.Parallel()
+	e := newEdgeEnv(t)
+	_, reader := e.key("reader", auth.RoleRead)
+	_, writer := e.key("writer", auth.RoleWrite)
+	_, admin := e.key("admin", auth.RoleAdmin)
+	path := "/v1/ledgers/ldg_01h455vb4pex5vsknk084sn02q/close_period"
+	for _, token := range []string{reader, writer} {
+		if resp := e.call(http.MethodPost, path, token, `{"closed_before":null}`); resp.status != http.StatusForbidden {
+			t.Errorf("close_period as non-admin = %d, want 403", resp.status)
+		}
+	}
+	if resp := e.call(http.MethodPost, path, admin, `{"closed_before":null}`); resp.status == http.StatusForbidden || resp.status == http.StatusUnauthorized {
+		t.Errorf("close_period as admin = %d", resp.status)
+	}
+	if resp := e.call(http.MethodPatch, "/v1/ledgers/ldg_01h455vb4pex5vsknk084sn02q", writer, `{}`); resp.status == http.StatusForbidden {
+		t.Errorf("writers lost access to other ledger routes")
+	}
+}

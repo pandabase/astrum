@@ -484,6 +484,7 @@ var domainErrors = []error{
 	ErrScheduleNotPending,
 	ErrBatchAborted,
 	ErrStopped,
+	ErrPeriodClosed,
 	money.ErrOverflow,
 }
 
@@ -511,6 +512,8 @@ func asDomainError(err error) error {
 		return ErrAlreadyReversed
 	case constraintPostingsBalanced:
 		return ErrUnbalanced
+	case constraintPeriodOpen:
+		return ErrPeriodClosed
 	}
 	if db.Code(err) == "22003" {
 		return money.ErrOverflow

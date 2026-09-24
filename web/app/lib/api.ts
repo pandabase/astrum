@@ -71,6 +71,8 @@ const messages: Record<string, string> = {
   insufficient_funds: "The account does not have enough available balance.",
   idempotency_key_completed: "This was already created. Its secret is shown only once, so create a new one if you lost it.",
   last_admin_key: "This is the last active admin key. Create another admin key before revoking it.",
+  period_closed: "That date falls in a closed accounting period. Use a later date, or ask an admin to reopen the period.",
+  rate_limited: "Too many requests right now. Wait a moment and try again.",
   lock_version_conflict: "The account changed after it was loaded. Reload and try again.",
   unbalanced_transaction: "Debits and credits must be equal in each currency.",
   unknown_currency: "That currency is not registered. Register it on the Currencies page first.",

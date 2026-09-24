@@ -1,6 +1,8 @@
 package ledger
 
 import (
+	"time"
+
 	"fmt"
 	"maps"
 
@@ -11,6 +13,7 @@ import (
 type accountState struct {
 	id              uuid.UUID
 	ledgerID        uuid.UUID
+	closedBefore    *time.Time
 	currency        money.Currency
 	normalSide      Side
 	status          AccountStatus

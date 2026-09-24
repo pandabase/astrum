@@ -48,24 +48,26 @@ type (
 )
 
 type ledgerResource struct {
-	Object      string         `json:"object"`
-	ID          ledgerID       `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Metadata    jsontext.Value `json:"metadata"`
-	Version     int64          `json:"version"`
-	CreatedAt   time.Time      `json:"created_at"`
+	Object       string         `json:"object"`
+	ID           ledgerID       `json:"id"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Metadata     jsontext.Value `json:"metadata"`
+	ClosedBefore *time.Time     `json:"closed_before"`
+	Version      int64          `json:"version"`
+	CreatedAt    time.Time      `json:"created_at"`
 }
 
 func toLedger(l Ledger) ledgerResource {
 	return ledgerResource{
-		Object:      "ledger",
-		ID:          ledgerID(l.ID),
-		Name:        l.Name,
-		Description: l.Description,
-		Metadata:    l.Metadata,
-		Version:     l.Version,
-		CreatedAt:   l.CreatedAt,
+		Object:       "ledger",
+		ID:           ledgerID(l.ID),
+		Name:         l.Name,
+		Description:  l.Description,
+		Metadata:     l.Metadata,
+		ClosedBefore: l.ClosedBefore,
+		Version:      l.Version,
+		CreatedAt:    l.CreatedAt,
 	}
 }
 

@@ -37,6 +37,7 @@ const (
 	constraintReverses         = "ledger_transactions_reverses_id_key"
 	constraintHoldKey          = "ledger_holds_idempotency_key_key"
 	constraintPostingsBalanced = "ledger_postings_balanced"
+	constraintPeriodOpen       = "ledger_transactions_period_open"
 )
 
 type querier interface {
@@ -96,14 +97,14 @@ func selectCurrencies(ctx context.Context, q querier, after money.Currency, limi
 	return currencies, nil
 }
 
-const ledgerColumns = `id, name, description, metadata, version, created_at`
+const ledgerColumns = `id, name, description, metadata, closed_before, version, created_at`
 
 func scanLedger(row pgx.Row) (Ledger, error) {
 	var (
 		l        Ledger
 		metadata []byte
 	)
-	if err := row.Scan(&l.ID, &l.Name, &l.Description, &metadata, &l.Version, &l.CreatedAt); err != nil {
+	if err := row.Scan(&l.ID, &l.Name, &l.Description, &metadata, &l.ClosedBefore, &l.Version, &l.CreatedAt); err != nil {
 		return Ledger{}, err
 	}
 	l.Metadata = bytes.Clone(metadata)
@@ -276,12 +277,13 @@ func queryAccount(ctx context.Context, q querier, where string, arg any) (Accoun
 func queueLockAccounts(b *pgx.Batch, ids []uuid.UUID, out *[]*accountState) {
 	ids = sortedUnique(ids)
 	b.Queue(`
-		SELECT id, ledger_id, currency, normal_side, allow_negative, overdraft_limit, posted_debits, posted_credits,
-			pending_debits, pending_credits, held, status, version
-		FROM ledger_accounts
-		WHERE id = ANY($1)
-		ORDER BY id
-		FOR UPDATE`, ids,
+		SELECT a.id, a.ledger_id, a.currency, a.normal_side, a.allow_negative, a.overdraft_limit, a.posted_debits,
+			a.posted_credits, a.pending_debits, a.pending_credits, a.held, a.status, a.version, l.closed_before
+		FROM ledger_accounts AS a
+		JOIN ledger_ledgers AS l ON l.id = a.ledger_id
+		WHERE a.id = ANY($1)
+		ORDER BY a.id
+		FOR UPDATE OF a`, ids,
 	).Query(func(rows pgx.Rows) error {
 		var (
 			a          accountState
@@ -291,7 +293,7 @@ func queueLockAccounts(b *pgx.Batch, ids []uuid.UUID, out *[]*accountState) {
 		)
 		_, err := pgx.ForEachRow(rows,
 			[]any{&a.id, &a.ledgerID, &currency, &normalSide, &a.allowNegative, &a.overdraftLimit, &a.postedDebits,
-				&a.postedCredits, &a.pendingDebits, &a.pendingCredits, &a.held, &status, &a.version},
+				&a.postedCredits, &a.pendingDebits, &a.pendingCredits, &a.held, &status, &a.version, &a.closedBefore},
 			func() error {
 				a.currency = money.Currency(currency)
 				a.normalSide = Side(normalSide)

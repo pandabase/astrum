@@ -344,14 +344,15 @@ func adminPath(path, prefix string) bool {
 }
 
 func allowed(role Role, r *http.Request) bool {
-	keyAdmin := adminPath(r.URL.Path, "/v1/api_keys") || adminPath(r.URL.Path, "/v1/webhook_endpoints")
+	adminOnly := adminPath(r.URL.Path, "/v1/api_keys") || adminPath(r.URL.Path, "/v1/webhook_endpoints") ||
+		strings.HasPrefix(r.URL.Path, "/v1/ledgers/") && strings.HasSuffix(r.URL.Path, "/close_period")
 	switch role {
 	case RoleAdmin:
 		return true
 	case RoleWrite:
-		return !keyAdmin
+		return !adminOnly
 	case RoleRead:
-		return !keyAdmin && (r.Method == http.MethodGet || r.Method == http.MethodHead)
+		return !adminOnly && (r.Method == http.MethodGet || r.Method == http.MethodHead)
 	}
 	return false
 }

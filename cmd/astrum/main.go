@@ -21,6 +21,7 @@ import (
 	"github.com/pandabase/astrum/internal/kernel/idempotency"
 	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/kernel/module"
+	"github.com/pandabase/astrum/internal/kernel/ratelimit"
 	"github.com/pandabase/astrum/internal/kernel/web"
 	"github.com/pandabase/astrum/internal/modules/ledger"
 )
@@ -147,7 +148,8 @@ func run(ctx context.Context, cfg config.Config) error {
 		l.Info("module loaded", "module", m.Name())
 	}
 
-	handler := httpx.Logging(base, authn.Middleware([]string{"/healthz"}, idem.Middleware(mux)))
+	limiter := ratelimit.New(cfg.RateLimit, cfg.RateLimitBurst)
+	handler := httpx.Logging(base, authn.Middleware([]string{"/healthz"}, limiter.Middleware(idem.Middleware(mux))))
 	if cfg.WebDir != "" {
 		if handler, err = web.Handler(cfg.WebDir, handler); err != nil {
 			return err

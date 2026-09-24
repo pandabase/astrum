@@ -40,6 +40,7 @@ var (
 	ErrScheduleNotPending  = errors.New("ledger: scheduled transaction is not pending")
 	ErrBatchAborted        = errors.New("ledger: batch aborted by another entry")
 	ErrStopped             = errors.New("ledger: module is not running")
+	ErrPeriodClosed        = errors.New("ledger: accounting period is closed")
 )
 
 type Side string
@@ -82,12 +83,13 @@ type CreateCurrencyInput struct {
 }
 
 type Ledger struct {
-	ID          uuid.UUID      `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Metadata    jsontext.Value `json:"metadata"`
-	Version     int64          `json:"version"`
-	CreatedAt   time.Time      `json:"created_at"`
+	ID           uuid.UUID      `json:"id"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Metadata     jsontext.Value `json:"metadata"`
+	ClosedBefore *time.Time     `json:"closed_before"`
+	Version      int64          `json:"version"`
+	CreatedAt    time.Time      `json:"created_at"`
 }
 
 type CreateLedgerInput struct {

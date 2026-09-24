@@ -40,6 +40,8 @@ func TestEdgeDefaults(t *testing.T) {
 		LedgerWorkers:          8,
 		LedgerMaxBatch:         256,
 		LedgerBatchConcurrency: 4,
+		RateLimit:              1000,
+		RateLimitBurst:         2000,
 		LedgerSealKey:          edgeSealKey,
 		EventRetention:         720 * time.Hour,
 	}
@@ -346,5 +348,33 @@ func TestEdgeErrorPrecedence(t *testing.T) {
 				t.Fatalf("Load() returned a partial config on error: %+v", cfg)
 			}
 		})
+	}
+}
+
+func TestConfigEdgeRateLimit(t *testing.T) {
+	for _, tt := range []struct {
+		limit, burst       string
+		wantLimit, wantBur int
+		ok                 bool
+	}{
+		{"", "", 1000, 2000, true},
+		{"50", "", 50, 100, true},
+		{"50", "7", 50, 7, true},
+		{"0", "", 0, 1, true},
+		{"-1", "", 0, 0, false},
+		{"fast", "", 0, 0, false},
+		{"50", "0", 0, 0, false},
+	} {
+		t.Setenv("DATABASE_URL", "postgres://db/astrum")
+		t.Setenv("LEDGER_SEAL_KEY", strings.Repeat("k", 32))
+		t.Setenv("RATE_LIMIT", tt.limit)
+		t.Setenv("RATE_LIMIT_BURST", tt.burst)
+		cfg, err := config.Load()
+		if (err == nil) != tt.ok {
+			t.Fatalf("RATE_LIMIT=%q RATE_LIMIT_BURST=%q error = %v, want ok=%v", tt.limit, tt.burst, err, tt.ok)
+		}
+		if tt.ok && (cfg.RateLimit != tt.wantLimit || cfg.RateLimitBurst != tt.wantBur) {
+			t.Fatalf("RATE_LIMIT=%q RATE_LIMIT_BURST=%q = %d/%d, want %d/%d", tt.limit, tt.burst, cfg.RateLimit, cfg.RateLimitBurst, tt.wantLimit, tt.wantBur)
+		}
 	}
 }

@@ -21,6 +21,8 @@ type Config struct {
 	LedgerWorkers          int
 	LedgerMaxBatch         int
 	LedgerBatchConcurrency int
+	RateLimit              int
+	RateLimitBurst         int
 
 	LedgerSealKey string
 
@@ -70,6 +72,12 @@ func Load() (Config, error) {
 	if cfg.EventRetention, err = durationEnv("EVENT_RETENTION", 30*24*time.Hour); err != nil {
 		return Config{}, err
 	}
+	if cfg.RateLimit, err = nonNegativeIntEnv("RATE_LIMIT", 1000); err != nil {
+		return Config{}, err
+	}
+	if cfg.RateLimitBurst, err = intEnv("RATE_LIMIT_BURST", max(2*cfg.RateLimit, 1)); err != nil {
+		return Config{}, err
+	}
 	if cfg.LedgerWorkers >= cfg.DBMaxConns {
 		return Config{}, fmt.Errorf("config: LEDGER_WORKERS (%d) must be below DB_MAX_CONNS (%d)", cfg.LedgerWorkers, cfg.DBMaxConns)
 	}
@@ -91,6 +99,18 @@ func intEnv(key string, fallback int) (int, error) {
 	v, err := strconv.Atoi(raw)
 	if err != nil || v <= 0 {
 		return 0, fmt.Errorf("config: %s must be a positive integer", key)
+	}
+	return v, nil
+}
+
+func nonNegativeIntEnv(key string, fallback int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 0 {
+		return 0, fmt.Errorf("config: %s must be zero or a positive integer", key)
 	}
 	return v, nil
 }

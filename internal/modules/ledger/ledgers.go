@@ -154,3 +154,74 @@ func decodeObject(raw jsontext.Value) (map[string]any, error) {
 	}
 	return obj, nil
 }
+
+func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *time.Time) (Ledger, error) {
+	l := logger.For(ctx, s.log).With("op", "close_period", "ledger_id", id)
+	start := time.Now()
+
+	if closedBefore != nil {
+		at := closedBefore.Truncate(time.Microsecond)
+		if !representableTime(at) {
+			return Ledger{}, s.fail(l, "close period", fmt.Errorf("%w: closed_before is out of range", ErrInvalid), start)
+		}
+		closedBefore = &at
+	}
+	var (
+		ledger Ledger
+		xid    string
+	)
+	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
+		current, err := queryLedger(ctx, tx, `id = $1 FOR UPDATE`, id)
+		if err != nil {
+			return err
+		}
+		var future bool
+		if err := tx.QueryRow(ctx, `SELECT coalesce($1::timestamptz > now(), false), pg_current_xact_id()::text`, closedBefore).Scan(&future, &xid); err != nil {
+			return err
+		}
+		if future {
+			return fmt.Errorf("%w: closed_before cannot be in the future", ErrInvalid)
+		}
+		if sameTime(current.ClosedBefore, closedBefore) {
+			ledger = current
+			return nil
+		}
+		ledger, err = scanLedger(tx.QueryRow(ctx, `
+			UPDATE ledger_ledgers SET closed_before = $2, version = version + 1
+			WHERE id = $1
+			RETURNING `+ledgerColumns, id, closedBefore))
+		return err
+	})
+	if err == nil {
+		err = waitForOlderTransactions(ctx, s.pool, xid)
+	}
+	if err != nil {
+		return Ledger{}, s.fail(l, "close period", err, start)
+	}
+	l.Info("period closed", "closed_before", closedBefore, "version", ledger.Version, "duration", time.Since(start))
+	return ledger, nil
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
+}
+
+func waitForOlderTransactions(ctx context.Context, q querier, xid string) error {
+	for {
+		var done bool
+		if err := q.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot()) > $1::xid8`, xid).Scan(&done); err != nil {
+			return fmt.Errorf("wait for in-flight transactions: %w", err)
+		}
+		if done {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for in-flight transactions: %w", ctx.Err())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}

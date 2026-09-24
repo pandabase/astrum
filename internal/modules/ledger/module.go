@@ -219,6 +219,10 @@ func (m *Module) UpdateLedger(ctx context.Context, id uuid.UUID, in UpdateInput)
 	return m.svc.updateLedger(ctx, id, in)
 }
 
+func (m *Module) ClosePeriod(ctx context.Context, id uuid.UUID, closedBefore *time.Time) (Ledger, error) {
+	return m.svc.closePeriod(ctx, id, closedBefore)
+}
+
 func (m *Module) CreateCategory(ctx context.Context, in CreateCategoryInput) (Category, error) {
 	return m.svc.createCategory(ctx, in)
 }
