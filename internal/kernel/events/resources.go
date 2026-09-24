@@ -8,8 +8,10 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -181,6 +183,25 @@ func (s *Service) DeleteEndpoint(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func validPort(port string) bool {
+	if port == "" {
+		return true
+	}
+	n, err := strconv.Atoi(port)
+	return err == nil && n >= 1 && n <= 65535
+}
+
+func publicHost(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return false
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return public(ip)
+	}
+	return true
+}
+
 func (s *Service) validateEndpoint(raw, description string, types []string) error {
 	u, err := url.Parse(raw)
 	switch {
@@ -188,6 +209,10 @@ func (s *Service) validateEndpoint(raw, description string, types []string) erro
 		return fmt.Errorf("%w: url must be an absolute URL without credentials, up to %d characters", ErrInvalid, maxURLLen)
 	case !strings.HasPrefix(raw, u.Scheme+"://") || (u.Scheme != "https" && !(u.Scheme == "http" && s.cfg.AllowInsecureURLs)):
 		return fmt.Errorf("%w: url must start with https://", ErrInvalid)
+	case !validPort(u.Port()):
+		return fmt.Errorf("%w: url port must be 1-65535", ErrInvalid)
+	case !s.cfg.AllowInsecureURLs && !publicHost(u.Hostname()):
+		return fmt.Errorf("%w: url must point to a public address", ErrInvalid)
 	case len(description) > maxDescriptionLen:
 		return fmt.Errorf("%w: description exceeds %d characters", ErrInvalid, maxDescriptionLen)
 	case len(types) > maxEventTypes:

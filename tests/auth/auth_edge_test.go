@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -105,6 +108,7 @@ func (e *edgeEnv) must(want int, method, path, token, body string) map[string]an
 func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 	e := newEdgeEnv(t)
 	_, token := e.key("reader", auth.RoleRead)
+	e.key("remaining admin", auth.RoleAdmin)
 	revokedKey, revoked := e.key("revoked", auth.RoleAdmin)
 	if _, err := e.svc.Revoke(context.Background(), revokedKey.ID); err != nil {
 		t.Fatal(err)
@@ -122,8 +126,8 @@ func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 		{"empty", []string{""}, 401, false},
 		{"scheme only", []string{"Bearer"}, 401, false},
 		{"scheme and trailing space", []string{"Bearer "}, 401, false},
-		{"lowercase scheme", []string{"bearer " + token}, 401, false},
-		{"uppercase scheme", []string{"BEARER " + token}, 401, false},
+		{"lowercase scheme", []string{"bearer " + token}, 200, false},
+		{"uppercase scheme", []string{"BEARER " + token}, 200, false},
 		{"basic scheme", []string{"Basic " + base64.StdEncoding.EncodeToString([]byte(token+":"))}, 401, false},
 		{"raw token", []string{token}, 401, false},
 		{"token without prefix", []string{"Bearer " + strings.TrimPrefix(token, "sk_")}, 401, true},
@@ -574,11 +578,81 @@ func TestAuthEdgeRevoke(t *testing.T) {
 		e.must(200, http.MethodGet, "/v1/api_keys", backup, "")
 	})
 
-	t.Run("last admin can revoke itself", func(t *testing.T) {
+	t.Run("last admin cannot revoke itself", func(t *testing.T) {
 		me := e.must(200, http.MethodGet, "/v1/me", backup, "")
-		e.must(200, http.MethodPost, "/v1/api_keys/"+me["id"].(string)+"/revoke", backup, "")
-		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 0 {
+		resp := e.call(http.MethodPost, "/v1/api_keys/"+me["id"].(string)+"/revoke", backup, "")
+		if resp.status != http.StatusConflict || resp.body["code"] != "last_admin_key" {
+			t.Fatalf("revoke last admin = %d %s", resp.status, resp.raw)
+		}
+		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
 			t.Fatalf("active admins = %d, %v", n, err)
 		}
+		e.must(200, http.MethodGet, "/v1/api_keys", backup, "")
 	})
+}
+
+func TestAuthEdgeConcurrentRevokesKeepOneAdmin(t *testing.T) {
+	for round := range 5 {
+		e := newEdgeEnv(t)
+		a, _ := e.key(fmt.Sprintf("a-%d", round), auth.RoleAdmin)
+		b, _ := e.key(fmt.Sprintf("b-%d", round), auth.RoleAdmin)
+		var (
+			wg       sync.WaitGroup
+			refused  atomic.Int32
+			revoked  atomic.Int32
+			failures = make(chan error, 2)
+		)
+		for _, k := range []auth.Key{a, b} {
+			wg.Go(func() {
+				_, err := e.svc.Revoke(context.Background(), k.ID)
+				switch {
+				case err == nil:
+					revoked.Add(1)
+				case errors.Is(err, auth.ErrLastAdmin):
+					refused.Add(1)
+				default:
+					failures <- err
+				}
+			})
+		}
+		wg.Wait()
+		close(failures)
+		for err := range failures {
+			t.Fatal(err)
+		}
+		if revoked.Load() != 1 || refused.Load() != 1 {
+			t.Fatalf("revoked %d, refused %d, want 1 and 1", revoked.Load(), refused.Load())
+		}
+		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
+			t.Fatalf("active admins = %d, %v", n, err)
+		}
+	}
+}
+
+func TestAuthEdgeWebhookEndpointsAreAdminOnly(t *testing.T) {
+	e := newEdgeEnv(t)
+	_, reader := e.key("reader", auth.RoleRead)
+	_, writer := e.key("writer", auth.RoleWrite)
+	_, admin := e.key("admin", auth.RoleAdmin)
+	for _, tt := range []struct {
+		method, path string
+	}{
+		{http.MethodGet, "/v1/webhook_endpoints"},
+		{http.MethodPost, "/v1/webhook_endpoints"},
+		{http.MethodGet, "/v1/webhook_endpoints/whe_01h455vb4pex5vsknk084sn02q"},
+		{http.MethodPatch, "/v1/webhook_endpoints/whe_01h455vb4pex5vsknk084sn02q"},
+		{http.MethodDelete, "/v1/webhook_endpoints/whe_01h455vb4pex5vsknk084sn02q"},
+	} {
+		for _, token := range []string{reader, writer} {
+			if resp := e.call(tt.method, tt.path, token, `{}`); resp.status != http.StatusForbidden {
+				t.Errorf("%s %s as non-admin = %d, want 403", tt.method, tt.path, resp.status)
+			}
+		}
+		if resp := e.call(tt.method, tt.path, admin, `{}`); resp.status == http.StatusForbidden || resp.status == http.StatusUnauthorized {
+			t.Errorf("%s %s as admin = %d", tt.method, tt.path, resp.status)
+		}
+	}
+	if resp := e.call(http.MethodGet, "/v1/webhook_endpointsx", writer, ""); resp.status == http.StatusForbidden {
+		t.Errorf("prefix match leaked to a sibling path")
+	}
 }

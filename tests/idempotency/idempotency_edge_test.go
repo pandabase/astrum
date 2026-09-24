@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pandabase/astrum/internal/kernel/httpx"
 	"github.com/pandabase/astrum/internal/kernel/idempotency"
 	"github.com/pandabase/astrum/internal/kernel/testdb"
@@ -27,13 +28,14 @@ type edgeHarness struct {
 	status  atomic.Int32
 	release chan struct{}
 	srv     *httptest.Server
+	pool    *pgxpool.Pool
 }
 
 func newEdgeHarness(t *testing.T, scope func(*http.Request) string) *edgeHarness {
 	t.Helper()
 	probe := idempotency.New(nil, testdb.Logger())
 	pool := testdb.New(t, map[string]fs.FS{probe.Name(): probe.Migrations()})
-	h := &edgeHarness{t: t, svc: idempotency.New(pool, testdb.Logger())}
+	h := &edgeHarness{t: t, svc: idempotency.New(pool, testdb.Logger()), pool: pool}
 	h.svc.Scope = scope
 	h.status.Store(http.StatusCreated)
 	h.srv = httptest.NewServer(httpx.Logging(testdb.Logger(), h.svc.Middleware(http.HandlerFunc(h.serve))))
@@ -55,6 +57,10 @@ func (h *edgeHarness) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/implicit":
 		io.WriteString(w, "implicit")
+		return
+	case "/secret":
+		w.Header().Set("Cache-Control", "no-store")
+		httpx.JSON(w, r, http.StatusCreated, map[string]any{"call": n, "secret": "sk_edge_secret_value"})
 		return
 	case "/headers":
 		w.Header().Set("Location", "/v1/things/1")
@@ -502,5 +508,36 @@ func TestIdempotencyEdgeRunAndPrune(t *testing.T) {
 	}
 	if r := h.post("fresh", `{}`); r.header.Get(idempotency.ReplayedHeader) != "true" {
 		t.Fatal("key lost after Run")
+	}
+}
+
+func TestIdempotencyEdgeSecretsAreNeverStored(t *testing.T) {
+	h := newEdgeHarness(t, nil)
+	first := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{}`)
+	if first.status != http.StatusCreated || !strings.Contains(string(first.body), "sk_edge_secret_value") {
+		t.Fatalf("first = %d %s", first.status, first.body)
+	}
+	for range 2 {
+		replay := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{}`)
+		if replay.status != http.StatusConflict || problemCode(t, replay) != httpx.CodeIdempotencyDone {
+			t.Fatalf("replay = %d %s", replay.status, replay.body)
+		}
+		if strings.Contains(string(replay.body), "sk_edge_secret_value") {
+			t.Fatalf("replay leaked the secret: %s", replay.body)
+		}
+	}
+	if n := h.calls.Load(); n != 1 {
+		t.Fatalf("handler ran %d times, want 1", n)
+	}
+	var stored int
+	if err := h.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM idempotency_keys WHERE position('sk_edge_secret_value' in convert_from(response_body, 'UTF8')) > 0`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored != 0 {
+		t.Fatalf("%d stored responses contain the secret", stored)
+	}
+	if other := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{"changed":true}`); other.status != http.StatusUnprocessableEntity {
+		t.Fatalf("different body = %d %s, want 422", other.status, other.body)
 	}
 }

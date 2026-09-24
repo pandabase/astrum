@@ -36,10 +36,15 @@ export const navigation: NavGroup[] = [
     label: "Operations",
     items: [
       { to: "/events", label: "Events" },
-      { to: "/webhooks", label: "Webhooks" },
       { to: "/monitors", label: "Balance monitors" },
       { to: "/integrity", label: "Integrity" },
     ],
   },
-  { label: "Admin", items: [{ to: "/api-keys", label: "API keys", role: "admin" }] },
+  {
+    label: "Admin",
+    items: [
+      { to: "/webhooks", label: "Webhooks", role: "admin" },
+      { to: "/api-keys", label: "API keys", role: "admin" },
+    ],
+  },
 ];

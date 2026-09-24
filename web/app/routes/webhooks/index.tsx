@@ -7,7 +7,7 @@ import { api } from "~/lib/api";
 import { useApiKey } from "~/lib/auth";
 import { title } from "~/lib/meta";
 import { searchParams, withQuery } from "~/lib/query";
-import { canWrite } from "~/lib/session";
+import { isAdmin } from "~/lib/session";
 import type { List, WebhookEndpoint } from "~/lib/types";
 import type { Route } from "./+types/index";
 
@@ -21,7 +21,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 export default function Webhooks({ loaderData: endpoints }: Route.ComponentProps) {
   return (
     <div className="grid gap-6">
-      <PageHeader title="Webhooks" actions={canWrite(useApiKey().role) && <ButtonLink to="/webhooks/new" variant="primary">New endpoint</ButtonLink>} />
+      <PageHeader title="Webhooks" actions={isAdmin(useApiKey().role) && <ButtonLink to="/webhooks/new" variant="primary">New endpoint</ButtonLink>} />
       <p className="max-w-2xl text-muted">
         Endpoints receive events at least once, signed with <code className="font-mono">Astrum-Signature</code>, and failed deliveries are retried for
         about three days.

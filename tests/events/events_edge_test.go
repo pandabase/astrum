@@ -284,10 +284,15 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 	}{
 		{"https", strict, `{"url":"https://example.com/hooks"}`, 201, ""},
 		{"https with port query and fragment", strict, `{"url":"https://example.com:8443/h?x=1#f"}`, 201, ""},
-		{"loopback ip is accepted at creation", strict, `{"url":"https://127.0.0.1/h"}`, 201, ""},
-		{"ipv6 loopback is accepted at creation", strict, `{"url":"https://[::1]/h"}`, 201, ""},
-		{"link local is accepted at creation", strict, `{"url":"https://169.254.169.254/latest"}`, 201, ""},
-		{"private is accepted at creation", strict, `{"url":"https://10.0.0.1/h"}`, 201, ""},
+		{"loopback ip", strict, `{"url":"https://127.0.0.1/h"}`, 422, "validation_error"},
+		{"ipv6 loopback", strict, `{"url":"https://[::1]/h"}`, 422, "validation_error"},
+		{"ipv4 mapped loopback", strict, `{"url":"https://[::ffff:127.0.0.1]/h"}`, 422, "validation_error"},
+		{"link local metadata", strict, `{"url":"https://169.254.169.254/latest"}`, 422, "validation_error"},
+		{"private", strict, `{"url":"https://10.0.0.1/h"}`, 422, "validation_error"},
+		{"unspecified", strict, `{"url":"https://0.0.0.0/h"}`, 422, "validation_error"},
+		{"localhost name", strict, `{"url":"https://localhost/h"}`, 422, "validation_error"},
+		{"localhost subdomain with trailing dot", strict, `{"url":"https://api.LOCALHOST./h"}`, 422, "validation_error"},
+		{"public ip", strict, `{"url":"https://93.184.215.14/h"}`, 201, ""},
 		{"url at length limit", strict, fmt.Sprintf(`{"url":%q}`, long(2048)), 201, ""},
 		{"url over length limit", strict, fmt.Sprintf(`{"url":%q}`, long(2049)), 422, "validation_error"},
 		{"http rejected", strict, `{"url":"http://example.com"}`, 422, "validation_error"},
@@ -301,7 +306,9 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 		{"scheme relative", strict, `{"url":"//example.com"}`, 422, "validation_error"},
 		{"no host", strict, `{"url":"https:///path"}`, 422, "validation_error"},
 		{"bare scheme", strict, `{"url":"https://"}`, 422, "validation_error"},
-		{"out of range port is accepted", strict, `{"url":"https://example.com:99999999999"}`, 201, ""},
+		{"out of range port", strict, `{"url":"https://example.com:99999999999"}`, 422, "validation_error"},
+		{"port zero", strict, `{"url":"https://example.com:0/h"}`, 422, "validation_error"},
+		{"highest port", strict, `{"url":"https://example.com:65535/h"}`, 201, ""},
 		{"space in host", strict, `{"url":"https://exa mple.com"}`, 422, "validation_error"},
 		{"control character", strict, `{"url":"https://example.com/\n"}`, 422, "validation_error"},
 		{"empty url", strict, `{"url":""}`, 422, "validation_error"},
@@ -868,7 +875,10 @@ func TestEventsEdgeTimeout(t *testing.T) {
 func TestEventsEdgeRefusesNonPublicAddresses(t *testing.T) {
 	e := newEdgeEnv(t, events.Config{Retries: []time.Duration{time.Hour}})
 	rcv := newEdgeReceiver(t, true)
-	ep := e.endpoint(rcv.srv.URL + "/hook")
+	ep := e.endpoint("https://hooks.example.com/hook")
+	if _, err := e.pool.Exec(context.Background(), `UPDATE webhook_endpoints SET url = $1 WHERE id = $2`, rcv.srv.URL+"/hook", ep.ID); err != nil {
+		t.Fatal(err)
+	}
 	e.publish(edgeEvent(t, "hold.created"))
 	e.dispatch(1)
 	e.deliver()

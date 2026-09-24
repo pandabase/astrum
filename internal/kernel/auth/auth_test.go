@@ -81,6 +81,7 @@ func TestAuthenticate(t *testing.T) {
 	})
 
 	t.Run("revocation takes effect at once on this instance", func(t *testing.T) {
+		create(t, s, "spare admin", RoleAdmin)
 		if _, err := s.Revoke(ctx, k.ID); err != nil {
 			t.Fatal(err)
 		}

@@ -149,6 +149,9 @@ func (c Config) withDefaults() Config {
 
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.DialContext = dialer.DialContext
+		if !c.AllowInsecureURLs {
+			transport.Proxy = nil
+		}
 		c.Client = &http.Client{
 			Transport: transport,
 
@@ -170,13 +173,17 @@ func publicOnly(network, address string, _ syscall.RawConn) error {
 		return err
 	}
 
-	ip = ip.Unmap()
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified() || ip.IsMulticast() {
-		return fmt.Errorf("events: refusing to deliver to non-public address %s", ip)
+	if !public(ip) {
+		return fmt.Errorf("events: refusing to deliver to non-public address %s", ip.Unmap())
 	}
 
 	return nil
+}
+
+func public(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() || ip.IsMulticast() || ip.IsInterfaceLocalMulticast())
 }
 
 type Service struct {

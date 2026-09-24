@@ -305,9 +305,9 @@ func TestTakenOverRequestCannotClobber(t *testing.T) {
 	}
 
 	rec := &recorder{ResponseWriter: httptest.NewRecorder(), status: http.StatusInternalServerError}
-	h.svc.finish(ctx, h.svc.log, "fenced", stale, rec)
+	h.svc.finish(ctx, httptest.NewRequest(http.MethodPost, "/", nil), h.svc.log, "fenced", stale, rec)
 	rec.status = http.StatusCreated
-	h.svc.finish(ctx, h.svc.log, "fenced", stale, rec)
+	h.svc.finish(ctx, httptest.NewRequest(http.MethodPost, "/", nil), h.svc.log, "fenced", stale, rec)
 
 	var token uuid.UUID
 	var status string

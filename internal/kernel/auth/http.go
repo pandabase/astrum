@@ -78,6 +78,7 @@ func (s *Service) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	out := toKey(k)
 	out.Secret = token
+	w.Header().Set("Cache-Control", "no-store")
 	httpx.JSON(w, r, http.StatusCreated, out)
 }
 
@@ -156,6 +157,8 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.Error(w, r, http.StatusNotFound, httpx.CodeNotFound, err.Error())
 	case errors.Is(err, ErrInvalid):
 		httpx.Error(w, r, http.StatusUnprocessableEntity, "validation_error", err.Error())
+	case errors.Is(err, ErrLastAdmin):
+		httpx.Error(w, r, http.StatusConflict, "last_admin_key", err.Error())
 	default:
 		httpx.Error(w, r, http.StatusInternalServerError, httpx.CodeInternal, "")
 	}

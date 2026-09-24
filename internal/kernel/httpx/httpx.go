@@ -31,6 +31,7 @@ const (
 	CodeUnavailable      = "service_unavailable"
 	CodeIdempotencyReuse = "idempotency_key_reused"
 	CodeIdempotencyBusy  = "idempotency_key_in_use"
+	CodeIdempotencyDone  = "idempotency_key_completed"
 )
 
 const (

@@ -17,7 +17,7 @@ import { formError, text } from "~/lib/forms";
 import { routeId } from "~/lib/ids";
 import { title } from "~/lib/meta";
 import { searchParams, withQuery } from "~/lib/query";
-import { canWrite } from "~/lib/session";
+import { isAdmin } from "~/lib/session";
 import type { List, WebhookDelivery, WebhookEndpoint } from "~/lib/types";
 import type { Route } from "./+types/detail";
 
@@ -66,7 +66,7 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
 
 export default function WebhookDetail({ loaderData }: Route.ComponentProps) {
   const { endpoint: e, deliveries, filters } = loaderData;
-  const writable = canWrite(useApiKey().role);
+  const writable = isAdmin(useApiKey().role);
   const fetcher = useFetcher({ key: fetcherKey });
   return (
     <div className="grid gap-8">

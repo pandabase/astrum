@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"embed"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -158,12 +160,12 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		defer func() {
 			if p := recover(); p != nil {
 				rec.status = http.StatusInternalServerError
-				s.finish(context.WithoutCancel(r.Context()), l, key, token, rec)
+				s.finish(context.WithoutCancel(r.Context()), r, l, key, token, rec)
 				panic(p)
 			}
 		}()
 		next.ServeHTTP(rec, r)
-		s.finish(context.WithoutCancel(r.Context()), l, key, token, rec)
+		s.finish(context.WithoutCancel(r.Context()), r, l, key, token, rec)
 	})
 }
 
@@ -221,7 +223,7 @@ func (s *Service) resolveExisting(w http.ResponseWriter, r *http.Request, l *log
 	}
 }
 
-func (s *Service) finish(ctx context.Context, l *log.Logger, key string, token uuid.UUID, rec *recorder) {
+func (s *Service) finish(ctx context.Context, r *http.Request, l *log.Logger, key string, token uuid.UUID, rec *recorder) {
 	if rec.status >= http.StatusInternalServerError {
 		tag, err := s.pool.Exec(ctx, `DELETE FROM idempotency_keys WHERE key = $1 AND lock_token = $2`, key, token)
 		switch {
@@ -235,6 +237,18 @@ func (s *Service) finish(ctx context.Context, l *log.Logger, key string, token u
 		return
 	}
 
+	status, contentType, body := rec.status, rec.Header().Get("Content-Type"), append([]byte{}, rec.body.Bytes()...)
+	if strings.Contains(strings.ToLower(rec.Header().Get("Cache-Control")), "no-store") {
+		status, contentType = http.StatusConflict, "application/problem+json"
+		problem := httpx.NewProblem(r, status, httpx.CodeIdempotencyDone,
+			"this request already succeeded; its response contained a secret, which is shown only once")
+		encoded, err := json.Marshal(problem)
+		if err != nil {
+			l.Error("encode replay problem failed", "err", err)
+			return
+		}
+		body = append(encoded, '\n')
+	}
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE idempotency_keys
 		SET status = 'completed',
@@ -243,7 +257,7 @@ func (s *Service) finish(ctx context.Context, l *log.Logger, key string, token u
 		    response_body = $4,
 		    completed_at = now()
 		WHERE key = $1 AND lock_token = $5 AND status = 'processing'`,
-		key, rec.status, rec.Header().Get("Content-Type"), append([]byte{}, rec.body.Bytes()...), token)
+		key, status, contentType, body, token)
 	if err != nil {
 		l.Error("store response failed", "err", err)
 		return

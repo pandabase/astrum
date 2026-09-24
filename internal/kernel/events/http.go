@@ -128,6 +128,7 @@ func (s *Service) handleCreateEndpoint(w http.ResponseWriter, r *http.Request) {
 		create.EventTypes = *in.EventTypes
 	}
 	e, err := s.CreateEndpoint(r.Context(), create)
+	w.Header().Set("Cache-Control", "no-store")
 	respond(w, r, http.StatusCreated, e, toEndpoint, err)
 }
 

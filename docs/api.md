@@ -103,13 +103,13 @@ All API routes except `GET /healthz` require:
 Authorization: Bearer sk_...
 ```
 
-| Role    | Access                                                |
-| ------- | ----------------------------------------------------- |
-| `read`  | GET/HEAD requests, except API-key management.         |
-| `write` | Read and change resources, except API-key management. |
-| `admin` | All routes, including API-key management.             |
+| Role    | Access                                                                          |
+| ------- | ------------------------------------------------------------------------------- |
+| `read`  | GET/HEAD requests, except API keys and webhook endpoints.                       |
+| `write` | Read and change resources, except API keys and webhook endpoints.               |
+| `admin` | All routes, including API keys and webhook endpoints, which can expose secrets. |
 
-Keys grant access across the server; they are not restricted to a ledger. Expired and revoked keys return `401`. Revocation reaches other instances within the 10-second authentication cache window.
+Keys grant access across the server; they are not restricted to a ledger. Expired and revoked keys return `401`. Revocation reaches other instances within the 10-second authentication cache window. The last active admin key can't be revoked (`409 last_admin_key`); create another admin key first.
 
 ### API keys
 
@@ -157,7 +157,7 @@ Other POST, PATCH, PUT and DELETE requests can also use the header. It is not re
 
 The HTTP replay cache is scoped to your API key and compares the method, full request URI and **raw body bytes**. Keep all three identical on retries, including JSON formatting. A replay returns the saved status and body with `Idempotent-Replayed: true`. Different requests using the same key return `422 idempotency_key_reused`; concurrent requests may return `409 idempotency_key_in_use` and should be retried later.
 
-Responses below `500`, including validation errors, are cached for 24 hours from the first request. Server errors release the HTTP key for retry. Ledger operations also retain their own idempotency records beyond that cache window; those records are shared across API keys. Use globally unique operation keys, even when multiple clients use different API keys, and don’t recycle old keys.
+Responses below `500`, including validation errors, are cached for 24 hours from the first request. Responses that contain a secret (creating an API key or webhook endpoint) are sent with `Cache-Control: no-store` and never stored: a replay returns `409 idempotency_key_completed`, because the secret is shown only once. Server errors release the HTTP key for retry. Ledger operations also retain their own idempotency records beyond that cache window; those records are shared across API keys. Use globally unique operation keys, even when multiple clients use different API keys, and don’t recycle old keys.
 
 Keys are limited to 255 bytes. Batch and bulk items append `/0`, `/1`, etc. to the supplied key, so leave room for that suffix.
 
@@ -664,7 +664,7 @@ Events and their delivery logs are eligible for deletion after `EVENT_RETENTION`
 
 ## Webhook endpoints
 
-Register a URL to receive events as JSON POST requests.
+Register a URL to receive events as JSON POST requests. Endpoint routes are admin only.
 
 | Method | Endpoint                     | Result                              |
 | ------ | ---------------------------- | ----------------------------------- |
@@ -676,7 +676,7 @@ Register a URL to receive events as JSON POST requests.
 
 | Field         | Type         | Description                                                                                                                            |
 | ------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`         | string       | **Required on create.** Absolute HTTPS URL, no credentials, up to 2,048 bytes. Deliveries to private addresses are blocked by default. |
+| `url`         | string       | **Required on create.** Absolute HTTPS URL, no credentials, up to 2,048 bytes. `localhost` and loopback, private and link-local IPs are rejected, and delivery re-checks the address it connects to; `WEBHOOK_ALLOW_INSECURE` lifts both. |
 | `description` | string       | Up to 1,024 bytes.                                                                                                                     |
 | `event_types` | string array | Up to 64 patterns. Omit or use `[]` for all events. Supports exact names, `transaction.*` and `*`.                                     |
 | `enabled`     | boolean      | Default `true`. Disabled endpoints receive no new dispatches or delivery attempts while disabled.                                      |
@@ -778,7 +778,7 @@ Use `code` for application logic and `detail` for a readable explanation. `X-Req
 | 401    | `unauthorized`                                                                                                                                                                                                                                                                                            |
 | 403    | `forbidden`                                                                                                                                                                                                                                                                                               |
 | 404    | `not_found`                                                                                                                                                                                                                                                                                               |
-| 409    | `lock_version_conflict`, `currency_exists`, `account_exists`, `transaction_not_pending`, `transaction_not_posted`, `external_id_exists`, `account_not_empty`, `already_reversed`, `hold_not_pending`, `schedule_not_pending`, `idempotency_key_in_use`                                                    |
+| 409    | `lock_version_conflict`, `currency_exists`, `account_exists`, `transaction_not_pending`, `transaction_not_posted`, `external_id_exists`, `account_not_empty`, `already_reversed`, `hold_not_pending`, `schedule_not_pending`, `idempotency_key_in_use`, `idempotency_key_completed`, `last_admin_key`      |
 | 413    | `request_too_large`                                                                                                                                                                                                                                                                                       |
 | 422    | `validation_error`, `category_cycle`, `category_too_deep`, `category_mismatch`, `balance_lock_failed`, `unknown_ledger`, `unknown_currency`, `cross_ledger_transaction`, `insufficient_funds`, `unbalanced_transaction`, `account_not_open`, `amount_overflow`, `batch_aborted`, `idempotency_key_reused` |
 | 500    | `internal_error`                                                                                                                                                                                                                                                                                          |

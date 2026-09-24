@@ -44,6 +44,8 @@ const (
 
 	cacheTTL = 10 * time.Second
 
+	revokeLockID = 0x61737472756d6b
+
 	touchEvery = time.Minute
 	maxNameLen = 255
 )
@@ -52,6 +54,7 @@ var (
 	ErrUnauthenticated = errors.New("auth: invalid or missing API key")
 	ErrNotFound        = errors.New("auth: api key not found")
 	ErrInvalid         = errors.New("auth: invalid input")
+	ErrLastAdmin       = errors.New("auth: the last active admin key cannot be revoked")
 )
 
 type Key struct {
@@ -230,7 +233,38 @@ func (s *Service) ActiveAdmins(ctx context.Context) (int, error) {
 }
 
 func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Key, error) {
-	if _, err := s.pool.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`, id); err != nil {
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, revokeLockID); err != nil {
+			return err
+		}
+		var (
+			role    Role
+			revoked bool
+		)
+		err := tx.QueryRow(ctx, `SELECT role, revoked_at IS NOT NULL FROM api_keys WHERE id = $1`, id).Scan(&role, &revoked)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return ErrNotFound
+		case err != nil:
+			return err
+		case revoked:
+			return nil
+		}
+		if role == RoleAdmin {
+			var others int
+			if err := tx.QueryRow(ctx, `
+				SELECT count(*) FROM api_keys
+				WHERE role = 'admin' AND id <> $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`, id).Scan(&others); err != nil {
+				return err
+			}
+			if others == 0 {
+				return ErrLastAdmin
+			}
+		}
+		_, err = tx.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE id = $1`, id)
+		return err
+	})
+	if err != nil {
 		return Key{}, err
 	}
 	s.mu.Lock()
@@ -278,8 +312,8 @@ func (s *Service) Middleware(public []string, next http.Handler) http.Handler {
 				return
 			}
 		}
-		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok {
+		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+		if !ok || !strings.EqualFold(scheme, "Bearer") {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="astrum"`)
 			httpx.Error(w, r, http.StatusUnauthorized, "unauthorized", "send an API key as Authorization: Bearer sk_...")
 			return
@@ -306,8 +340,12 @@ func (s *Service) Middleware(public []string, next http.Handler) http.Handler {
 	})
 }
 
+func adminPath(path, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
+
 func allowed(role Role, r *http.Request) bool {
-	keyAdmin := r.URL.Path == "/v1/api_keys" || strings.HasPrefix(r.URL.Path, "/v1/api_keys/")
+	keyAdmin := adminPath(r.URL.Path, "/v1/api_keys") || adminPath(r.URL.Path, "/v1/webhook_endpoints")
 	switch role {
 	case RoleAdmin:
 		return true

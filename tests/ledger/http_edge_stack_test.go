@@ -115,7 +115,8 @@ func TestHeStackRoles(t *testing.T) {
 		{"patch ledger", http.MethodPatch, "/v1/ledgers/" + s.ledger, "", `{"description":"d"}`, writes(200)},
 		{"post transaction", http.MethodPost, "/v1/transactions", "", heTransfer(src, dst, "1"), writes(201)},
 		{"delete unknown category", http.MethodDelete, "/v1/account_categories/" + unknownCat, "", "", writes(404)},
-		{"webhook endpoint", http.MethodPost, "/v1/webhook_endpoints", "", `{"url":"https://example.com/h"}`, writes(201)},
+		{"webhook endpoint", http.MethodPost, "/v1/webhook_endpoints", "", `{"url":"https://example.com/h"}`, admins(201)},
+		{"list webhook endpoints", http.MethodGet, "/v1/webhook_endpoints", "", "", admins(200)},
 		{"list keys", http.MethodGet, "/v1/api_keys", "", "", admins(200)},
 		{"create key", http.MethodPost, "/v1/api_keys", "", `{"name":"k","role":"read"}`, admins(201)},
 	}
@@ -378,18 +379,28 @@ func TestHeStackIdempotency(t *testing.T) {
 		}
 	})
 
-	t.Run("api key creation replays the secret", func(t *testing.T) {
-		first := s.as("admin", http.MethodPost, "/v1/api_keys", "mint", `{"name":"minted","role":"read"}`)
-		second := s.as("admin", http.MethodPost, "/v1/api_keys", "mint", `{"name":"minted","role":"read"}`)
-		if first.status != 201 || second.body["secret"] != first.body["secret"] || second.header.Get(idempotency.ReplayedHeader) != "true" {
-			t.Fatalf("mint replay = %d %v", second.status, second.body["secret"])
-		}
-		var stored []byte
-		if err := s.e.pool.QueryRow(context.Background(), `SELECT response_body FROM idempotency_keys WHERE key LIKE '%:mint'`).Scan(&stored); err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Contains(stored, []byte(first.body["secret"].(string))) {
-			t.Fatal("expected the stored response to contain the secret")
+	t.Run("secret responses are shown once and never stored", func(t *testing.T) {
+		for _, c := range []struct{ path, key, body string }{
+			{"/v1/api_keys", "mint", `{"name":"minted","role":"read"}`},
+			{"/v1/webhook_endpoints", "hook", `{"url":"https://example.com/h"}`},
+		} {
+			first := s.as("admin", http.MethodPost, c.path, c.key, c.body)
+			secret, _ := first.body["secret"].(string)
+			if first.status != 201 || secret == "" || first.header.Get("Cache-Control") != "no-store" {
+				t.Fatalf("%s create = %d %v", c.path, first.status, first.body)
+			}
+			second := s.as("admin", http.MethodPost, c.path, c.key, c.body)
+			if second.status != 409 || second.body["code"] != "idempotency_key_completed" || second.body["secret"] != nil ||
+				second.header.Get(idempotency.ReplayedHeader) != "true" {
+				t.Fatalf("%s replay = %d %v", c.path, second.status, second.body)
+			}
+			var stored []byte
+			if err := s.e.pool.QueryRow(context.Background(), `SELECT response_body FROM idempotency_keys WHERE key LIKE '%:'||$1`, c.key).Scan(&stored); err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(stored, []byte(secret)) {
+				t.Fatalf("%s: stored response contains the secret", c.path)
+			}
 		}
 	})
 }
