@@ -5,6 +5,7 @@ export default [
   route("sign-out", "routes/sign-out.tsx"),
   layout("routes/app-layout.tsx", [
     index("routes/overview.tsx"),
+    route("lifecycle", "routes/lifecycle.tsx"),
 
     route("ledgers", "routes/ledgers/index.tsx"),
     route("ledgers/new", "routes/ledgers/new.tsx"),

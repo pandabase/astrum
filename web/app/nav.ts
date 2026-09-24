@@ -12,7 +12,7 @@ export type NavItem = {
 export type NavGroup = { label?: string; items: NavItem[] };
 
 export const navigation: NavGroup[] = [
-  { items: [{ to: "/", label: "Overview" }] },
+  { items: [{ to: "/", label: "Overview" }, { to: "/lifecycle", label: "Lifecycle" }] },
   {
     label: "Ledger",
     items: [

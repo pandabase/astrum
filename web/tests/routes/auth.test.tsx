@@ -34,7 +34,7 @@ const key: ApiKey = {
 const fetchMock = vi.fn(async (path: RequestInfo | URL, init?: RequestInit) => {
   const auth = new Headers(init?.headers).get("Authorization");
   if (auth !== `Bearer ${good}`) return Response.json({ status: 401, code: "unauthorized" }, { status: 401 });
-  if (String(path).startsWith("/v1/ledgers") || String(path).startsWith("/v1/transactions")) {
+  if (["/v1/ledgers", "/v1/transactions", "/v1/holds", "/v1/scheduled_transactions", "/v1/entries"].some((prefix) => String(path).startsWith(prefix))) {
     return Response.json({ object: "list", data: [], has_more: false, next_cursor: null });
   }
   return Response.json(key);
@@ -136,7 +136,7 @@ describe("authentication", () => {
       has_more: false, next_cursor: null,
     }));
     fetchMock.mockImplementationOnce(async () => Response.json({
-      object: "list", data: [{ id: "txn_example", description: "Opening deposit", status: "posted", external_id: null, entries: [{}, {}], effective_at: key.created_at }],
+      object: "list", data: [{ id: "txn_example", description: "Opening deposit", status: "posted", external_id: null, ledger_id: "ldg_example", reverses_id: null, entries: [], created_at: key.created_at, posted_at: key.created_at, archived_at: null, effective_at: key.created_at }],
       has_more: false, next_cursor: null,
     }));
     saveToken(good);

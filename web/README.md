@@ -62,3 +62,11 @@ In production the Go server serves `build/client` itself when `WEB_DIR` points a
 Pages load data in `clientLoader` and change it in `clientAction`, never in effects. Lists keep their cursor and filters in the URL. Actions on a detail page submit an `intent` through a fetcher, and `ActionError` shows what the API refused.
 
 Create forms send an idempotency key that stays the same for double submits and changes once an attempt finishes, since the API remembers every outcome under its key. Edit forms send only the fields that changed. Each page re-exports `RouteError` as its `ErrorBoundary` so failures stay inside the shell.
+
+## Lifecycle view
+
+The overview previews the latest transaction’s flow; **Lifecycle** opens a filterable, zoomable chart. Transaction details also link directly to their flow. Nodes open the underlying records, and a text connection list provides an alternative to the chart.
+
+This view uses existing read APIs only. Connections come from capture transaction IDs, schedule transaction IDs, reversal references and settled entries. Sharing an account, metadata or an external ID does not create a connection. Entries are grouped by account and side, with currencies kept separate.
+
+Discovery checks the latest 100 transactions in the selected ledger and the latest 100 holds and schedules across the instance. Explicit original-transaction and settlement references are fetched directly, even when older. The view follows direct links, caps settlement expansion at 20, and displays up to 12 account/side groups per transaction. It labels partial results and does not infer historical status transitions.

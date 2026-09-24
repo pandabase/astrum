@@ -112,6 +112,7 @@ export default function TransactionDetail({ loaderData }: Route.ComponentProps) 
           )
         }
       />
+      <div><ButtonLink to={`/lifecycle?transaction_id=${t.id}`}>View lifecycle</ButtonLink></div>
       <ActionError fetcherKey={fetcherKey} />
       {reversal && (
         <Notice>

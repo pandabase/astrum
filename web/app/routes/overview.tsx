@@ -1,3 +1,6 @@
+import { LifecycleFlow } from "~/components/lifecycle-flow";
+import { loadLifecycle } from "~/lib/lifecycle";
+import { withQuery } from "~/lib/query";
 import { motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import { Details } from "~/components/details";
@@ -20,7 +23,8 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     api<List<Ledger>>("/v1/ledgers?limit=5", { signal: request.signal }),
     api<List<Transaction>>("/v1/transactions?limit=8", { signal: request.signal }),
   ]);
-  return { ledgers, transactions };
+  const lifecycle = transactions.data[0] ? await loadLifecycle(transactions.data[0], request.signal) : null;
+  return { ledgers, transactions, lifecycle };
 }
 
 const abilities: Record<Role, string> = {
@@ -32,7 +36,7 @@ const abilities: Record<Role, string> = {
 export default function Overview({ loaderData }: Route.ComponentProps) {
   const key = useApiKey();
   const reducedMotion = useReducedMotion();
-  const { ledgers, transactions } = loaderData;
+  const { ledgers, transactions, lifecycle } = loaderData;
   const writable = canWrite(key.role);
 
   return (
@@ -47,6 +51,14 @@ export default function Overview({ loaderData }: Route.ComponentProps) {
         description="Your ledgers and latest activity, in one place."
         actions={writable && <ButtonLink to="/transactions/new" variant="primary">New transaction</ButtonLink>}
       />
+
+      <section aria-labelledby="lifecycle-preview">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 id="lifecycle-preview" className="font-medium">Lifecycle</h2>
+          <TextLink to={withQuery("/lifecycle", { transaction_id: lifecycle?.focus })} className="text-xs text-muted">Explore flows</TextLink>
+        </div>
+        {lifecycle ? <LifecycleFlow data={lifecycle} compact /> : <p className="border border-dashed border-line-strong p-6 text-muted">No transactions yet.</p>}
+      </section>
 
       <section aria-labelledby="recent-transactions">
         <div className="mb-4 flex items-center justify-between gap-4">
