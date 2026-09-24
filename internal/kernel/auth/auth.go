@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -306,11 +307,9 @@ func Scope(r *http.Request) string {
 
 func (s *Service) Middleware(public []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, p := range public {
-			if r.URL.Path == p {
-				next.ServeHTTP(w, r)
-				return
-			}
+		if slices.Contains(public, r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
 		}
 		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 		if !ok || !strings.EqualFold(scheme, "Bearer") {

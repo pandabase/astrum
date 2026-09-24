@@ -65,7 +65,7 @@ func TestLedgerEmitsEvents(t *testing.T) {
 	b := e.account(t, "USD", ledger.Debit)
 
 	p := e.post(t, pending(transfer("p", a.ID, b.ID, 10)))
-	if _, err := e.m.UpdateTransaction(ctx, p.ID, ledger.UpdateTransactionInput{Description: str("edited")}); err != nil {
+	if _, err := e.m.UpdateTransaction(ctx, p.ID, ledger.UpdateTransactionInput{Description: new("edited")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.m.PostTransaction(ctx, p.ID, ledger.PostPendingInput{}); err != nil {
@@ -99,7 +99,7 @@ func TestLedgerEmitsEvents(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, b.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: str("wallet")}); err != nil {
+	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("wallet")}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +107,7 @@ func TestLedgerEmitsEvents(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, b.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: str("wallet")}); err != nil {
+	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("wallet")}); err != nil {
 		t.Fatal(err)
 	}
 	results, err := e.m.PostBatch(ctx, []ledger.PostInput{transfer("ok", a.ID, e.open.ID, 1), transfer("broke", a.ID, e.open.ID, 1_000_000)}, true)
@@ -210,7 +210,7 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 	}
 
 	t.Run("crud and validation", func(t *testing.T) {
-		updated, err := e.m.UpdateBalanceMonitor(ctx, low.ID, ledger.UpdateInput{Description: str("low float")})
+		updated, err := e.m.UpdateBalanceMonitor(ctx, low.ID, ledger.UpdateInput{Description: new("low float")})
 		if err != nil || updated.Description != "low float" || updated.Version != 1 {
 			t.Fatalf("update = %+v, %v", updated, err)
 		}

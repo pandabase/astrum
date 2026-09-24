@@ -195,7 +195,7 @@ func TestSchedulesEdgeEffectiveAtIsPreserved(t *testing.T) {
 	a := e.funded(t, 100)
 	b := e.account(t, "USD", ledger.Debit)
 	in := scheduleInput("backdated", a.ID, b.ID, 7, time.Now().Add(-time.Minute))
-	in.EffectiveAt = at(day(3))
+	in.EffectiveAt = new(day(3))
 	in.ExternalID = "ext-backdated"
 	st := feSchedule(t, e, in)
 	feDrain(t, e)
@@ -207,7 +207,7 @@ func TestSchedulesEdgeEffectiveAtIsPreserved(t *testing.T) {
 	if err != nil || !txn.EffectiveAt.Equal(day(3)) || txn.ExternalID != "ext-backdated" {
 		t.Fatalf("transaction = %+v, %v", txn, err)
 	}
-	b2, err := e.m.Balances(ctx, b.ID, ledger.EffectiveRange{Until: at(day(4))})
+	b2, err := e.m.Balances(ctx, b.ID, ledger.EffectiveRange{Until: new(day(4))})
 	if err != nil || b2.Posted.Amount != amt(7) {
 		t.Fatalf("balance by day 4 = %+v, %v", b2, err)
 	}
@@ -226,7 +226,7 @@ func TestSchedulesEdgeReplay(t *testing.T) {
 	}{
 		{"plain", func(in *ledger.ScheduleInput) {}},
 		{"metadata", func(in *ledger.ScheduleInput) { in.Metadata = jsontext.Value(`{"a": 1}`) }},
-		{"effective_at", func(in *ledger.ScheduleInput) { in.EffectiveAt = at(day(2)) }},
+		{"effective_at", func(in *ledger.ScheduleInput) { in.EffectiveAt = new(day(2)) }},
 		{"pending status", func(in *ledger.ScheduleInput) { in.Status = ledger.TransactionPending }},
 		{"external_id", func(in *ledger.ScheduleInput) { in.ExternalID = "ext-" + in.IdempotencyKey }},
 	}

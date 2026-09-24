@@ -32,8 +32,6 @@ func peCondition(op string, v money.Amount) *ledger.BalanceCondition {
 	return c
 }
 
-func peVersion(v int64) *int64 { return &v }
-
 func TestLocksEdgeOperatorMatrix(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
@@ -268,12 +266,12 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 	t.Run("repeated legs compare against the pre-transaction version", func(t *testing.T) {
 		current := e.get(t, a.ID).Version
 		same := peLegs("v-repeat",
-			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: peVersion(current)},
-			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: peVersion(current)})
+			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: new(current)},
+			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: new(current)})
 		e.post(t, same)
 		split := peLegs("v-repeat-split",
-			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: peVersion(current + 1)},
-			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: peVersion(current + 2)})
+			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: new(current + 1)},
+			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: new(current + 2)})
 		_, err := e.m.Post(ctx, split)
 		wantErr(t, err, ledger.ErrLockVersion)
 	})
@@ -347,7 +345,7 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		}
 		_, err = e.m.PostTransaction(ctx, archived.ID, ledger.PostPendingInput{})
 		wantErr(t, err, ledger.ErrNotPending)
-		_, err = e.m.UpdateTransaction(ctx, archived.ID, ledger.UpdateTransactionInput{Description: str("x")})
+		_, err = e.m.UpdateTransaction(ctx, archived.ID, ledger.UpdateTransactionInput{Description: new("x")})
 		wantErr(t, err, ledger.ErrNotPending)
 		_, err = e.m.Reverse(ctx, archived.ID, ledger.ReverseInput{IdempotencyKey: "reverse-archived"})
 		wantErr(t, err, ledger.ErrNotPosted)
@@ -428,7 +426,7 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		t.Run("lock_version failure does not mask "+tt.name, func(t *testing.T) {
 			legs := append([]ledger.Posting(nil), tt.legs...)
 			legs = append(legs[1:2], legs[0])
-			legs[0].LockVersion = peVersion(math.MaxInt64)
+			legs[0].LockVersion = new(int64(math.MaxInt64))
 			key := "masked-version-" + tt.name
 			in := ledger.PostInput{IdempotencyKey: key, ArchiveOnLockFailure: true, Postings: legs}
 			sibling := transfer("sibling-"+tt.name, a.ID, b.ID, 1)

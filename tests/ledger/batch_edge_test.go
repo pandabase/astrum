@@ -357,7 +357,7 @@ func TestBatchEdgeSlotReleasedAfterPanic(t *testing.T) {
 	b := e.account(t, "USD", ledger.Debit)
 
 	poison := ledger.PostInput{IdempotencyKey: "poison", ArchiveOnLockFailure: true, Postings: []ledger.Posting{
-		{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: peVersion(1 << 40)},
+		{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: new(int64(1 << 40))},
 		peLeg(uuid.New(), ledger.Debit, 1),
 	}}
 	if _, err := peBatchRecover(context.Background(), e, []ledger.PostInput{poison}, false); err == nil {

@@ -280,12 +280,12 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 		err      error
 	}{
 		{"no-op", ledger.UpdateInput{}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, nil},
-		{"same description", ledger.UpdateInput{Description: str("d")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, nil},
-		{"name is refused", ledger.UpdateInput{Name: str("x")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, ledger.ErrInvalid},
-		{"empty name is refused", ledger.UpdateInput{Name: str("")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, ledger.ErrInvalid},
+		{"same description", ledger.UpdateInput{Description: new("d")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, nil},
+		{"name is refused", ledger.UpdateInput{Name: new("x")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, ledger.ErrInvalid},
+		{"empty name is refused", ledger.UpdateInput{Name: new("")}, 0, "d", `{"team":{"name":"ops","pager":"x"}}`, ledger.ErrInvalid},
 		{"nested delete", ledger.UpdateInput{Metadata: jsontext.Value(`{"team":{"pager":null}}`)}, 1, "d", `{"team":{"name":"ops"}}`, nil},
-		{"clear description", ledger.UpdateInput{Description: str("")}, 2, "", `{"team":{"name":"ops"}}`, nil},
-		{"description too long", ledger.UpdateInput{Description: str(strings.Repeat("d", 1025))}, 2, "", `{"team":{"name":"ops"}}`, ledger.ErrInvalid},
+		{"clear description", ledger.UpdateInput{Description: new("")}, 2, "", `{"team":{"name":"ops"}}`, nil},
+		{"description too long", ledger.UpdateInput{Description: new(strings.Repeat("d", 1025))}, 2, "", `{"team":{"name":"ops"}}`, ledger.ErrInvalid},
 		{"null resets metadata", ledger.UpdateInput{Metadata: jsontext.Value(`null`)}, 3, "", `{}`, nil},
 	}
 	for _, step := range steps {
@@ -310,7 +310,7 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 		"delete twice": func() error { return e.m.DeleteBalanceMonitor(ctx, m.ID) },
 		"get":          func() error { _, err := e.m.BalanceMonitor(ctx, m.ID); return err },
 		"update": func() error {
-			_, err := e.m.UpdateBalanceMonitor(ctx, m.ID, ledger.UpdateInput{Description: str("x")})
+			_, err := e.m.UpdateBalanceMonitor(ctx, m.ID, ledger.UpdateInput{Description: new("x")})
 			return err
 		},
 	} {

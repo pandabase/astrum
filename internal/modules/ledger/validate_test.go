@@ -110,10 +110,9 @@ func TestValidateHoldCaptureSchedule(t *testing.T) {
 	}{
 		{"hold valid", validateHold(CreateHoldInput{IdempotencyKey: "h", AccountID: uuid.New(), Amount: amt(1), ExpiresAt: future})},
 		{"capture valid", validateCapture(CaptureInput{IdempotencyKey: "c", Destination: uuid.New(), Amount: amt(1)})},
-		{"schedule valid", validateSchedule(ScheduleInput{ExecuteAt: future, PostInput: PostInput{
+		{"schedule valid", validateSchedule(ScheduleInput{ExecuteAt: future,
 			IdempotencyKey: "s",
-			Postings:       []Posting{{AccountID: uuid.New(), Side: Debit, Amount: amt(1)}, {AccountID: uuid.New(), Side: Credit, Amount: amt(1)}},
-		}})},
+			Postings:       []Posting{{AccountID: uuid.New(), Side: Debit, Amount: amt(1)}, {AccountID: uuid.New(), Side: Credit, Amount: amt(1)}}})},
 	}
 	for _, tt := range tests {
 		if tt.err != nil {

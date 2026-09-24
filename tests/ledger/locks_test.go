@@ -121,7 +121,7 @@ func TestLockVersion(t *testing.T) {
 	if err != nil || results[0].Err != nil || !errors.Is(results[1].Err, ledger.ErrLockVersion) {
 		t.Fatalf("batch = %+v, %v", results, err)
 	}
-	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: str("renamed")}); err != nil {
+	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("renamed")}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = e.m.Post(ctx, locked(transfer("after-rename", a.ID, b.ID, 1), a.ID, at(current+1)))

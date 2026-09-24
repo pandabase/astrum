@@ -282,7 +282,7 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 		}
 		c := e.addAccount(t, e.category(t, "held", ledger.Debit), held)
 		wantBalance(t, "unbounded available", c.Balances.Available, 50, 20, 30)
-		windowed, err := e.m.Category(ctx, c.ID, ledger.EffectiveRange{From: at(time.Now().Add(-time.Hour))})
+		windowed, err := e.m.Category(ctx, c.ID, ledger.EffectiveRange{From: new(time.Now().Add(-time.Hour))})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -291,7 +291,7 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 
 	t.Run("range validation", func(t *testing.T) {
 		now := time.Now()
-		for _, r := range []ledger.EffectiveRange{{From: &now, Until: &now}, {From: at(now.Add(time.Second)), Until: &now}} {
+		for _, r := range []ledger.EffectiveRange{{From: &now, Until: &now}, {From: new(now.Add(time.Second)), Until: &now}} {
 			_, err := e.m.Category(ctx, eurCat.ID, r)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
@@ -322,7 +322,7 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 		"delete again": func() error { return e.m.DeleteCategory(ctx, parent.ID) },
 		"get":          func() error { _, err := e.m.Category(ctx, parent.ID, ledger.EffectiveRange{}); return err },
 		"update": func() error {
-			_, err := e.m.UpdateCategory(ctx, parent.ID, ledger.UpdateInput{Name: str("x")})
+			_, err := e.m.UpdateCategory(ctx, parent.ID, ledger.UpdateInput{Name: new("x")})
 			return err
 		},
 		"nest into":           func() error { _, err := e.m.NestCategory(ctx, parent.ID, child.ID); return err },
@@ -393,7 +393,7 @@ func TestCategoriesEdgeUpdate(t *testing.T) {
 		err      error
 	}{
 		{"empty update", ledger.UpdateInput{}, 0, `{"a":{"b":1,"c":2},"list":[1,2],"keep":"k"}`, nil},
-		{"same values", ledger.UpdateInput{Name: str("c"), Description: str("d"), Metadata: jsontext.Value(`{"keep":"k"}`)}, 0, `{"a":{"b":1,"c":2},"list":[1,2],"keep":"k"}`, nil},
+		{"same values", ledger.UpdateInput{Name: new("c"), Description: new("d"), Metadata: jsontext.Value(`{"keep":"k"}`)}, 0, `{"a":{"b":1,"c":2},"list":[1,2],"keep":"k"}`, nil},
 		{"empty patch object", ledger.UpdateInput{Metadata: jsontext.Value(`{}`)}, 0, `{"a":{"b":1,"c":2},"list":[1,2],"keep":"k"}`, nil},
 		{"nested merge", ledger.UpdateInput{Metadata: jsontext.Value(`{"a":{"c":null,"d":3}}`)}, 1, `{"a":{"b":1,"d":3},"list":[1,2],"keep":"k"}`, nil},
 		{"arrays are replaced", ledger.UpdateInput{Metadata: jsontext.Value(`{"list":[3]}`)}, 2, `{"a":{"b":1,"d":3},"list":[3],"keep":"k"}`, nil},
@@ -402,11 +402,11 @@ func TestCategoriesEdgeUpdate(t *testing.T) {
 		{"deleting a missing key", ledger.UpdateInput{Metadata: jsontext.Value(`{"missing":null}`)}, 4, `{"a":"flat","list":[3],"keep":{"y":1}}`, nil},
 		{"null resets", ledger.UpdateInput{Metadata: jsontext.Value(`null`)}, 5, `{}`, nil},
 		{"null on empty is unchanged", ledger.UpdateInput{Metadata: jsontext.Value(` null `)}, 5, `{}`, nil},
-		{"rename", ledger.UpdateInput{Name: str("renamed")}, 6, `{}`, nil},
-		{"empty name", ledger.UpdateInput{Name: str("")}, 6, `{}`, ledger.ErrInvalid},
-		{"blank name", ledger.UpdateInput{Name: str("  ")}, 6, `{}`, ledger.ErrInvalid},
-		{"name too long", ledger.UpdateInput{Name: str(strings.Repeat("n", 256))}, 6, `{}`, ledger.ErrInvalid},
-		{"name at limit", ledger.UpdateInput{Name: str(strings.Repeat("n", 255))}, 7, `{}`, nil},
+		{"rename", ledger.UpdateInput{Name: new("renamed")}, 6, `{}`, nil},
+		{"empty name", ledger.UpdateInput{Name: new("")}, 6, `{}`, ledger.ErrInvalid},
+		{"blank name", ledger.UpdateInput{Name: new("  ")}, 6, `{}`, ledger.ErrInvalid},
+		{"name too long", ledger.UpdateInput{Name: new(strings.Repeat("n", 256))}, 6, `{}`, ledger.ErrInvalid},
+		{"name at limit", ledger.UpdateInput{Name: new(strings.Repeat("n", 255))}, 7, `{}`, nil},
 		{"patch is an array", ledger.UpdateInput{Metadata: jsontext.Value(`[{"a":1}]`)}, 7, `{}`, ledger.ErrInvalid},
 		{"patch is a string", ledger.UpdateInput{Metadata: jsontext.Value(`"x"`)}, 7, `{}`, ledger.ErrInvalid},
 		{"patch is malformed", ledger.UpdateInput{Metadata: jsontext.Value(`{"a":`)}, 7, `{}`, ledger.ErrInvalid},
@@ -426,7 +426,7 @@ func TestCategoriesEdgeUpdate(t *testing.T) {
 			t.Fatalf("%s: version %d metadata %s, want %d %s", step.name, got.Version, got.Metadata, step.version, step.metadata)
 		}
 	}
-	_, err = e.m.UpdateCategory(ctx, uuid.New(), ledger.UpdateInput{Name: str("x")})
+	_, err = e.m.UpdateCategory(ctx, uuid.New(), ledger.UpdateInput{Name: new("x")})
 	wantErr(t, err, ledger.ErrNotFound)
 }
 

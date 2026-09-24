@@ -138,7 +138,7 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 
 	post := func(key string, amount int64, when time.Time) {
 		in := transfer(key, acme.ID, payouts.ID, amount)
-		in.EffectiveAt = at(when)
+		in.EffectiveAt = new(when)
 		e.post(t, in)
 	}
 	post("just-before", 1, bound.Add(-time.Microsecond))
@@ -147,14 +147,14 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 
 	t.Run("before every entry", func(t *testing.T) {
 		in := settle("ub-early", acme.ID, payouts.ID)
-		in.UpperBound = at(day(1))
+		in.UpperBound = new(day(1))
 		if st := feSettle(t, e, in); st.EntryCount != 0 || !st.Amount.IsZero() {
 			t.Fatalf("settlement = %+v", st)
 		}
 	})
 
 	in := settle("ub-exact", acme.ID, payouts.ID)
-	in.UpperBound = at(bound.Add(999 * time.Nanosecond))
+	in.UpperBound = new(bound.Add(999 * time.Nanosecond))
 	st := feSettle(t, e, in)
 	if st.EntryCount != 1 || st.Amount != amt(1) || !st.UpperBound.Equal(bound) {
 		t.Fatalf("bounded settlement = %+v, want only the entry strictly before the bound", st)
@@ -162,14 +162,14 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 
 	t.Run("replay with the same truncated bound", func(t *testing.T) {
 		replay := in
-		replay.UpperBound = at(bound.Add(1 * time.Nanosecond))
+		replay.UpperBound = new(bound.Add(1 * time.Nanosecond))
 		got, err := e.m.CreateSettlement(ctx, replay)
 		if err != nil || got.ID != st.ID {
 			t.Fatalf("replay = %+v, %v", got, err)
 		}
 		for name, mutate := range map[string]func(*ledger.CreateSettlementInput){
 			"no bound":    func(in *ledger.CreateSettlementInput) { in.UpperBound = nil },
-			"later bound": func(in *ledger.CreateSettlementInput) { in.UpperBound = at(bound.Add(time.Microsecond)) },
+			"later bound": func(in *ledger.CreateSettlementInput) { in.UpperBound = new(bound.Add(time.Microsecond)) },
 		} {
 			changed := in
 			mutate(&changed)
@@ -182,7 +182,7 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 
 	t.Run("bound in the future takes the rest", func(t *testing.T) {
 		in := settle("ub-future", acme.ID, payouts.ID)
-		in.UpperBound = at(time.Now().Add(24 * time.Hour))
+		in.UpperBound = new(time.Now().Add(24 * time.Hour))
 		st := feSettle(t, e, in)
 		if st.EntryCount != 2 || st.Amount != amt(110) {
 			t.Fatalf("settlement = %+v", st)

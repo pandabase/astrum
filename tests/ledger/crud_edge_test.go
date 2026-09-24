@@ -319,7 +319,7 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 		if err != nil || again.Version != closed.Version {
 			t.Fatalf("close again = %+v, %v", again, err)
 		}
-		updated, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Description: str("archived")})
+		updated, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Description: new("archived")})
 		if err != nil || updated.Description != "archived" || updated.Status != ledger.AccountClosed {
 			t.Fatalf("updating a closed account's details = %+v, %v", updated, err)
 		}
@@ -359,12 +359,12 @@ func TestCrudEdgeLockVersion(t *testing.T) {
 			}
 		}, 1},
 		{"details update", func() {
-			if _, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Name: str("renamed")}); err != nil {
+			if _, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Name: new("renamed")}); err != nil {
 				t.Fatal(err)
 			}
 		}, 1},
 		{"no-op update", func() {
-			if _, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Name: str("renamed")}); err != nil {
+			if _, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Name: new("renamed")}); err != nil {
 				t.Fatal(err)
 			}
 		}, 0},
@@ -496,9 +496,9 @@ func TestCrudEdgeLedgers(t *testing.T) {
 		metadata string
 		err      error
 	}{
-		{"blank name", ledger.UpdateInput{Name: str(" ")}, 0, `{"k":{"a":1}}`, ledger.ErrInvalid},
-		{"same name", ledger.UpdateInput{Name: str("upd")}, 0, `{"k":{"a":1}}`, nil},
-		{"description only", ledger.UpdateInput{Description: str("x")}, 1, `{"k":{"a":1}}`, nil},
+		{"blank name", ledger.UpdateInput{Name: new(" ")}, 0, `{"k":{"a":1}}`, ledger.ErrInvalid},
+		{"same name", ledger.UpdateInput{Name: new("upd")}, 0, `{"k":{"a":1}}`, nil},
+		{"description only", ledger.UpdateInput{Description: new("x")}, 1, `{"k":{"a":1}}`, nil},
 		{"merge", ledger.UpdateInput{Metadata: jsontext.Value(`{"k":{"b":2}}`)}, 2, `{"k":{"a":1,"b":2}}`, nil},
 		{"null resets", ledger.UpdateInput{Metadata: jsontext.Value(`null`)}, 3, `{}`, nil},
 	} {

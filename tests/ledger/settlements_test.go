@@ -86,7 +86,7 @@ func TestSettlement(t *testing.T) {
 		e.post(t, dated("old", acme.ID, cash.ID, 11, 1, ""))
 		e.post(t, transfer("new", acme.ID, cash.ID, 22))
 		in := settle("bounded", acme.ID, payouts.ID)
-		in.UpperBound = at(day(2))
+		in.UpperBound = new(day(2))
 		bounded, err := e.m.CreateSettlement(ctx, in)
 		if err != nil || bounded.Amount != amt(11) || bounded.EntryCount != 1 {
 			t.Fatalf("bounded = %+v, %v", bounded, err)

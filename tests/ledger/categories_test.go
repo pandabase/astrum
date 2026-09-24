@@ -82,7 +82,7 @@ func TestCategoryRollUp(t *testing.T) {
 	})
 
 	t.Run("effective window", func(t *testing.T) {
-		got, err := e.m.Category(ctx, vendors.ID, ledger.EffectiveRange{Until: at(day(3))})
+		got, err := e.m.Category(ctx, vendors.ID, ledger.EffectiveRange{Until: new(day(3))})
 		if err != nil {
 			t.Fatal(err)
 		}

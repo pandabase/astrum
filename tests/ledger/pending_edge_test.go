@@ -127,7 +127,7 @@ func TestPendingEdgeStateTransitions(t *testing.T) {
 		wantErr(t, err, ledger.ErrNotFound)
 		_, err = e.m.ArchiveTransaction(ctx, id)
 		wantErr(t, err, ledger.ErrNotFound)
-		_, err = e.m.UpdateTransaction(ctx, id, ledger.UpdateTransactionInput{Description: str("x")})
+		_, err = e.m.UpdateTransaction(ctx, id, ledger.UpdateTransactionInput{Description: new("x")})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
 

@@ -17,11 +17,9 @@ import (
 
 var day = func(d int) time.Time { return time.Date(2026, 1, d, 0, 0, 0, 0, time.UTC) }
 
-func at(t time.Time) *time.Time { return &t }
-
 func dated(key string, from, to uuid.UUID, amount int64, d int, metadata string) ledger.PostInput {
 	in := transfer(key, from, to, amount)
-	in.EffectiveAt = at(day(d).Add(12 * time.Hour))
+	in.EffectiveAt = new(day(d).Add(12 * time.Hour))
 	if metadata != "" {
 		in.Metadata = jsontext.Value(metadata)
 	}
@@ -78,7 +76,7 @@ func TestListEntries(t *testing.T) {
 		{"credits only", ledger.ListEntriesInput{LedgerID: e.ledger.ID, AccountID: a.ID, Side: ledger.Credit}, "[c100 c40]"},
 		{"metadata", ledger.ListEntriesInput{AccountID: c.ID, Metadata: map[string]string{"order": "1"}}, "[d10]"},
 		{"two metadata keys", ledger.ListEntriesInput{Metadata: map[string]string{"order": "1", "kind": "fee"}}, "[d10 c10]"},
-		{"effective window", ledger.ListEntriesInput{AccountID: c.ID, Effective: ledger.EffectiveRange{From: at(day(2)), Until: at(day(3))}}, "[d40]"},
+		{"effective window", ledger.ListEntriesInput{AccountID: c.ID, Effective: ledger.EffectiveRange{From: new(day(2)), Until: new(day(3))}}, "[d40]"},
 		{"pending", ledger.ListEntriesInput{Status: ledger.TransactionPending, AccountID: b.ID}, "[d7]"},
 		{"archived", ledger.ListEntriesInput{Status: ledger.TransactionArchived, TransactionID: archived.ID}, "[d3 c3]"},
 		{"other ledger", ledger.ListEntriesInput{LedgerID: other.ID}, "[d1 c1]"},
@@ -113,7 +111,7 @@ func TestListEntries(t *testing.T) {
 		for _, in := range []ledger.ListEntriesInput{
 			{Status: "done", Limit: 10},
 			{Side: "up", Limit: 10},
-			{Effective: ledger.EffectiveRange{From: at(day(3)), Until: at(day(3))}, Limit: 10},
+			{Effective: ledger.EffectiveRange{From: new(day(3)), Until: new(day(3))}, Limit: 10},
 			{Metadata: map[string]string{"": "x"}, Limit: 10},
 		} {
 			_, err := e.m.ListEntries(ctx, in)
@@ -147,9 +145,9 @@ func TestHistoricalBalances(t *testing.T) {
 		r                    ledger.EffectiveRange
 		posted, pending, out int64
 	}{
-		{"end of day 1", ledger.EffectiveRange{Until: at(day(2))}, 100, 100, 100},
-		{"end of day 2 includes the backdated entry", ledger.EffectiveRange{Until: at(day(3))}, 150, 150, 150},
-		{"day 3 alone", ledger.EffectiveRange{From: at(day(3)), Until: at(day(4))}, -30, -30, -30},
+		{"end of day 1", ledger.EffectiveRange{Until: new(day(2))}, 100, 100, 100},
+		{"end of day 2 includes the backdated entry", ledger.EffectiveRange{Until: new(day(3))}, 150, 150, 150},
+		{"day 3 alone", ledger.EffectiveRange{From: new(day(3)), Until: new(day(4))}, -30, -30, -30},
 		{"everything", ledger.EffectiveRange{}, 120, 100, 100},
 	}
 	for _, tt := range tests {

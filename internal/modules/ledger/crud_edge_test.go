@@ -82,14 +82,14 @@ func TestCrudEdgeApplyUpdateNames(t *testing.T) {
 		err          error
 	}{
 		{"nil fields keep values", UpdateInput{}, true, "n", "d", nil},
-		{"clear description", UpdateInput{Description: ptr("")}, true, "n", "", nil},
-		{"name at limit", UpdateInput{Name: ptr(strings.Repeat("x", 255))}, true, strings.Repeat("x", 255), "d", nil},
-		{"name over limit", UpdateInput{Name: ptr(strings.Repeat("x", 256))}, false, "", "", ErrInvalid},
-		{"description at limit", UpdateInput{Description: ptr(strings.Repeat("x", 1024))}, true, "n", strings.Repeat("x", 1024), nil},
-		{"description over limit", UpdateInput{Description: ptr(strings.Repeat("x", 1025))}, true, "", "", ErrInvalid},
-		{"invalid UTF-8 name", UpdateInput{Name: ptr("\xff")}, false, "", "", ErrInvalid},
-		{"NUL description", UpdateInput{Description: ptr("a\x00")}, false, "", "", ErrInvalid},
-		{"tab only name when required", UpdateInput{Name: ptr("\t")}, true, "", "", ErrInvalid},
+		{"clear description", UpdateInput{Description: new("")}, true, "n", "", nil},
+		{"name at limit", UpdateInput{Name: new(strings.Repeat("x", 255))}, true, strings.Repeat("x", 255), "d", nil},
+		{"name over limit", UpdateInput{Name: new(strings.Repeat("x", 256))}, false, "", "", ErrInvalid},
+		{"description at limit", UpdateInput{Description: new(strings.Repeat("x", 1024))}, true, "n", strings.Repeat("x", 1024), nil},
+		{"description over limit", UpdateInput{Description: new(strings.Repeat("x", 1025))}, true, "", "", ErrInvalid},
+		{"invalid UTF-8 name", UpdateInput{Name: new("\xff")}, false, "", "", ErrInvalid},
+		{"NUL description", UpdateInput{Description: new("a\x00")}, false, "", "", ErrInvalid},
+		{"tab only name when required", UpdateInput{Name: new("\t")}, true, "", "", ErrInvalid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

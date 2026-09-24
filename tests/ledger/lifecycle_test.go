@@ -72,7 +72,7 @@ func TestPendingLifecycle(t *testing.T) {
 
 	t.Run("update replaces entries as a new version", func(t *testing.T) {
 		updated, err := e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{
-			Description: str("smaller invoice"),
+			Description: new("smaller invoice"),
 			Metadata:    jsontext.Value(`{"order":null,"note":"revised"}`),
 			Postings:    transfer("", a.ID, b.ID, 250).Postings,
 		})
@@ -84,7 +84,7 @@ func TestPendingLifecycle(t *testing.T) {
 		}
 		wantBalance(t, "a available", e.get(t, a.ID).Available, 1_000, 250, 750)
 
-		same, err := e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: str("smaller invoice")})
+		same, err := e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: new("smaller invoice")})
 		if err != nil || same.Version != 2 {
 			t.Fatalf("no-op update = %+v, %v", same, err)
 		}
@@ -111,7 +111,7 @@ func TestPendingLifecycle(t *testing.T) {
 		}
 		_, err = e.m.ArchiveTransaction(ctx, txn.ID)
 		wantErr(t, err, ledger.ErrNotPending)
-		_, err = e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: str("x")})
+		_, err = e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: new("x")})
 		wantErr(t, err, ledger.ErrNotPending)
 
 		replay, err := e.m.Post(ctx, create)

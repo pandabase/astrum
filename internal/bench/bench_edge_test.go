@@ -325,8 +325,7 @@ func TestScheduleEdge(t *testing.T) {
 		}
 	})
 	t.Run("ticks are exact multiples of the interval", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		r := &run{cfg: Config{Rate: 2000, Concurrency: 4}}
 		start := time.Now()
 		ticks := r.schedule(ctx, start)
@@ -338,8 +337,7 @@ func TestScheduleEdge(t *testing.T) {
 		}
 	})
 	t.Run("rate above one per nanosecond has zero interval", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 		r := &run{cfg: Config{Rate: 1e10, Concurrency: 1}}
 		start := time.Now()
 		ticks := r.schedule(ctx, start)

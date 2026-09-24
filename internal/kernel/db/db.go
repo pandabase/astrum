@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -46,9 +47,7 @@ func Connect(ctx context.Context, url string, opts Options) (*pgxpool.Pool, erro
 }
 
 func Harden(cfg *pgxpool.Config, maxConns int32) {
-	for k, v := range sessionParams {
-		cfg.ConnConfig.RuntimeParams[k] = v
-	}
+	maps.Copy(cfg.ConnConfig.RuntimeParams, sessionParams)
 	if maxConns > 0 {
 		cfg.MaxConns = maxConns
 	}

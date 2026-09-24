@@ -269,7 +269,7 @@ func TestIdempotencyEdgeRejectionsDoNotConsumeKeys(t *testing.T) {
 	}{
 		{"insufficient funds", transfer("", a.ID, b.ID, 1_000), ledger.ErrInsufficientFunds},
 		{"balance lock", locked(transfer("", a.ID, b.ID, 1), a.ID, availableAtLeast(1_000)), ledger.ErrBalanceLock},
-		{"lock version", locked(transfer("", a.ID, b.ID, 1), a.ID, func(p *ledger.Posting) { p.LockVersion = peVersion(999) }), ledger.ErrLockVersion},
+		{"lock version", locked(transfer("", a.ID, b.ID, 1), a.ID, func(p *ledger.Posting) { p.LockVersion = new(int64(999)) }), ledger.ErrLockVersion},
 		{"frozen", transfer("", a.ID, frozen.ID, 1), ledger.ErrAccountNotOpen},
 		{"unbalanced", peLegs("", peLeg(b.ID, ledger.Debit, 2), peLeg(a.ID, ledger.Credit, 1)), ledger.ErrUnbalanced},
 		{"unknown account", transfer("", a.ID, uuid.New(), 1), ledger.ErrNotFound},

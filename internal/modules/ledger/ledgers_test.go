@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-func ptr(s string) *string { return &s }
-
 func TestApplyUpdate(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -20,7 +18,7 @@ func TestApplyUpdate(t *testing.T) {
 		wantErr      error
 	}{
 		{name: "no changes", metadata: `{"a":"1"}`, wantName: "n", wantDesc: "d", wantMetadata: `{"a":"1"}`},
-		{name: "rename", metadata: `{}`, in: UpdateInput{Name: ptr("new"), Description: ptr("")}, wantName: "new", wantMetadata: `{}`},
+		{name: "rename", metadata: `{}`, in: UpdateInput{Name: new("new"), Description: new("")}, wantName: "new", wantMetadata: `{}`},
 		{
 			name:         "merge patch",
 			metadata:     `{"a":"1","b":{"c":"2","d":"3"},"e":[1,2]}`,
@@ -31,8 +29,8 @@ func TestApplyUpdate(t *testing.T) {
 		},
 		{name: "null clears metadata", metadata: `{"a":"1"}`, in: UpdateInput{Metadata: jsontext.Value(`null`)}, wantName: "n", wantDesc: "d", wantMetadata: `{}`},
 		{name: "patch not an object", metadata: `{}`, in: UpdateInput{Metadata: jsontext.Value(`[1]`)}, wantErr: ErrInvalid},
-		{name: "required name cleared", metadata: `{}`, in: UpdateInput{Name: ptr(" ")}, nameRequired: true, wantErr: ErrInvalid},
-		{name: "optional name cleared", metadata: `{}`, in: UpdateInput{Name: ptr("")}, wantName: "", wantDesc: "d", wantMetadata: `{}`},
+		{name: "required name cleared", metadata: `{}`, in: UpdateInput{Name: new(" ")}, nameRequired: true, wantErr: ErrInvalid},
+		{name: "optional name cleared", metadata: `{}`, in: UpdateInput{Name: new("")}, wantName: "", wantDesc: "d", wantMetadata: `{}`},
 		{name: "NUL in metadata", metadata: `{}`, in: UpdateInput{Metadata: jsontext.Value(`{"a":"\u0000"}`)}, wantErr: ErrInvalid},
 	}
 	for _, tt := range tests {

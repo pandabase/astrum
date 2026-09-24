@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -55,9 +56,7 @@ func edgeSite(t *testing.T) (http.Handler, *[]string) {
 
 func edgeServe(h http.Handler, method, target string, header http.Header) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, target, nil)
-	for k, v := range header {
-		r.Header[k] = v
-	}
+	maps.Copy(r.Header, header)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w

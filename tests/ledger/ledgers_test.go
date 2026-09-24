@@ -16,8 +16,6 @@ import (
 	"github.com/pandabase/astrum/internal/modules/ledger"
 )
 
-func str(s string) *string { return &s }
-
 func TestLedgers(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
@@ -36,7 +34,7 @@ func TestLedgers(t *testing.T) {
 
 	t.Run("update merges metadata", func(t *testing.T) {
 		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{
-			Name:     str("Payments EU"),
+			Name:     new("Payments EU"),
 			Metadata: jsontext.Value(`{"region":null,"limits":{"daily":"200"},"tier":"gold"}`),
 		})
 		if err != nil || got.Name != "Payments EU" || got.Description != "card acquiring" || got.Version != 1 {
@@ -49,7 +47,7 @@ func TestLedgers(t *testing.T) {
 	})
 
 	t.Run("unchanged update keeps the version", func(t *testing.T) {
-		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: str("Payments EU"), Metadata: jsontext.Value(`{"tier":"gold"}`)})
+		got, err := e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: new("Payments EU"), Metadata: jsontext.Value(`{"tier":"gold"}`)})
 		if err != nil || got.Version != 1 {
 			t.Fatalf("UpdateLedger = %+v, %v; want version 1", got, err)
 		}
@@ -60,9 +58,9 @@ func TestLedgers(t *testing.T) {
 		wantErr(t, err, ledger.ErrInvalid)
 		_, err = e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "x", Metadata: jsontext.Value(`"no"`)})
 		wantErr(t, err, ledger.ErrInvalid)
-		_, err = e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: str("")})
+		_, err = e.m.UpdateLedger(ctx, l.ID, ledger.UpdateInput{Name: new("")})
 		wantErr(t, err, ledger.ErrInvalid)
-		_, err = e.m.UpdateLedger(ctx, uuid.New(), ledger.UpdateInput{Name: str("x")})
+		_, err = e.m.UpdateLedger(ctx, uuid.New(), ledger.UpdateInput{Name: new("x")})
 		wantErr(t, err, ledger.ErrNotFound)
 		_, err = e.m.Ledger(ctx, uuid.New())
 		wantErr(t, err, ledger.ErrNotFound)
@@ -166,7 +164,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 	t.Run("update descriptive fields", func(t *testing.T) {
 		before := e.get(t, cash.ID)
 		acc, err := e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{
-			Description: str("till"),
+			Description: new("till"),
 			Metadata:    jsontext.Value(`{"branch":"soho"}`),
 		})
 		if err != nil || acc.Name != "Cash cash" || acc.Description != "till" || acc.Version != before.Version+1 {
@@ -177,7 +175,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		}
 		_, err = e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{Metadata: jsontext.Value(`[]`)})
 		wantErr(t, err, ledger.ErrInvalid)
-		_, err = e.m.UpdateAccount(ctx, uuid.New(), ledger.UpdateInput{Name: str("x")})
+		_, err = e.m.UpdateAccount(ctx, uuid.New(), ledger.UpdateInput{Name: new("x")})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
 

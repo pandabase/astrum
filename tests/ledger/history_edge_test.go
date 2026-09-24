@@ -14,7 +14,7 @@ import (
 
 func feAt(key string, from, to uuid.UUID, amount int64, when time.Time) ledger.PostInput {
 	in := transfer(key, from, to, amount)
-	in.EffectiveAt = at(when)
+	in.EffectiveAt = new(when)
 	return in
 }
 
@@ -66,20 +66,20 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 		posted, pending int64
 		err             error
 	}{
-		{"from equals until", ledger.EffectiveRange{From: at(day(2)), Until: at(day(2))}, 0, 0, ledger.ErrInvalid},
-		{"from after until", ledger.EffectiveRange{From: at(day(3)), Until: at(day(2))}, 0, 0, ledger.ErrInvalid},
-		{"until is exclusive", ledger.EffectiveRange{Until: at(day(1))}, 0, 0, nil},
-		{"one microsecond past the first entry", ledger.EffectiveRange{Until: at(day(1).Add(time.Microsecond))}, 1, 1, nil},
-		{"from is inclusive", ledger.EffectiveRange{From: at(day(3))}, -1_000, -995, nil},
-		{"from one microsecond late", ledger.EffectiveRange{From: at(day(3).Add(time.Microsecond))}, 0, 5, nil},
-		{"day 1 includes the backdated entry", ledger.EffectiveRange{From: at(day(1)), Until: at(day(2))}, 20_001, 20_001, nil},
-		{"day 2 up to its last microsecond", ledger.EffectiveRange{From: at(day(2)), Until: at(day(3))}, 110, 110, nil},
-		{"one microsecond window", ledger.EffectiveRange{From: at(day(3).Add(-time.Microsecond)), Until: at(day(3))}, 100, 100, nil},
-		{"empty window between entries", ledger.EffectiveRange{From: at(day(2).Add(time.Microsecond)), Until: at(day(3).Add(-time.Microsecond))}, 0, 0, nil},
-		{"before everything", ledger.EffectiveRange{From: at(day(1).AddDate(-1, 0, 0)), Until: at(day(1))}, 0, 0, nil},
-		{"after everything", ledger.EffectiveRange{From: at(day(20))}, 0, 0, nil},
+		{"from equals until", ledger.EffectiveRange{From: new(day(2)), Until: new(day(2))}, 0, 0, ledger.ErrInvalid},
+		{"from after until", ledger.EffectiveRange{From: new(day(3)), Until: new(day(2))}, 0, 0, ledger.ErrInvalid},
+		{"until is exclusive", ledger.EffectiveRange{Until: new(day(1))}, 0, 0, nil},
+		{"one microsecond past the first entry", ledger.EffectiveRange{Until: new(day(1).Add(time.Microsecond))}, 1, 1, nil},
+		{"from is inclusive", ledger.EffectiveRange{From: new(day(3))}, -1_000, -995, nil},
+		{"from one microsecond late", ledger.EffectiveRange{From: new(day(3).Add(time.Microsecond))}, 0, 5, nil},
+		{"day 1 includes the backdated entry", ledger.EffectiveRange{From: new(day(1)), Until: new(day(2))}, 20_001, 20_001, nil},
+		{"day 2 up to its last microsecond", ledger.EffectiveRange{From: new(day(2)), Until: new(day(3))}, 110, 110, nil},
+		{"one microsecond window", ledger.EffectiveRange{From: new(day(3).Add(-time.Microsecond)), Until: new(day(3))}, 100, 100, nil},
+		{"empty window between entries", ledger.EffectiveRange{From: new(day(2).Add(time.Microsecond)), Until: new(day(3).Add(-time.Microsecond))}, 0, 0, nil},
+		{"before everything", ledger.EffectiveRange{From: new(day(1).AddDate(-1, 0, 0)), Until: new(day(1))}, 0, 0, nil},
+		{"after everything", ledger.EffectiveRange{From: new(day(20))}, 0, 0, nil},
 		{"everything", ledger.EffectiveRange{}, 19_111, 19_116, nil},
-		{"far bounds equal everything", ledger.EffectiveRange{From: at(time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)), Until: at(time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC))}, 19_111, 19_116, nil},
+		{"far bounds equal everything", ledger.EffectiveRange{From: new(time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)), Until: new(time.Date(2999, 1, 1, 0, 0, 0, 0, time.UTC))}, 19_111, 19_116, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -100,11 +100,11 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 	t.Run("windows partition the whole history", func(t *testing.T) {
 		cuts := []time.Time{day(1), day(2), day(3), day(4)}
 		total := amt(0)
-		ranges := []ledger.EffectiveRange{{Until: at(cuts[0])}}
+		ranges := []ledger.EffectiveRange{{Until: new(cuts[0])}}
 		for i := 1; i < len(cuts); i++ {
-			ranges = append(ranges, ledger.EffectiveRange{From: at(cuts[i-1]), Until: at(cuts[i])})
+			ranges = append(ranges, ledger.EffectiveRange{From: new(cuts[i-1]), Until: new(cuts[i])})
 		}
-		ranges = append(ranges, ledger.EffectiveRange{From: at(cuts[len(cuts)-1])})
+		ranges = append(ranges, ledger.EffectiveRange{From: new(cuts[len(cuts)-1])})
 		for _, r := range ranges {
 			got, err := e.m.Balances(ctx, b.ID, r)
 			if err != nil {
@@ -119,12 +119,12 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 
 	t.Run("account with no entries", func(t *testing.T) {
 		empty := e.account(t, "USD", ledger.Debit)
-		got, err := e.m.Balances(ctx, empty.ID, ledger.EffectiveRange{From: at(day(1)), Until: at(day(2))})
+		got, err := e.m.Balances(ctx, empty.ID, ledger.EffectiveRange{From: new(day(1)), Until: new(day(2))})
 		if err != nil || !got.Posted.Amount.IsZero() || !got.Pending.Amount.IsZero() || !got.Available.Amount.IsZero() {
 			t.Fatalf("empty account = %+v, %v", got, err)
 		}
 	})
-	_, err := e.m.Balances(ctx, uuid.New(), ledger.EffectiveRange{Until: at(day(1))})
+	_, err := e.m.Balances(ctx, uuid.New(), ledger.EffectiveRange{Until: new(day(1))})
 	wantErr(t, err, ledger.ErrNotFound)
 }
 
@@ -143,7 +143,7 @@ func TestHistoryEdgeSubMicrosecondBalanceWindowTruncates(t *testing.T) {
 		{day(5).Add(500 * time.Nanosecond), day(5).Add(time.Microsecond + 500*time.Nanosecond), 7},
 		{day(5), day(5).Add(time.Microsecond), 7},
 	} {
-		got, err := e.m.Balances(ctx, b.ID, ledger.EffectiveRange{From: at(tt.from), Until: at(tt.until)})
+		got, err := e.m.Balances(ctx, b.ID, ledger.EffectiveRange{From: new(tt.from), Until: new(tt.until)})
 		if err != nil {
 			t.Fatalf("Balances() error = %v", err)
 		}
@@ -243,9 +243,9 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 			{"matching account", ledger.ListEntriesInput{AccountID: b.ID}, 2, nil},
 			{"other account", ledger.ListEntriesInput{AccountID: src.ID}, 0, nil},
 			{"pending status", ledger.ListEntriesInput{Status: ledger.TransactionPending}, 0, nil},
-			{"narrower window", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: at(day(2))}}, 1, nil},
-			{"wider window is clamped", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: at(day(1).AddDate(-1, 0, 0)), Until: at(day(28))}}, 2, nil},
-			{"disjoint window", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: at(day(6)), Until: at(day(7))}}, 0, nil},
+			{"narrower window", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: new(day(2))}}, 1, nil},
+			{"wider window is clamped", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: new(day(1).AddDate(-1, 0, 0)), Until: new(day(28))}}, 2, nil},
+			{"disjoint window", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: new(day(6)), Until: new(day(7))}}, 0, nil},
 			{"limit one", ledger.ListEntriesInput{Limit: 1}, 1, nil},
 		}
 		for _, tt := range tests {
@@ -429,7 +429,7 @@ func TestHistoryEdgeListEntriesBounds(t *testing.T) {
 		{"twenty metadata filters", ledger.ListEntriesInput{Metadata: filters(20), Limit: 10}, 0, nil},
 		{"twenty one metadata filters", ledger.ListEntriesInput{Metadata: filters(21), Limit: 10}, 0, ledger.ErrInvalid},
 		{"invalid UTF-8 filter value", ledger.ListEntriesInput{Metadata: map[string]string{"k": "\xff"}, Limit: 10}, 0, ledger.ErrInvalid},
-		{"from after until", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: at(day(2)), Until: at(day(1))}, Limit: 10}, 0, ledger.ErrInvalid},
+		{"from after until", ledger.ListEntriesInput{Effective: ledger.EffectiveRange{From: new(day(2)), Until: new(day(1))}, Limit: 10}, 0, ledger.ErrInvalid},
 		{"cursor past the end", ledger.ListEntriesInput{AccountID: b.ID, After: 1 << 62, Limit: 10}, 0, nil},
 		{"unknown account", ledger.ListEntriesInput{AccountID: uuid.New(), Limit: 10}, 0, nil},
 		{"unknown settlement", ledger.ListEntriesInput{SettlementID: uuid.New(), Limit: 10}, 0, nil},
