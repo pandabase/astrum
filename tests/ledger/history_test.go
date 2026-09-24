@@ -328,6 +328,7 @@ func TestHTTPHistory(t *testing.T) {
 		t.Fatalf("balances = %v", b)
 	}
 
+	a.e.settle(t)
 	st := a.must(http.StatusCreated, http.MethodPost, "/v1/statements", "", fmt.Sprintf(
 		`{"account_id":%q,"effective_at_lower_bound":%q,"effective_at_upper_bound":%q}`,
 		cash, day(2).Format(time.RFC3339), day(4).Format(time.RFC3339)))
