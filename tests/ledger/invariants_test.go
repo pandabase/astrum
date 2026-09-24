@@ -36,6 +36,7 @@ func TestDatabaseInvariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	e.settle(t)
 	e.verify(t)
 
 	insertEntry := func(currency string, debit, credit int64) string {

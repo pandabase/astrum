@@ -268,18 +268,21 @@ func TestWebhookEndToEnd(t *testing.T) {
 	a := e.funded(t, 100)
 	txn := e.post(t, transfer("pay", a.ID, e.account(t, "USD", ledger.Debit).ID, 25))
 
-	for deadline, total := time.Now().Add(30*time.Second), 0; total < 2; {
-		n, err := svc.Dispatch(context.Background())
-		if err != nil {
+	received := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(bodies)
+	}
+	for deadline := time.Now().Add(30 * time.Second); received() < 2; time.Sleep(20 * time.Millisecond) {
+		if _, err := svc.Dispatch(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if total += n; total < 2 && time.Now().After(deadline) {
-			t.Fatalf("dispatched %d of 2 events", total)
+		if _, err := svc.Deliver(context.Background()); err != nil {
+			t.Fatal(err)
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if _, err := svc.Deliver(context.Background()); err != nil {
-		t.Fatal(err)
+		if time.Now().After(deadline) {
+			t.Fatalf("received %d of 2 webhooks", received())
+		}
 	}
 
 	mu.Lock()
