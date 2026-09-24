@@ -47,6 +47,17 @@ pnpm -C web build
 WEB_DIR=web/build/client go run ./cmd/astrum
 ```
 
+## Releases
+
+Each [release](https://github.com/pandabase/astrum/releases) has Linux and macOS archives containing `astrum`, `astrum-bench` and the built web interface, plus `checksums.txt`. After extracting, run `WEB_DIR=web ./astrum` from the archive directory. `./astrum version` prints the version.
+
+To publish a release, push a version tag. Tests run first; tags with a suffix such as `v1.2.0-rc.1` become prereleases.
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Examples
 
 [Wallet](docs/examples/wallet.md) · [Marketplace](docs/examples/marketplace.md) · [Card authorization](docs/examples/card-authorization.md) · [Lending](docs/examples/lending.md) · [Crypto exchange](docs/examples/exchange.md)

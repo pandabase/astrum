@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,7 +27,14 @@ import (
 
 const shutdownTimeout = 30 * time.Second
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "version" {
+		fmt.Println(version)
+		return
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -52,7 +60,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	log.SetDefault(base)
 	l := base.WithPrefix("kernel")
 
-	l.Info("starting", "addr", cfg.HTTPAddr, "log_level", cfg.LogLevel)
+	l.Info("starting", "version", version, "addr", cfg.HTTPAddr, "log_level", cfg.LogLevel)
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL, db.Options{
 		MaxConns:              int32(cfg.DBMaxConns),
