@@ -26,10 +26,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 	}
 	defer conn.Release()
 
-	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrationLockID); err != nil {
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended(current_schema(), $1))`, migrationLockID); err != nil {
 		return fmt.Errorf("migrate %s: lock: %w", module, err)
 	}
-	defer conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, migrationLockID)
+	defer conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended(current_schema(), $1))`, migrationLockID)
 
 	if _, err := conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -22,6 +22,7 @@ import (
 const edgeMigrationLock = 7_341_902_118
 
 func TestEdgeConnectBadURL(t *testing.T) {
+	t.Parallel()
 	for _, url := range []string{"://nope", "postgres://host:notaport/db", "postgres://%zz", "host=x port=abc"} {
 		t.Run(url, func(t *testing.T) {
 			pool, err := db.Connect(context.Background(), url, db.Options{})
@@ -33,6 +34,7 @@ func TestEdgeConnectBadURL(t *testing.T) {
 }
 
 func TestEdgeConnectUnreachable(t *testing.T) {
+	t.Parallel()
 	start := time.Now()
 	pool, err := db.Connect(context.Background(), "postgres://u:p@127.0.0.1:1/db?sslmode=disable&connect_timeout=2", db.Options{})
 	if err == nil || pool != nil || !strings.HasPrefix(err.Error(), "db: ping") {
@@ -47,6 +49,7 @@ func TestEdgeConnectUnreachable(t *testing.T) {
 }
 
 func TestEdgeConnectCanceled(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	pool, err := db.Connect(ctx, "postgres://u@127.0.0.1:1/db?sslmode=disable", db.Options{})
@@ -56,6 +59,7 @@ func TestEdgeConnectCanceled(t *testing.T) {
 }
 
 func TestEdgeHarden(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		url      string
@@ -145,6 +149,7 @@ func (f fakeSettings) QueryRow(_ context.Context, _ string, args ...any) pgx.Row
 }
 
 func TestEdgeCheckDurabilityFake(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		settings fakeSettings
@@ -175,6 +180,7 @@ func TestEdgeCheckDurabilityFake(t *testing.T) {
 }
 
 func TestEdgeConnectAppliesSessionParams(t *testing.T) {
+	t.Parallel()
 	url := testdb.URL(t) + "&statement_timeout=0&lock_timeout=0&application_name=evil&synchronous_commit=off&options=-c%20synchronous_commit%3Doff"
 	ctx := context.Background()
 	pool, err := db.Connect(ctx, url, db.Options{MaxConns: 3})
@@ -225,6 +231,7 @@ func TestEdgeConnectAppliesSessionParams(t *testing.T) {
 }
 
 func TestEdgeStatementTimeoutEnforced(t *testing.T) {
+	t.Parallel()
 	pool, err := db.Connect(context.Background(), testdb.URL(t), db.Options{MaxConns: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -270,6 +277,7 @@ func edgeOrder(t *testing.T, pool *pgxpool.Pool) []string {
 }
 
 func TestEdgeMigrateEmpty(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	for range 2 {
@@ -287,6 +295,7 @@ func TestEdgeMigrateEmpty(t *testing.T) {
 }
 
 func TestEdgeMigrateFileSelection(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	migrations := fstest.MapFS{
 		"0000_init.sql":        {Data: []byte(`CREATE TABLE applied (id serial PRIMARY KEY, v text NOT NULL)`)},
@@ -313,6 +322,7 @@ func TestEdgeMigrateFileSelection(t *testing.T) {
 }
 
 func TestEdgeMigrateEvolves(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	m := fstest.MapFS{
@@ -343,6 +353,7 @@ func TestEdgeMigrateEvolves(t *testing.T) {
 }
 
 func TestEdgeMigrateChecksums(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	body := []byte(`CREATE TABLE sums (id int)`)
@@ -422,6 +433,7 @@ func TestEdgeMigrateChecksums(t *testing.T) {
 }
 
 func TestEdgeMigrateResumesAfterFailure(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	m := fstest.MapFS{
@@ -446,6 +458,7 @@ func TestEdgeMigrateResumesAfterFailure(t *testing.T) {
 }
 
 func TestEdgeMigrateEmptyFile(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	m := fstest.MapFS{"0001_empty.sql": {Data: nil}, "0002_blank.sql": {Data: []byte("  \n-- nothing\n")}}
 	for range 2 {
@@ -459,6 +472,7 @@ func TestEdgeMigrateEmptyFile(t *testing.T) {
 }
 
 func TestEdgeMigrateConcurrent(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	m := fstest.MapFS{
@@ -486,6 +500,7 @@ func TestEdgeMigrateConcurrent(t *testing.T) {
 }
 
 func TestEdgeMigrateWaitsForLock(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	holder, err := pool.Acquire(ctx)
@@ -493,7 +508,7 @@ func TestEdgeMigrateWaitsForLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Release()
-	if _, err := holder.Exec(ctx, `SELECT pg_advisory_lock($1)`, edgeMigrationLock); err != nil {
+	if _, err := holder.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended(current_schema(), $1))`, edgeMigrationLock); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -505,7 +520,7 @@ func TestEdgeMigrateWaitsForLock(t *testing.T) {
 		t.Fatalf("Migrate() finished while the lock was held: %v", err)
 	case <-time.After(300 * time.Millisecond):
 	}
-	if _, err := holder.Exec(ctx, `SELECT pg_advisory_unlock($1)`, edgeMigrationLock); err != nil {
+	if _, err := holder.Exec(ctx, `SELECT pg_advisory_unlock(hashtextextended(current_schema(), $1))`, edgeMigrationLock); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -519,6 +534,7 @@ func TestEdgeMigrateWaitsForLock(t *testing.T) {
 }
 
 func TestEdgeMigrateLockTimeoutWhileWaiting(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	holder, err := pool.Acquire(ctx)
@@ -526,10 +542,10 @@ func TestEdgeMigrateLockTimeoutWhileWaiting(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Release()
-	if _, err := holder.Exec(ctx, `SELECT pg_advisory_lock($1)`, edgeMigrationLock); err != nil {
+	if _, err := holder.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended(current_schema(), $1))`, edgeMigrationLock); err != nil {
 		t.Fatal(err)
 	}
-	defer holder.Exec(ctx, `SELECT pg_advisory_unlock($1)`, edgeMigrationLock)
+	defer holder.Exec(ctx, `SELECT pg_advisory_unlock(hashtextextended(current_schema(), $1))`, edgeMigrationLock)
 	waitCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
 	err = db.Migrate(waitCtx, pool, testdb.Logger(), "gave_up", fstest.MapFS{})
@@ -539,25 +555,26 @@ func TestEdgeMigrateLockTimeoutWhileWaiting(t *testing.T) {
 }
 
 func TestEdgeMigrateReleasesLockAfterFailure(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	bad := fstest.MapFS{"0001_bad.sql": {Data: []byte(`SELECT * FROM missing`)}}
 	if err := db.Migrate(ctx, pool, testdb.Logger(), "release", bad); err == nil {
 		t.Fatal("broken migration succeeded")
 	}
-	conn, err := pgx.Connect(ctx, testdb.URL(t))
+	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close(ctx)
+	defer conn.Release()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		var got bool
-		if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, edgeMigrationLock).Scan(&got); err != nil {
+		if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended(current_schema(), $1))`, edgeMigrationLock).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		if got {
-			conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, edgeMigrationLock)
+			conn.Exec(ctx, `SELECT pg_advisory_unlock(hashtextextended(current_schema(), $1))`, edgeMigrationLock)
 			return
 		}
 		if time.Now().After(deadline) {
@@ -568,6 +585,7 @@ func TestEdgeMigrateReleasesLockAfterFailure(t *testing.T) {
 }
 
 func TestEdgeMigrateCanceled(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -578,6 +596,7 @@ func TestEdgeMigrateCanceled(t *testing.T) {
 }
 
 func TestEdgeRetryableNil(t *testing.T) {
+	t.Parallel()
 	if db.Retryable(nil) || db.Code(nil) != "" {
 		t.Fatal("nil error must not be retryable")
 	}
@@ -597,6 +616,7 @@ func TestEdgeRetryableNil(t *testing.T) {
 }
 
 func TestEdgeRunTxRetryCodes(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `CREATE TABLE tx_edge (n int NOT NULL)`); err != nil {
@@ -637,6 +657,7 @@ func TestEdgeRunTxRetryCodes(t *testing.T) {
 }
 
 func TestEdgeRunTxReturnsLastError(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	attempts := 0
 	start := time.Now()
@@ -653,6 +674,7 @@ func TestEdgeRunTxReturnsLastError(t *testing.T) {
 }
 
 func TestEdgeRunTxCanceledDuringBackoff(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -675,6 +697,7 @@ func TestEdgeRunTxCanceledDuringBackoff(t *testing.T) {
 }
 
 func TestEdgeRunTxDeadlineExceeded(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer cancel()
@@ -689,6 +712,7 @@ func TestEdgeRunTxDeadlineExceeded(t *testing.T) {
 }
 
 func TestEdgeRunTxPreCanceled(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -703,6 +727,7 @@ func TestEdgeRunTxPreCanceled(t *testing.T) {
 }
 
 func TestEdgeRunTxCommitFailureNotRetried(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `CREATE TABLE deferred_edge (id int, CONSTRAINT deferred_edge_id UNIQUE (id) DEFERRABLE INITIALLY DEFERRED)`); err != nil {
@@ -724,6 +749,7 @@ func TestEdgeRunTxCommitFailureNotRetried(t *testing.T) {
 }
 
 func TestEdgeRunTxRealSerializationConflict(t *testing.T) {
+	t.Parallel()
 	pool := testdb.New(t, nil)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `CREATE TABLE ser_edge (id int PRIMARY KEY, n int NOT NULL); INSERT INTO ser_edge VALUES (1, 0)`); err != nil {
