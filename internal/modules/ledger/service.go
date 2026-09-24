@@ -254,6 +254,16 @@ func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
 	return o.txn, nil
 }
 
+func (s *service) runBatch(ctx context.Context, entries []*entry, atomic bool) ([]outcome, error) {
+	select {
+	case s.batchSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-s.batchSlots }()
+	return runEntries(ctx, s, entries, atomic)
+}
+
 func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) ([]BatchResult, error) {
 	l := logger.For(ctx, s.log).With("op", "post_batch", "size", len(ins), "atomic", atomic)
 	start := time.Now()
@@ -279,13 +289,7 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	}
 
 	if len(entries) > 0 {
-		select {
-		case s.batchSlots <- struct{}{}:
-		case <-ctx.Done():
-			return nil, s.fail(l, "post batch", ctx.Err(), start)
-		}
-		outcomes, err := runEntries(ctx, s, entries, atomic)
-		<-s.batchSlots
+		outcomes, err := s.runBatch(ctx, entries, atomic)
 		if err != nil {
 			return nil, s.fail(l, "post batch", err, start)
 		}
@@ -400,8 +404,9 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		}
 		o = outcomes[0]
 		if o.replayed {
-
-			return ErrIdempotencyConflict
+			if prior, err := selectReversal(ctx, tx, id); err != nil || prior.ID != o.txn.ID {
+				return ErrIdempotencyConflict
+			}
 		}
 		return o.err
 	})

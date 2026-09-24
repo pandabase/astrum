@@ -77,7 +77,7 @@ const messages: Record<string, string> = {
 
 /** Plain wording for an error code and detail, also used for per-item errors in batch and bulk results. */
 export function errorMessage(code: string | undefined, detail: string | undefined): string | null {
-  const known = code && messages[code];
+  const known = code && Object.hasOwn(messages, code) ? messages[code] : undefined;
   if (known) return known;
   // Details start with the component that failed, such as "ledger: ", which means nothing to a person.
   const cleaned = detail?.replace(/^([a-z]+: )+/, "");
@@ -86,15 +86,17 @@ export function errorMessage(code: string | undefined, detail: string | undefine
 }
 
 function message(status: number, problem: Problem): string {
-  return errorMessage(problem.code, problem.detail) ?? problem.title ?? `Request failed with status ${status}.`;
+  return errorMessage(problem.code, problem.detail) ?? (problem.title || `Request failed with status ${status}.`);
 }
 
 async function problem(response: Response): Promise<Problem> {
   try {
-    return (await response.json()) as Problem;
+    const body: unknown = await response.json();
+    if (typeof body === "object" && body !== null && !Array.isArray(body)) return body as Problem;
   } catch {
-    return { title: response.statusText };
+    // Non-JSON bodies, such as a proxy's HTML error page, fall back to the status text.
   }
+  return { title: response.statusText };
 }
 
 /** A fresh idempotency key; create it once per form so resubmitting the same form cannot apply it twice. */

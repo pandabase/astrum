@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -79,8 +80,15 @@ func validatePost(in PostInput) error {
 		return fmt.Errorf("%w: external_id exceeds %d characters", ErrInvalid, maxIdempotencyKeyLen)
 	case !storableText(in.ExternalID):
 		return fmt.Errorf("%w: external_id must be valid UTF-8 without NUL", ErrInvalid)
+	case in.EffectiveAt != nil && !representableTime(*in.EffectiveAt):
+		return fmt.Errorf("%w: effective_at must be between years 1 and 9999", ErrInvalid)
 	}
 	return validateEntries(in.Postings)
+}
+
+func representableTime(t time.Time) bool {
+	year := t.UTC().Year()
+	return year >= 1 && year <= 9999
 }
 
 func validateEntries(postings []Posting) error {
@@ -112,6 +120,9 @@ func validateUpdateTransaction(in UpdateTransactionInput) error {
 	}
 	if len(in.Metadata) > maxMetadataBytes {
 		return fmt.Errorf("%w: metadata exceeds %d bytes", ErrInvalid, maxMetadataBytes)
+	}
+	if in.EffectiveAt != nil && !representableTime(*in.EffectiveAt) {
+		return fmt.Errorf("%w: effective_at must be between years 1 and 9999", ErrInvalid)
 	}
 	if in.Postings != nil {
 		return validateEntries(in.Postings)

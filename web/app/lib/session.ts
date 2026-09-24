@@ -29,10 +29,9 @@ export function isAdmin(role: Role) {
 
 /** Only same-origin paths are followed after sign-in, so a crafted link cannot send the user elsewhere. */
 export function safeNext(next: string | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
-    return "/";
-  }
-  return next;
+  if (!next || !next.startsWith("/") || /[\u0000-\u001f\\]/.test(next)) return "/";
+  const base = "http://astrum.invalid";
+  return new URL(next, base).origin === base ? next : "/";
 }
 
 export function signInPath(next: string): string {

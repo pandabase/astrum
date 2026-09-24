@@ -227,6 +227,7 @@ func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
 	}
 
 	ledgerID, pinned := c.ledgerID, c.ledgerID != uuid.Nil
+	var versionErr error
 	postings := make([]Posting, len(c.add))
 	totals := make(map[money.Currency]money.Amount)
 	for i, p := range c.add {
@@ -237,8 +238,8 @@ func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
 		if err := a.checkOpen(); err != nil {
 			return uuid.Nil, nil, err
 		}
-		if p.LockVersion != nil && *p.LockVersion != s.accounts[a.id].version {
-			return uuid.Nil, nil, fmt.Errorf("%w: entry %d account %s is at version %d, not %d",
+		if versionErr == nil && p.LockVersion != nil && *p.LockVersion != s.accounts[a.id].version {
+			versionErr = fmt.Errorf("%w: entry %d account %s is at version %d, not %d",
 				ErrLockVersion, i, a.id, s.accounts[a.id].version, *p.LockVersion)
 		}
 		if !pinned {
@@ -275,6 +276,9 @@ func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
 		if a.held, err = release(a.held, amount, id); err != nil {
 			return uuid.Nil, nil, err
 		}
+	}
+	if versionErr != nil {
+		return uuid.Nil, nil, versionErr
 	}
 
 	for i := range postings {

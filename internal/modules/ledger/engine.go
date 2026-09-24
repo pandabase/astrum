@@ -118,6 +118,13 @@ func resolveEntry(
 		e.in.EffectiveAt = &at
 	}
 
+	if txn, ok := existing[key]; ok {
+		if !txn.matches(e.in) {
+			return outcome{err: ErrIdempotencyConflict}
+		}
+		return outcome{txn: txn, replayed: true}
+	}
+
 	if j, ok := firstByKey[key]; ok {
 		prior := outcomes[j]
 		switch {
@@ -129,13 +136,6 @@ func resolveEntry(
 		return outcome{txn: prior.txn, replayed: true}
 	}
 	firstByKey[key] = i
-
-	if txn, ok := existing[key]; ok {
-		if !txn.matches(e.in) {
-			return outcome{err: ErrIdempotencyConflict}
-		}
-		return outcome{txn: txn, replayed: true}
-	}
 
 	var external *externalKey
 	if first, ok := state.accounts[e.in.Postings[0].AccountID]; ok && e.in.ExternalID != "" {

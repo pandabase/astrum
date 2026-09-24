@@ -47,6 +47,12 @@ func runKeys(ctx context.Context, cfg config.Config, args []string, out io.Write
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
+		if fs.NArg() > 0 {
+			return fmt.Errorf("keys create: unexpected argument %q", fs.Arg(0))
+		}
+		if *expires < 0 {
+			return errors.New("keys create: -expires must not be negative")
+		}
 		in := auth.CreateInput{Name: *name, Role: auth.Role(*role)}
 		if *expires > 0 {
 			at := time.Now().Add(*expires)
@@ -64,6 +70,9 @@ func runKeys(ctx context.Context, cfg config.Config, args []string, out io.Write
 		raw := fs.String("id", "", "the key_... id to revoke")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
+		}
+		if fs.NArg() > 0 {
+			return fmt.Errorf("keys revoke: unexpected argument %q", fs.Arg(0))
 		}
 		id, err := typeid.Parse("key", *raw)
 		if err != nil {

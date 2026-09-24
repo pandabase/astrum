@@ -57,6 +57,18 @@ func narrow(a, b EffectiveRange) EffectiveRange {
 	return a
 }
 
+func (r EffectiveRange) truncated() EffectiveRange {
+	if r.From != nil {
+		from := r.From.Truncate(time.Microsecond)
+		r.From = &from
+	}
+	if r.Until != nil {
+		until := r.Until.Truncate(time.Microsecond)
+		r.Until = &until
+	}
+	return r
+}
+
 func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange) (Balances, error) {
 	l := logger.For(ctx, s.log).With("op", "account_balances", "account_id", id)
 	start := time.Now()
@@ -64,6 +76,7 @@ func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange
 	if err := validateRange(r); err != nil {
 		return Balances{}, s.fail(l, "account balances", err, start)
 	}
+	r = r.truncated()
 	var b Balances
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		acc, err := selectAccount(ctx, tx, id)
@@ -94,10 +107,10 @@ func (s *service) createStatement(ctx context.Context, in CreateStatementInput) 
 	l := logger.For(ctx, s.log).With("op", "create_statement", "account_id", in.AccountID)
 	start := time.Now()
 
+	in.From, in.Until = in.From.Truncate(time.Microsecond), in.Until.Truncate(time.Microsecond)
 	if err := validateStatement(in); err != nil {
 		return Statement{}, s.fail(l, "create statement", err, start)
 	}
-	in.From, in.Until = in.From.Truncate(time.Microsecond), in.Until.Truncate(time.Microsecond)
 
 	var st Statement
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {

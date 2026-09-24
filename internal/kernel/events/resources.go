@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,8 +186,8 @@ func (s *Service) validateEndpoint(raw, description string, types []string) erro
 	switch {
 	case err != nil || len(raw) > maxURLLen || u.Host == "" || u.User != nil:
 		return fmt.Errorf("%w: url must be an absolute URL without credentials, up to %d characters", ErrInvalid, maxURLLen)
-	case u.Scheme != "https" && !(u.Scheme == "http" && s.cfg.AllowInsecureURLs):
-		return fmt.Errorf("%w: url must use https", ErrInvalid)
+	case !strings.HasPrefix(raw, u.Scheme+"://") || (u.Scheme != "https" && !(u.Scheme == "http" && s.cfg.AllowInsecureURLs)):
+		return fmt.Errorf("%w: url must start with https://", ErrInvalid)
 	case len(description) > maxDescriptionLen:
 		return fmt.Errorf("%w: description exceeds %d characters", ErrInvalid, maxDescriptionLen)
 	case len(types) > maxEventTypes:

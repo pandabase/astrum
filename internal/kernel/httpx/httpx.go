@@ -2,12 +2,15 @@ package httpx
 
 import (
 	"bytes"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -90,15 +93,42 @@ func Error(w http.ResponseWriter, r *http.Request, status int, code, detail stri
 }
 
 func write(w http.ResponseWriter, r *http.Request, status int, contentType string, v any) {
+	body, err := encode(v)
+	if err != nil {
+		log.FromContext(r.Context()).Error("encode response", "err", err)
+		status, contentType = http.StatusInternalServerError, "application/problem+json"
+		body, _ = encode(NewProblem(r, status, CodeInternal, ""))
+	}
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
-	if err := json.MarshalWrite(w, v, json.Deterministic(true)); err != nil {
-		log.FromContext(r.Context()).Error("encode response", "err", err)
-		return
+	if _, err := w.Write(append(body, '\n')); err != nil {
+		log.FromContext(r.Context()).Error("write response", "err", err)
 	}
-	if _, err := io.WriteString(w, "\n"); err != nil {
-		log.FromContext(r.Context()).Error("encode response", "err", err)
+}
+
+func encode(v any) ([]byte, error) {
+	return json.Marshal(v, json.Deterministic(true), jsontext.AllowInvalidUTF8(true))
+}
+
+func cleanText(s string) bool {
+	return utf8.ValidString(s) && !strings.ContainsRune(s, 0)
+}
+
+func cleanRequest(r *http.Request) bool {
+	if !cleanText(r.URL.Path) {
+		return false
 	}
+	for name, values := range r.URL.Query() {
+		if !cleanText(name) {
+			return false
+		}
+		for _, v := range values {
+			if !cleanText(v) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 type List[T any] struct {
@@ -159,12 +189,13 @@ func Logging(base *log.Logger, next http.Handler) http.Handler {
 
 		reqLogger := base.With("request_id", id)
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		req := r.WithContext(logger.WithRequestID(log.WithContext(r.Context(), reqLogger), id))
 
 		defer func() {
 			if p := recover(); p != nil {
 				reqLogger.Error("panic", "method", r.Method, "path", r.URL.Path, "panic", p)
 				if rec.bytes == 0 {
-					Error(rec, r, http.StatusInternalServerError, CodeInternal, "")
+					Error(rec, req, http.StatusInternalServerError, CodeInternal, "")
 				}
 			}
 			level := log.InfoLevel
@@ -184,8 +215,11 @@ func Logging(base *log.Logger, next http.Handler) http.Handler {
 			)
 		}()
 
-		ctx := logger.WithRequestID(log.WithContext(r.Context(), reqLogger), id)
-		next.ServeHTTP(rec, r.WithContext(ctx))
+		if !cleanRequest(req) {
+			Error(rec, req, http.StatusBadRequest, CodeInvalidRequest, "request path and query must be valid UTF-8 without NUL bytes")
+			return
+		}
+		next.ServeHTTP(rec, req)
 	})
 }
 

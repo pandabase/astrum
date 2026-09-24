@@ -24,12 +24,12 @@ export function formatMetadata(metadata: Metadata | null | undefined): string {
  * diffed, since the API merges rather than replaces them.
  */
 export function mergePatch(before: Metadata, after: Metadata): Metadata {
-  const patch: Metadata = {};
+  const patch: Metadata = Object.create(null);
   for (const name of Object.keys(before)) {
-    if (!(name in after)) patch[name] = null;
+    if (!Object.hasOwn(after, name)) patch[name] = null;
   }
   for (const [name, next] of Object.entries(after)) {
-    const prev = before[name];
+    const prev = Object.hasOwn(before, name) ? before[name] : undefined;
     if (isObject(prev) && isObject(next)) {
       const nested = mergePatch(prev, next);
       if (Object.keys(nested).length > 0) patch[name] = nested;

@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -113,6 +114,12 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		if len(key) > maxKeyLen {
 			l.Warn("key rejected", "reason", "too long")
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, fmt.Sprintf("%s must be at most %d characters", Header, maxKeyLen))
+			return
+		}
+
+		if !utf8.ValidString(key) {
+			l.Warn("key rejected", "reason", "invalid utf-8")
+			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, fmt.Sprintf("%s must be valid UTF-8", Header))
 			return
 		}
 
@@ -236,7 +243,7 @@ func (s *Service) finish(ctx context.Context, l *log.Logger, key string, token u
 		    response_body = $4,
 		    completed_at = now()
 		WHERE key = $1 AND lock_token = $5 AND status = 'processing'`,
-		key, rec.status, rec.Header().Get("Content-Type"), rec.body.Bytes(), token)
+		key, rec.status, rec.Header().Get("Content-Type"), append([]byte{}, rec.body.Bytes()...), token)
 	if err != nil {
 		l.Error("store response failed", "err", err)
 		return

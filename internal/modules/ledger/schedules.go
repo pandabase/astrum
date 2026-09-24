@@ -201,12 +201,8 @@ func checkAccountsExist(ctx context.Context, q querier, postings []Posting) erro
 }
 
 func (st ScheduledTransaction) matches(in ScheduleInput) bool {
-	stored := Transaction{
-		Description: st.Request.Description,
-		Metadata:    st.Request.Metadata,
-		Postings:    st.Request.Postings,
-	}
-	return st.ExecuteAt.Equal(in.ExecuteAt) && stored.matches(in.PostInput)
+	request := st.Request
+	return st.ExecuteAt.Equal(in.ExecuteAt) && Transaction{request: &request}.matches(in.PostInput)
 }
 
 func (s *service) listSchedules(ctx context.Context, in ListSchedulesInput) ([]ScheduledTransaction, error) {

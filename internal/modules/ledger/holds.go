@@ -29,6 +29,10 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 	)
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		replayed = false
+		state, err := lockAccounts(ctx, tx, []uuid.UUID{in.AccountID})
+		if err != nil {
+			return err
+		}
 		existing, err := selectHold(ctx, tx, `idempotency_key = $1`, in.IdempotencyKey)
 		switch {
 		case err == nil:
@@ -38,11 +42,6 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 			hold, replayed = existing, true
 			return nil
 		case !errors.Is(err, ErrNotFound):
-			return err
-		}
-
-		state, err := lockAccounts(ctx, tx, []uuid.UUID{in.AccountID})
-		if err != nil {
 			return err
 		}
 		if err := state.reserve(in.AccountID, in.Currency, in.Amount); err != nil {
