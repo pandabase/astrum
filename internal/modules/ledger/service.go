@@ -378,7 +378,7 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 
 	var o outcome
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
-		original, err := selectTransaction(ctx, tx, id)
+		original, err := lockTransaction(ctx, tx, id)
 		if err != nil {
 			return err
 		}
