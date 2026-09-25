@@ -30,7 +30,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		n = 0
 		var locked bool
-		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, dispatchLockID).Scan(&locked); err != nil || !locked {
+		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, dispatchLockID).Scan(&locked); err != nil || !locked {
 			return err
 		}
 		var (
