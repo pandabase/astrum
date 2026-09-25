@@ -84,12 +84,12 @@ func peTransfer(key string, from, to uuid.UUID, n int64) PostInput {
 }
 
 func peRequest(ctx context.Context, in PostInput) *request {
-	return &request{ctx: ctx, e: &entry{in: in}, done: make(chan outcome, 1)}
+	return &request{ctx: ctx, req: &postingRequest{in: in}, done: make(chan postingResult, 1)}
 }
 
-func peOutcomes(t *testing.T, reqs []*request) []outcome {
+func peOutcomes(t *testing.T, reqs []*request) []postingResult {
 	t.Helper()
-	out := make([]outcome, len(reqs))
+	out := make([]postingResult, len(reqs))
 	for i, r := range reqs {
 		select {
 		case out[i] = <-r.done:
@@ -238,7 +238,7 @@ func TestBatchEdgeQueuedRequestCancelledBeforeWorkersRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := b.submit(ctx, &entry{in: peTransfer("queued-dead", e.open.ID, x.ID, 1)})
+		_, err := b.submit(ctx, &postingRequest{in: peTransfer("queued-dead", e.open.ID, x.ID, 1)})
 		done <- err
 	}()
 	deadline := time.Now().Add(5 * time.Second)
@@ -281,7 +281,7 @@ func TestBatchEdgeSubmitHonoursFullQueue(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	_, err := b.submit(ctx, &entry{in: peTransfer("blocked", e.open.ID, x.ID, 1)})
+	_, err := b.submit(ctx, &postingRequest{in: peTransfer("blocked", e.open.ID, x.ID, 1)})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("submit error = %v, want context.DeadlineExceeded", err)
 	}
@@ -289,7 +289,7 @@ func TestBatchEdgeSubmitHonoursFullQueue(t *testing.T) {
 		t.Fatalf("queue length = %d, want only the filler", len(b.queue))
 	}
 	filler := <-b.queue
-	if filler.e.in.IdempotencyKey != "filler" {
-		t.Fatalf("unexpected queued request %s", filler.e.in.IdempotencyKey)
+	if filler.req.in.IdempotencyKey != "filler" {
+		t.Fatalf("unexpected queued request %s", filler.req.in.IdempotencyKey)
 	}
 }

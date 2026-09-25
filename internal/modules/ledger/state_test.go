@@ -308,7 +308,7 @@ func TestPendingTransitions(t *testing.T) {
 		t.Fatalf("spend past reservation error = %v", err)
 	}
 
-	_, posted, err := f.state.transition(change{unpend: in.Postings, add: f.transfer("a", "b", 50).Postings, status: TransactionPosted})
+	_, posted, err := f.state.transition(balanceChange{unpend: in.Postings, add: f.transfer("a", "b", 50).Postings, status: TransactionPosted})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ func TestPendingTransitions(t *testing.T) {
 		t.Fatalf("available after post = %d, want 50", got)
 	}
 
-	if _, _, err := f.state.transition(change{unpend: in.Postings}); err == nil {
+	if _, _, err := f.state.transition(balanceChange{unpend: in.Postings}); err == nil {
 		t.Fatal("releasing entries that are no longer pending succeeded")
 	}
 }

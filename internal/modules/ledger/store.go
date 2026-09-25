@@ -180,7 +180,8 @@ func scanAccount(row pgx.Row) (Account, error) {
 	acc.NormalSide = Side(normalSide)
 	acc.Status = AccountStatus(status)
 	a.normalSide, a.held = acc.NormalSide, acc.Held
-	if acc.Posted, acc.Pending, acc.Available, err = a.balances(); err != nil {
+	acc.Posted, acc.Pending, acc.Available, err = a.balances()
+	if err != nil {
 		return Account{}, err
 	}
 	return acc, nil

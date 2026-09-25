@@ -158,14 +158,14 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 			return fmt.Errorf("%w: hold expired at %s", ErrHoldNotPending, h.ExpiresAt)
 		}
 
-		outcomes, err := applyEntries(ctx, tx, []*entry{{
+		results, err := applyRequests(ctx, tx, []*postingRequest{{
 			in:       post,
 			releases: map[uuid.UUID]money.Amount{h.AccountID: h.Amount},
 		}}, true)
 		if err != nil && !errors.Is(err, errAborted) {
 			return err
 		}
-		o := outcomes[0]
+		o := results[0]
 		if o.err != nil {
 			return o.err
 		}

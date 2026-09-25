@@ -26,10 +26,11 @@ func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in Update
 		txn     Transaction
 		changed bool
 	)
-	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *change, error) {
+	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *balanceChange, error) {
 		next := current
 		var err error
-		if next.Description, next.Metadata, err = applyTransactionUpdate(current, in); err != nil {
+		next.Description, next.Metadata, err = applyTransactionUpdate(current, in)
+		if err != nil {
 			return Transaction{}, nil, err
 		}
 		if in.EffectiveAt != nil {
@@ -42,11 +43,11 @@ func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in Update
 			return current, nil, nil
 		}
 		if !entriesChanged {
-			return next, &change{}, nil
+			return next, &balanceChange{}, nil
 		}
 		next.Postings = in.Postings
 		next.entriesVersion = current.Version + 1
-		return next, &change{ledgerID: current.LedgerID, unpend: current.Postings, add: in.Postings, status: TransactionPending}, nil
+		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings, add: in.Postings, status: TransactionPending}, nil
 	}, &txn, nil)
 	if err != nil {
 		return Transaction{}, s.fail(l, "update transaction", err, start)
@@ -64,7 +65,7 @@ func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingI
 	}
 
 	var txn Transaction
-	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *change, error) {
+	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *balanceChange, error) {
 		posted := current.Postings
 		if len(in.Postings) > 0 {
 			if err := checkPartial(current.Postings, in.Postings); err != nil {
@@ -75,7 +76,7 @@ func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingI
 		next := current
 		next.Status = TransactionPosted
 		next.Postings = posted
-		return next, &change{ledgerID: current.LedgerID, unpend: current.Postings, add: posted, status: TransactionPosted}, nil
+		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings, add: posted, status: TransactionPosted}, nil
 	}, &txn, func(current Transaction) bool {
 		return current.Status == TransactionPosted &&
 			(len(in.Postings) == 0 || sameContent(PostInput{Postings: current.Postings}, PostInput{Postings: in.Postings}))
@@ -92,10 +93,10 @@ func (s *service) archiveTransaction(ctx context.Context, id uuid.UUID) (Transac
 	start := time.Now()
 
 	var txn Transaction
-	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *change, error) {
+	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *balanceChange, error) {
 		next := current
 		next.Status = TransactionArchived
-		return next, &change{ledgerID: current.LedgerID, unpend: current.Postings}, nil
+		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings}, nil
 	}, &txn, func(current Transaction) bool { return current.Status == TransactionArchived })
 	if err != nil {
 		return Transaction{}, s.fail(l, "archive transaction", err, start)
@@ -107,7 +108,7 @@ func (s *service) archiveTransaction(ctx context.Context, id uuid.UUID) (Transac
 func (s *service) changePending(
 	ctx context.Context,
 	id uuid.UUID,
-	edit func(Transaction) (Transaction, *change, error),
+	edit func(Transaction) (Transaction, *balanceChange, error),
 	out *Transaction,
 	done func(Transaction) bool,
 ) error {

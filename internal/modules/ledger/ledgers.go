@@ -75,10 +75,12 @@ func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput
 			return err
 		}
 		next := current
-		if next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, true); err != nil {
+		next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, true)
+		if err != nil {
 			return err
 		}
-		if changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata); !changed {
+		changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata)
+		if !changed {
 			ledger = current
 			return nil
 		}

@@ -181,7 +181,7 @@ func (s *ledgerState) crossed() ([]BalanceMonitor, []Balances, error) {
 	return fired, balances, nil
 }
 
-type change struct {
+type balanceChange struct {
 	ledgerID uuid.UUID
 
 	unpend []Posting
@@ -193,56 +193,30 @@ type change struct {
 }
 
 func (s *ledgerState) apply(in PostInput, releases map[uuid.UUID]money.Amount) ([]Posting, error) {
-	_, postings, err := s.transition(change{add: in.Postings, status: in.status(), releases: releases})
+	_, postings, err := s.transition(balanceChange{add: in.Postings, status: in.status(), releases: releases})
 	return postings, err
 }
 
-func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
-	scratch := make(map[uuid.UUID]*accountState)
-	touch := func(id uuid.UUID) (*accountState, error) {
-		if a, ok := scratch[id]; ok {
-			return a, nil
-		}
-		a, ok := s.accounts[id]
-		if !ok {
-			return nil, fmt.Errorf("%w: account %s", ErrNotFound, id)
-		}
-		clone := *a
-		scratch[id] = &clone
-		return &clone, nil
-	}
-
-	for _, p := range c.unpend {
-		a, err := touch(p.AccountID)
-		if err != nil {
-			return uuid.Nil, nil, err
-		}
-		total := &a.pendingDebits
-		if p.Side == Credit {
-			total = &a.pendingCredits
-		}
-		if p.Amount.Cmp(*total) > 0 {
-			return uuid.Nil, nil, fmt.Errorf("ledger: pending %s %s exceeds the %s pending on account %s", p.Side, p.Amount, *total, a.id)
-		}
-		if *total, err = total.Sub(p.Amount); err != nil {
-			return uuid.Nil, nil, err
-		}
+func (s *ledgerState) transition(c balanceChange) (uuid.UUID, []Posting, error) {
+	staged := stagedAccounts{base: s.accounts, changed: make(map[uuid.UUID]*accountState)}
+	if err := staged.unpend(c.unpend); err != nil {
+		return uuid.Nil, nil, err
 	}
 
 	ledgerID, pinned := c.ledgerID, c.ledgerID != uuid.Nil
-	var versionErr error
+	var deferredVersionErr error
 	postings := make([]Posting, len(c.add))
 	totals := make(map[money.Currency]money.Amount)
 	for i, p := range c.add {
-		a, err := touch(p.AccountID)
+		a, err := staged.account(p.AccountID)
 		if err != nil {
 			return uuid.Nil, nil, err
 		}
 		if err := a.checkOpen(); err != nil {
 			return uuid.Nil, nil, err
 		}
-		if versionErr == nil && p.LockVersion != nil && *p.LockVersion != s.accounts[a.id].version {
-			versionErr = fmt.Errorf("%w: entry %d account %s is at version %d, not %d",
+		if deferredVersionErr == nil && p.LockVersion != nil && *p.LockVersion != s.accounts[a.id].version {
+			deferredVersionErr = fmt.Errorf("%w: entry %d account %s is at version %d, not %d",
 				ErrLockVersion, i, a.id, s.accounts[a.id].version, *p.LockVersion)
 		}
 		if !pinned {
@@ -272,7 +246,7 @@ func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
 	}
 
 	for id, amount := range c.releases {
-		a, err := touch(id)
+		a, err := staged.account(id)
 		if err != nil {
 			return uuid.Nil, nil, err
 		}
@@ -280,26 +254,71 @@ func (s *ledgerState) transition(c change) (uuid.UUID, []Posting, error) {
 			return uuid.Nil, nil, err
 		}
 	}
-	if versionErr != nil {
-		return uuid.Nil, nil, versionErr
+	if deferredVersionErr != nil {
+		return uuid.Nil, nil, deferredVersionErr
 	}
 
-	for i := range postings {
-		posted, pending, available, err := scratch[postings[i].AccountID].balances()
-		if err != nil {
-			return uuid.Nil, nil, err
-		}
-		result := Balances{Pending: pending, Posted: posted, Available: available}
-		if err := postings[i].checkLocks(i, result); err != nil {
-			return uuid.Nil, nil, err
-		}
-		postings[i].Resulting = &result
+	if err := staged.checkResultingLocks(postings); err != nil {
+		return uuid.Nil, nil, err
 	}
 
-	if err := s.commit(scratch); err != nil {
+	if err := s.commit(staged.changed); err != nil {
 		return uuid.Nil, nil, err
 	}
 	return ledgerID, postings, nil
+}
+
+type stagedAccounts struct {
+	base    map[uuid.UUID]*accountState
+	changed map[uuid.UUID]*accountState
+}
+
+func (st stagedAccounts) account(id uuid.UUID) (*accountState, error) {
+	if a, ok := st.changed[id]; ok {
+		return a, nil
+	}
+	a, ok := st.base[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: account %s", ErrNotFound, id)
+	}
+	clone := *a
+	st.changed[id] = &clone
+	return &clone, nil
+}
+
+func (st stagedAccounts) unpend(postings []Posting) error {
+	for _, p := range postings {
+		a, err := st.account(p.AccountID)
+		if err != nil {
+			return err
+		}
+		total := &a.pendingDebits
+		if p.Side == Credit {
+			total = &a.pendingCredits
+		}
+		if p.Amount.Cmp(*total) > 0 {
+			return fmt.Errorf("ledger: pending %s %s exceeds the %s pending on account %s", p.Side, p.Amount, *total, a.id)
+		}
+		if *total, err = total.Sub(p.Amount); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (st stagedAccounts) checkResultingLocks(postings []Posting) error {
+	for i := range postings {
+		posted, pending, available, err := st.changed[postings[i].AccountID].balances()
+		if err != nil {
+			return err
+		}
+		result := Balances{Pending: pending, Posted: posted, Available: available}
+		if err := postings[i].checkLocks(i, result); err != nil {
+			return err
+		}
+		postings[i].Resulting = &result
+	}
+	return nil
 }
 
 func (a *accountState) record(p *Posting, status TransactionStatus) error {

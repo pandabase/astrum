@@ -139,13 +139,13 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 			return err
 		}
 
-		entries := make([]*entry, len(due))
+		reqs := make([]*postingRequest, len(due))
 		for i, st := range due {
 			in := st.Request
 			in.IdempotencyKey = st.IdempotencyKey
-			entries[i] = &entry{in: in}
+			reqs[i] = &postingRequest{in: in}
 		}
-		outcomes, err := applyEntries(ctx, tx, entries, false)
+		results, err := applyRequests(ctx, tx, reqs, false)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 			txnIDs   = make([]uuid.NullUUID, len(due))
 			failures = make([]*string, len(due))
 		)
-		for i, o := range outcomes {
+		for i, o := range results {
 			ids[i] = due[i].ID
 			if o.err != nil {
 				msg := o.err.Error()

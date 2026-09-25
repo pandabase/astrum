@@ -166,7 +166,7 @@ func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, 
 	if err != nil {
 		return Transaction{}, err
 	}
-	outcomes, err := applyEntries(ctx, tx, []*entry{{in: PostInput{
+	results, err := applyRequests(ctx, tx, []*postingRequest{{in: PostInput{
 
 		IdempotencyKey: typeid.Encode("stl", st.ID),
 		Description:    st.Description,
@@ -179,10 +179,10 @@ func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, 
 	if err != nil && !errors.Is(err, errAborted) {
 		return Transaction{}, err
 	}
-	if outcomes[0].err != nil {
-		return Transaction{}, outcomes[0].err
+	if results[0].err != nil {
+		return Transaction{}, results[0].err
 	}
-	return outcomes[0].txn, nil
+	return results[0].txn, nil
 }
 
 func (s *service) settlement(ctx context.Context, id uuid.UUID) (Settlement, error) {

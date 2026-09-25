@@ -10,8 +10,8 @@ import (
 
 type request struct {
 	ctx  context.Context
-	e    *entry
-	done chan outcome
+	req  *postingRequest
+	done chan postingResult
 }
 
 type batcher struct {
@@ -36,15 +36,15 @@ func newBatcher(svc *service, cfg Config) *batcher {
 	}
 }
 
-func (b *batcher) submit(ctx context.Context, e *entry) (outcome, error) {
-	r := &request{ctx: ctx, e: e, done: make(chan outcome, 1)}
+func (b *batcher) submit(ctx context.Context, req *postingRequest) (postingResult, error) {
+	r := &request{ctx: ctx, req: req, done: make(chan postingResult, 1)}
 
 	select {
 	case b.queue <- r:
 	case <-ctx.Done():
-		return outcome{}, ctx.Err()
+		return postingResult{}, ctx.Err()
 	case <-b.stopped:
-		return outcome{}, ErrStopped
+		return postingResult{}, ErrStopped
 	}
 
 	select {
@@ -52,13 +52,13 @@ func (b *batcher) submit(ctx context.Context, e *entry) (outcome, error) {
 		return o, nil
 	case <-ctx.Done():
 
-		return outcome{}, ctx.Err()
+		return postingResult{}, ctx.Err()
 	case <-b.stopped:
 		select {
 		case o := <-r.done:
 			return o, nil
 		default:
-			return outcome{}, ErrStopped
+			return postingResult{}, ErrStopped
 		}
 	}
 }
@@ -117,7 +117,7 @@ func (b *batcher) commit(batch []*request) {
 	live := batch[:0]
 	for _, r := range batch {
 		if err := r.ctx.Err(); err != nil {
-			r.done <- outcome{err: err}
+			r.done <- postingResult{err: err}
 			continue
 		}
 		live = append(live, r)
@@ -130,12 +130,12 @@ func (b *batcher) commit(batch []*request) {
 	defer cancel()
 
 	start := time.Now()
-	entries := make([]*entry, len(live))
+	reqs := make([]*postingRequest, len(live))
 	for i, r := range live {
-		entries[i] = r.e
+		reqs[i] = r.req
 	}
 
-	outcomes, err := runEntries(ctx, b.svc, entries, false)
+	results, err := runRequests(ctx, b.svc, reqs, false)
 	if err != nil && len(live) > 1 {
 
 		b.log.Warn("group commit failed, retrying entries individually", "size", len(live), "err", err)
@@ -147,10 +147,10 @@ func (b *batcher) commit(batch []*request) {
 
 	for i, r := range live {
 		if err != nil {
-			r.done <- outcome{err: err}
+			r.done <- postingResult{err: err}
 			continue
 		}
-		r.done <- outcomes[i]
+		r.done <- results[i]
 	}
 	b.log.Debug("group committed", "size", len(live), "duration", time.Since(start))
 }

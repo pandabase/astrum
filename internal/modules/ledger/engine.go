@@ -15,33 +15,33 @@ import (
 
 var errAborted = errors.New("ledger: atomic batch aborted")
 
-type entry struct {
+type postingRequest struct {
 	in       PostInput
 	reverses *uuid.UUID
 	releases map[uuid.UUID]money.Amount
 }
 
-type outcome struct {
+type postingResult struct {
 	txn      Transaction
 	replayed bool
 	err      error
 }
 
-func applyEntries(ctx context.Context, tx pgx.Tx, entries []*entry, atomic bool) ([]outcome, error) {
+func applyRequests(ctx context.Context, tx pgx.Tx, reqs []*postingRequest, atomic bool) ([]postingResult, error) {
 	var (
 		accountIDs  []uuid.UUID
-		keys        = make([]string, 0, len(entries))
+		keys        = make([]string, 0, len(reqs))
 		externalIDs []string
 	)
-	for _, e := range entries {
-		keys = append(keys, e.in.IdempotencyKey)
-		if e.in.ExternalID != "" {
-			externalIDs = append(externalIDs, e.in.ExternalID)
+	for _, req := range reqs {
+		keys = append(keys, req.in.IdempotencyKey)
+		if req.in.ExternalID != "" {
+			externalIDs = append(externalIDs, req.in.ExternalID)
 		}
-		for _, p := range e.in.Postings {
+		for _, p := range req.in.Postings {
 			accountIDs = append(accountIDs, p.AccountID)
 		}
-		for id := range e.releases {
+		for id := range req.releases {
 			accountIDs = append(accountIDs, id)
 		}
 	}
@@ -64,22 +64,22 @@ func applyEntries(ctx context.Context, tx pgx.Tx, entries []*entry, atomic bool)
 	}
 
 	state := newLedgerState(locked, monitors)
-	outcomes := make([]outcome, len(entries))
-	firstByKey := make(map[string]int, len(entries))
+	results := make([]postingResult, len(reqs))
+	firstByKey := make(map[string]int, len(reqs))
 	var accepted []Transaction
 
-	for i, e := range entries {
-		outcomes[i] = resolveEntry(e, i, state, existing, taken, firstByKey, outcomes, now)
-		if outcomes[i].err != nil && atomic {
-			return outcomes, errAborted
+	for i, req := range reqs {
+		results[i] = resolveRequest(req, i, state, existing, taken, firstByKey, results, now)
+		if results[i].err != nil && atomic {
+			return results, errAborted
 		}
-		if outcomes[i].err == nil && !outcomes[i].replayed {
-			accepted = append(accepted, outcomes[i].txn)
+		if results[i].err == nil && !results[i].replayed {
+			accepted = append(accepted, results[i].txn)
 		}
 	}
 
 	if len(accepted) == 0 {
-		return outcomes, nil
+		return results, nil
 	}
 
 	created, err := transactionEvents(eventTransactionCreated, accepted...)
@@ -99,66 +99,66 @@ func applyEntries(ctx context.Context, tx pgx.Tx, entries []*entry, atomic bool)
 		}
 		return nil, fmt.Errorf("write batch: %w", err)
 	}
-	return outcomes, nil
+	return results, nil
 }
 
-func resolveEntry(
-	e *entry,
+func resolveRequest(
+	req *postingRequest,
 	i int,
 	state *ledgerState,
 	existing map[string]Transaction,
 	taken map[externalKey]string,
 	firstByKey map[string]int,
-	outcomes []outcome,
+	results []postingResult,
 	now time.Time,
-) outcome {
-	key := e.in.IdempotencyKey
-	if e.in.EffectiveAt != nil {
-		at := e.in.EffectiveAt.Truncate(time.Microsecond)
-		e.in.EffectiveAt = &at
+) postingResult {
+	key := req.in.IdempotencyKey
+	if req.in.EffectiveAt != nil {
+		at := req.in.EffectiveAt.Truncate(time.Microsecond)
+		req.in.EffectiveAt = &at
 	}
 
 	if txn, ok := existing[key]; ok {
-		if !txn.matches(e.in) {
-			return outcome{err: ErrIdempotencyConflict}
+		if !txn.matches(req.in) {
+			return postingResult{err: ErrIdempotencyConflict}
 		}
-		return outcome{txn: txn, replayed: true}
+		return postingResult{txn: txn, replayed: true}
 	}
 
 	if j, ok := firstByKey[key]; ok {
-		prior := outcomes[j]
+		prior := results[j]
 		switch {
 		case prior.err != nil:
-			return outcome{err: prior.err}
-		case !prior.txn.matches(e.in):
-			return outcome{err: ErrIdempotencyConflict}
+			return postingResult{err: prior.err}
+		case !prior.txn.matches(req.in):
+			return postingResult{err: ErrIdempotencyConflict}
 		}
-		return outcome{txn: prior.txn, replayed: true}
+		return postingResult{txn: prior.txn, replayed: true}
 	}
 	firstByKey[key] = i
 
 	var external *externalKey
-	if first, ok := state.accounts[e.in.Postings[0].AccountID]; ok && e.in.ExternalID != "" {
-		external = &externalKey{ledgerID: first.ledgerID, externalID: e.in.ExternalID}
+	if first, ok := state.accounts[req.in.Postings[0].AccountID]; ok && req.in.ExternalID != "" {
+		external = &externalKey{ledgerID: first.ledgerID, externalID: req.in.ExternalID}
 		if owner, ok := taken[*external]; ok && owner != key {
-			return outcome{err: fmt.Errorf("%w: %s", ErrExternalIDExists, e.in.ExternalID)}
+			return postingResult{err: fmt.Errorf("%w: %s", ErrExternalIDExists, req.in.ExternalID)}
 		}
 	}
 
-	status := e.in.status()
+	status := req.in.status()
 	effectiveAt := now
-	if e.in.EffectiveAt != nil {
-		effectiveAt = *e.in.EffectiveAt
+	if req.in.EffectiveAt != nil {
+		effectiveAt = *req.in.EffectiveAt
 	}
-	if a, ok := state.accounts[e.in.Postings[0].AccountID]; ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
-		return outcome{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, a.closedBefore.UTC().Format(time.RFC3339Nano))}
+	if a, ok := state.accounts[req.in.Postings[0].AccountID]; ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
+		return postingResult{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, a.closedBefore.UTC().Format(time.RFC3339Nano))}
 	}
-	ledgerID, postings, err := state.transition(change{add: e.in.Postings, status: status, releases: e.releases})
+	ledgerID, postings, err := state.transition(balanceChange{add: req.in.Postings, status: status, releases: req.releases})
 	if err != nil {
-		if !e.in.ArchiveOnLockFailure || !(errors.Is(err, ErrBalanceLock) || errors.Is(err, ErrLockVersion)) {
-			return outcome{err: err}
+		if !req.in.ArchiveOnLockFailure || !(errors.Is(err, ErrBalanceLock) || errors.Is(err, ErrLockVersion)) {
+			return postingResult{err: err}
 		}
-		status, ledgerID, postings = archivedEntries(state, e.in.Postings)
+		status, ledgerID, postings = archivedPostings(state, req.in.Postings)
 	}
 	if external != nil {
 		taken[*external] = key
@@ -166,19 +166,19 @@ func resolveEntry(
 
 	id, err := uuid.NewV7()
 	if err != nil {
-		return outcome{err: fmt.Errorf("ledger: generate id: %w", err)}
+		return postingResult{err: fmt.Errorf("ledger: generate id: %w", err)}
 	}
 	txn := Transaction{
 		ID:             id,
 		LedgerID:       ledgerID,
 		IdempotencyKey: key,
-		ExternalID:     e.in.ExternalID,
+		ExternalID:     req.in.ExternalID,
 		Status:         status,
 		Version:        1,
 		entriesVersion: 1,
-		Description:    e.in.Description,
-		Metadata:       normalizeMetadata(e.in.Metadata),
-		ReversesID:     e.reverses,
+		Description:    req.in.Description,
+		Metadata:       normalizeMetadata(req.in.Metadata),
+		ReversesID:     req.reverses,
 		Postings:       postings,
 		EffectiveAt:    effectiveAt,
 		CreatedAt:      now,
@@ -190,13 +190,13 @@ func resolveEntry(
 		txn.ArchivedAt = &now
 	}
 	if status != TransactionPosted {
-		request := e.in
+		request := req.in
 		txn.request = &request
 	}
-	return outcome{txn: txn}
+	return postingResult{txn: txn}
 }
 
-func archivedEntries(state *ledgerState, in []Posting) (TransactionStatus, uuid.UUID, []Posting) {
+func archivedPostings(state *ledgerState, in []Posting) (TransactionStatus, uuid.UUID, []Posting) {
 	postings := make([]Posting, len(in))
 	for i, p := range in {
 		p.Currency = state.accounts[p.AccountID].currency
@@ -205,23 +205,23 @@ func archivedEntries(state *ledgerState, in []Posting) (TransactionStatus, uuid.
 	return TransactionArchived, state.accounts[in[0].AccountID].ledgerID, postings
 }
 
-func runEntries(ctx context.Context, s *service, entries []*entry, atomic bool) ([]outcome, error) {
-	var outcomes []outcome
+func runRequests(ctx context.Context, s *service, reqs []*postingRequest, atomic bool) ([]postingResult, error) {
+	var results []postingResult
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		outcomes, err = applyEntries(ctx, tx, entries, atomic)
+		results, err = applyRequests(ctx, tx, reqs, atomic)
 		return err
 	})
 	if errors.Is(err, errAborted) {
-		for i := range outcomes {
-			if outcomes[i].err == nil {
-				outcomes[i] = outcome{err: ErrBatchAborted}
+		for i := range results {
+			if results[i].err == nil {
+				results[i] = postingResult{err: ErrBatchAborted}
 			}
 		}
-		return outcomes, nil
+		return results, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return outcomes, nil
+	return results, nil
 }

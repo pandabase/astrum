@@ -95,7 +95,8 @@ func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Acc
 	)
 	err = db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		if acc, created, err = insertAccount(ctx, tx, id, in); err != nil || !created {
+		acc, created, err = insertAccount(ctx, tx, id, in)
+		if err != nil || !created {
 			return err
 		}
 		return emit(ctx, tx, eventAccountCreated, toAccount, acc)
@@ -183,10 +184,12 @@ func (s *service) updateAccount(ctx context.Context, id uuid.UUID, in UpdateInpu
 			return err
 		}
 		next := current
-		if next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, false); err != nil {
+		next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, false)
+		if err != nil {
 			return err
 		}
-		if changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata); !changed {
+		changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata)
+		if !changed {
 			acc = current
 			return nil
 		}
@@ -242,7 +245,7 @@ func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
 		return Transaction{}, s.fail(l, "post transaction", err, start)
 	}
 
-	o, err := s.batcher.submit(ctx, &entry{in: in})
+	o, err := s.batcher.submit(ctx, &postingRequest{in: in})
 	if err == nil {
 		err = o.err
 	}
@@ -254,14 +257,14 @@ func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
 	return o.txn, nil
 }
 
-func (s *service) runBatch(ctx context.Context, entries []*entry, atomic bool) ([]outcome, error) {
+func (s *service) runBatch(ctx context.Context, reqs []*postingRequest, atomic bool) ([]postingResult, error) {
 	select {
 	case s.batchSlots <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 	defer func() { <-s.batchSlots }()
-	return runEntries(ctx, s, entries, atomic)
+	return runRequests(ctx, s, reqs, atomic)
 }
 
 func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) ([]BatchResult, error) {
@@ -274,7 +277,7 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	}
 
 	results := make([]BatchResult, len(ins))
-	entries := make([]*entry, 0, len(ins))
+	reqs := make([]*postingRequest, 0, len(ins))
 	positions := make([]int, 0, len(ins))
 	for i, in := range ins {
 		if err := validatePost(in); err != nil {
@@ -284,16 +287,16 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 			results[i] = failedResult(err)
 			continue
 		}
-		entries = append(entries, &entry{in: in})
+		reqs = append(reqs, &postingRequest{in: in})
 		positions = append(positions, i)
 	}
 
-	if len(entries) > 0 {
-		outcomes, err := s.runBatch(ctx, entries, atomic)
+	if len(reqs) > 0 {
+		posted, err := s.runBatch(ctx, reqs, atomic)
 		if err != nil {
 			return nil, s.fail(l, "post batch", err, start)
 		}
-		for j, o := range outcomes {
+		for j, o := range posted {
 			if o.err != nil {
 				results[positions[j]] = failedResult(o.err)
 				continue
@@ -376,7 +379,7 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		return Transaction{}, s.fail(l, "reverse transaction", err, start)
 	}
 
-	var o outcome
+	var o postingResult
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		original, err := lockTransaction(ctx, tx, id)
 		if err != nil {
@@ -385,12 +388,12 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		if original.Status != TransactionPosted {
 			return fmt.Errorf("%w: transaction %s is %s", ErrNotPosted, id, original.Status)
 		}
-		e := reversalEntry(original, in)
+		req := reversalRequest(original, in)
 
 		prior, err := selectReversal(ctx, tx, id)
 		switch {
-		case err == nil && prior.IdempotencyKey == in.IdempotencyKey && prior.matches(e.in):
-			o = outcome{txn: prior, replayed: true}
+		case err == nil && prior.IdempotencyKey == in.IdempotencyKey && prior.matches(req.in):
+			o = postingResult{txn: prior, replayed: true}
 			return nil
 		case err == nil:
 			return ErrAlreadyReversed
@@ -398,11 +401,11 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 			return err
 		}
 
-		outcomes, err := applyEntries(ctx, tx, []*entry{e}, true)
+		results, err := applyRequests(ctx, tx, []*postingRequest{req}, true)
 		if err != nil && !errors.Is(err, errAborted) {
 			return err
 		}
-		o = outcomes[0]
+		o = results[0]
 		if o.replayed {
 			if prior, err := selectReversal(ctx, tx, id); err != nil || prior.ID != o.txn.ID {
 				return ErrIdempotencyConflict
@@ -418,12 +421,12 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 	return o.txn, nil
 }
 
-func reversalEntry(original Transaction, in ReverseInput) *entry {
+func reversalRequest(original Transaction, in ReverseInput) *postingRequest {
 	postings := make([]Posting, len(original.Postings))
 	for i, p := range original.Postings {
 		postings[i] = Posting{AccountID: p.AccountID, Side: p.Side.opposite(), Amount: p.Amount, Currency: p.Currency}
 	}
-	return &entry{
+	return &postingRequest{
 		in: PostInput{
 			IdempotencyKey: in.IdempotencyKey,
 			Description:    in.Description,
@@ -434,7 +437,7 @@ func reversalEntry(original Transaction, in ReverseInput) *entry {
 	}
 }
 
-func (s *service) logPosted(l *log.Logger, o outcome, start time.Time) {
+func (s *service) logPosted(l *log.Logger, o postingResult, start time.Time) {
 	if o.replayed {
 		l.Info("transaction replayed", "transaction_id", o.txn.ID, "duration", time.Since(start))
 		return

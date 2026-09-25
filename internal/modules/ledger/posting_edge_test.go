@@ -11,13 +11,13 @@ import (
 	"github.com/pandabase/astrum/internal/money"
 )
 
-func peResolve(state *ledgerState, in PostInput) (o outcome, err error) {
+func peResolve(state *ledgerState, in PostInput) (o postingResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("resolveEntry panicked: %v", r)
 		}
 	}()
-	o = resolveEntry(&entry{in: in}, 0, state, map[string]Transaction{}, map[externalKey]string{}, map[string]int{}, make([]outcome, 1), time.Now())
+	o = resolveRequest(&postingRequest{in: in}, 0, state, map[string]Transaction{}, map[externalKey]string{}, map[string]int{}, make([]postingResult, 1), time.Now())
 	return o, nil
 }
 
@@ -122,7 +122,7 @@ func TestPostingEdgeRejectedTransitionIsAtomic(t *testing.T) {
 	before := snapshot()
 	one := amt(1)
 
-	failing := map[string]change{
+	failing := map[string]balanceChange{
 		"lock on the last leg": {status: TransactionPosted, add: []Posting{
 			f.posting("b", Debit, 20), f.posting("a", Credit, 20),
 			{AccountID: f.ids["c"], Side: Debit, Amount: amt(1), PostedBalance: &BalanceCondition{GT: &one}},
