@@ -65,18 +65,8 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			return fmt.Errorf("%w: settled and contra accounts must share a ledger and currency", ErrInvalid)
 		}
 
-		var debits, credits money.Amount
-		var count int
-		if err := tx.QueryRow(ctx, `
-			SELECT coalesce(sum(p.amount) FILTER (WHERE p.side = 'debit'), 0),
-			       coalesce(sum(p.amount) FILTER (WHERE p.side = 'credit'), 0),
-			       count(*)
-			FROM ledger_postings AS p
-			JOIN ledger_transactions AS t ON t.id = p.transaction_id
-			WHERE p.account_id = $1
-			  AND ($2::timestamptz IS NULL OR t.effective_at < $2)
-			  AND NOT EXISTS (SELECT 1 FROM ledger_settlement_entries AS s WHERE s.posting_id = p.id)`,
-			in.SettledAccountID, in.UpperBound).Scan(&debits, &credits, &count); err != nil {
+		debits, credits, count, err := sumUnsettled(ctx, tx, in.SettledAccountID, in.UpperBound)
+		if err != nil {
 			return err
 		}
 		net, err := (&accountState{normalSide: settled.normalSide}).balance(debits, credits)
@@ -110,28 +100,15 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			st.TransactionID = &txn.ID
 		}
 
-		if st, err = scanSettlement(tx.QueryRow(ctx, `
-			INSERT INTO ledger_settlements (id, idempotency_key, ledger_id, settled_account_id, contra_account_id,
-				currency, effective_at_upper_bound, amount, entry_count, transaction_id, description, metadata)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::text::jsonb)
-			RETURNING `+settlementColumns,
-			st.ID, st.IdempotencyKey, st.LedgerID, st.SettledAccountID, st.ContraAccountID, string(st.Currency),
-			st.UpperBound, st.Amount, st.EntryCount, st.TransactionID, st.Description, string(st.Metadata))); err != nil {
+		st, err = insertSettlement(ctx, tx, st)
+		if err != nil {
 			if db.Constraint(err) == constraintSettlementKey {
 				return fmt.Errorf("%w: %w", db.ErrRetry, err)
 			}
 			return err
 		}
 
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO ledger_settlement_entries (posting_id, settlement_id)
-			SELECT p.id, $3
-			FROM ledger_postings AS p
-			JOIN ledger_transactions AS t ON t.id = p.transaction_id
-			WHERE p.account_id = $1
-			  AND (p.transaction_id = $4 OR $2::timestamptz IS NULL OR t.effective_at < $2)
-			  AND NOT EXISTS (SELECT 1 FROM ledger_settlement_entries AS s WHERE s.posting_id = p.id)`,
-			in.SettledAccountID, in.UpperBound, st.ID, st.TransactionID)
+		marked, err := markSettled(ctx, tx, st)
 		if err != nil {
 			return err
 		}
@@ -139,8 +116,8 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		if st.TransactionID != nil {
 			own = 1
 		}
-		if tag.RowsAffected() != int64(count+own) {
-			return fmt.Errorf("ledger: settlement marked %d entries, summed %d", tag.RowsAffected(), count+own)
+		if marked != int64(count+own) {
+			return fmt.Errorf("ledger: settlement marked %d entries, summed %d", marked, count+own)
 		}
 		return emit(ctx, tx, eventSettlementCreated, toSettlement, st)
 	})

@@ -3,7 +3,6 @@ package ledger
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -118,11 +117,7 @@ func (s *service) createStatement(ctx context.Context, in CreateStatementInput) 
 		if err != nil {
 			return err
 		}
-		var xmin string
-		if err := tx.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot())::text`).Scan(&xmin); err != nil {
-			return err
-		}
-		bound, err := strconv.ParseUint(xmin, 10, 64)
+		bound, err := selectSnapshotXmin(ctx, tx)
 		if err != nil {
 			return err
 		}

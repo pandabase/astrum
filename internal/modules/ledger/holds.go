@@ -114,11 +114,11 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 			return err
 		}
 
-		var normalSide string
-		if err := tx.QueryRow(ctx, `SELECT normal_side FROM ledger_accounts WHERE id = $1`, h.AccountID).Scan(&normalSide); err != nil {
+		normalSide, err := selectNormalSide(ctx, tx, h.AccountID)
+		if err != nil {
 			return err
 		}
-		side := Side(normalSide).opposite()
+		side := normalSide.opposite()
 		post := PostInput{
 			IdempotencyKey: in.IdempotencyKey,
 			Description:    in.Description,
@@ -150,8 +150,8 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 			return fmt.Errorf("%w: capture of %s exceeds hold of %s", ErrInvalid, in.Amount, h.Amount)
 		}
 
-		var now time.Time
-		if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		now, err := selectClock(ctx, tx)
+		if err != nil {
 			return err
 		}
 		if !now.Before(h.ExpiresAt) {
