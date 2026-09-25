@@ -13,17 +13,10 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pandabase/astrum/internal/kernel/auth"
 	"github.com/pandabase/astrum/internal/kernel/config"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/events"
 	"github.com/pandabase/astrum/internal/kernel/httpx"
-	"github.com/pandabase/astrum/internal/kernel/idempotency"
 	"github.com/pandabase/astrum/internal/kernel/logger"
-	"github.com/pandabase/astrum/internal/kernel/module"
-	"github.com/pandabase/astrum/internal/kernel/ratelimit"
-	"github.com/pandabase/astrum/internal/kernel/web"
-	"github.com/pandabase/astrum/internal/modules/ledger"
 )
 
 const shutdownTimeout = 30 * time.Second
@@ -63,102 +56,67 @@ func run(ctx context.Context, cfg config.Config) error {
 
 	l.Info("starting", "version", version, "addr", cfg.HTTPAddr, "log_level", cfg.LogLevel)
 
-	pool, err := db.Connect(ctx, cfg.DatabaseURL, db.Options{
-		MaxConns:              int32(cfg.DBMaxConns),
-		AllowUnsafeDurability: cfg.AllowUnsafeDurability,
-	})
+	pool, err := connect(ctx, cfg, l)
 	if err != nil {
 		return err
 	}
 	abandoned := false
 	defer func() {
-
 		if !abandoned {
 			pool.Close()
 		}
 	}()
-	if cfg.AllowUnsafeDurability {
-		l.Warn("durability checks disabled: acknowledged transactions may be lost on power failure")
-	}
-	l.Info("database connected", "max_conns", cfg.DBMaxConns)
 
-	authn := auth.New(pool, base)
-	idem := idempotency.New(pool, base)
-	idem.Scope = auth.Scope
-	if cfg.WebhookAllowInsecure {
-		l.Warn("webhooks may target http:// and private addresses")
-	}
-	evs := events.NewService(pool, base, events.Config{
-		AllowInsecureURLs: cfg.WebhookAllowInsecure,
-		Retention:         cfg.EventRetention,
-	})
-	ledgerModule, err := ledger.New(pool, base, ledger.Config{
-		Workers:          cfg.LedgerWorkers,
-		MaxBatch:         cfg.LedgerMaxBatch,
-		BatchConcurrency: cfg.LedgerBatchConcurrency,
-		SealKey:          []byte(cfg.LedgerSealKey),
-	})
+	k, err := newKernel(pool, base, cfg, l)
 	if err != nil {
 		return err
 	}
-	modules := []module.Module{ledgerModule}
-
-	if err := db.Migrate(ctx, pool, base, authn.Name(), authn.Migrations()); err != nil {
+	if err := k.migrate(ctx); err != nil {
 		return err
 	}
-	if err := db.Migrate(ctx, pool, base, idem.Name(), idem.Migrations()); err != nil {
+	if err := k.preflight(ctx, l); err != nil {
 		return err
-	}
-	if err := db.Migrate(ctx, pool, base, evs.Name(), evs.Migrations()); err != nil {
-		return err
-	}
-	for _, m := range modules {
-		if err := db.Migrate(ctx, pool, base, m.Name(), m.Migrations()); err != nil {
-			return err
-		}
-	}
-	if err := ledgerModule.CheckSealKey(ctx); err != nil {
-		return err
-	}
-	if admins, err := authn.ActiveAdmins(ctx); err != nil {
-		return err
-	} else if admins == 0 {
-		l.Warn("no active admin API key; create one with: astrum keys create -name <name>")
 	}
 
 	workCtx, stopWork := context.WithCancel(context.WithoutCancel(ctx))
 	defer stopWork()
-	var workers sync.WaitGroup
-	workers.Go(func() { _ = idem.Run(workCtx) })
-	workers.Go(func() { _ = evs.Run(workCtx) })
-	for _, m := range modules {
-		workers.Go(func() {
-			if err := m.Run(workCtx); err != nil {
-				l.Error("module stopped with error", "module", m.Name(), "err", err)
-			}
-		})
+	workers := k.start(workCtx, l)
+
+	handler, err := k.handler(cfg, l)
+	if err != nil {
+		return err
+	}
+	serveErr := serve(ctx, cfg.HTTPAddr, handler, l)
+
+	l.Info("shutting down: draining modules")
+	stopWork()
+	if err := drain(workers); err != nil {
+		abandoned = true
+		return err
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", health(pool))
-	authn.Routes(mux)
-	evs.Routes(mux)
-	for _, m := range modules {
-		m.Routes(mux)
-		l.Info("module loaded", "module", m.Name())
-	}
+	l.Info("stopped")
+	return serveErr
+}
 
-	limiter := ratelimit.New(cfg.RateLimit, cfg.RateLimitBurst)
-	handler := httpx.Logging(base, authn.Middleware([]string{"/healthz"}, limiter.Middleware(idem.Middleware(mux))))
-	if cfg.WebDir != "" {
-		if handler, err = web.Handler(cfg.WebDir, handler); err != nil {
-			return err
-		}
-		l.Info("serving web interface", "dir", cfg.WebDir)
+func connect(ctx context.Context, cfg config.Config, l *log.Logger) (*pgxpool.Pool, error) {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL, db.Options{
+		MaxConns:              int32(cfg.DBMaxConns),
+		AllowUnsafeDurability: cfg.AllowUnsafeDurability,
+	})
+	if err != nil {
+		return nil, err
 	}
+	if cfg.AllowUnsafeDurability {
+		l.Warn("durability checks disabled: acknowledged transactions may be lost on power failure")
+	}
+	l.Info("database connected", "max_conns", cfg.DBMaxConns)
+	return pool, nil
+}
 
+func serve(ctx context.Context, addr string, handler http.Handler, l *log.Logger) error {
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -168,7 +126,7 @@ func run(ctx context.Context, cfg config.Config) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		l.Info("listening", "addr", cfg.HTTPAddr)
+		l.Info("listening", "addr", addr)
 		errCh <- srv.ListenAndServe()
 	}()
 
@@ -187,9 +145,10 @@ func run(ctx context.Context, cfg config.Config) error {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		l.Error("http shutdown incomplete", "err", err)
 	}
+	return serveErr
+}
 
-	l.Info("shutting down: draining modules")
-	stopWork()
+func drain(workers *sync.WaitGroup) error {
 	drained := make(chan struct{})
 	go func() {
 		workers.Wait()
@@ -198,13 +157,10 @@ func run(ctx context.Context, cfg config.Config) error {
 
 	select {
 	case <-drained:
+		return nil
 	case <-time.After(shutdownTimeout):
-		abandoned = true
 		return errors.New("shutdown deadline exceeded, abandoned background work")
 	}
-
-	l.Info("stopped")
-	return serveErr
 }
 
 func health(pool *pgxpool.Pool) http.HandlerFunc {
