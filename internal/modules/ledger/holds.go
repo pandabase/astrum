@@ -10,16 +10,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/money"
 )
 
 func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, error) {
-	l := logger.For(ctx, s.log).With("op", "create_hold", "idempotency_key", in.IdempotencyKey, "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "create hold", "idempotency_key", in.IdempotencyKey, "account_id", in.AccountID)
 
 	if err := validateHold(in); err != nil {
-		return Hold{}, s.fail(l, "create hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 	in.ExpiresAt = in.ExpiresAt.Truncate(time.Microsecond)
 
@@ -73,34 +71,32 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 		return emit(ctx, tx, eventHoldCreated, toHold, hold)
 	})
 	if err != nil {
-		return Hold{}, s.fail(l, "create hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 
 	if replayed {
-		l.Info("hold replayed", "hold_id", hold.ID, "duration", time.Since(start))
+		op.info("hold replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
-	l.Info("hold created", "hold_id", hold.ID, "amount", hold.Amount, "expires_at", hold.ExpiresAt, "duration", time.Since(start))
+	op.info("hold created", "hold_id", hold.ID, "amount", hold.Amount, "expires_at", hold.ExpiresAt)
 	return hold, nil
 }
 
 func (s *service) hold(ctx context.Context, id uuid.UUID) (Hold, error) {
-	l := logger.For(ctx, s.log).With("op", "get_hold", "hold_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get hold", "hold_id", id)
 
 	h, err := selectHold(ctx, s.pool, `id = $1`, id)
 	if err != nil {
-		return Hold{}, s.fail(l, "get hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 	return h, nil
 }
 
 func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput) (Hold, error) {
-	l := logger.For(ctx, s.log).With("op", "capture_hold", "hold_id", id, "idempotency_key", in.IdempotencyKey)
-	start := time.Now()
+	op := s.begin(ctx, "capture hold", "hold_id", id, "idempotency_key", in.IdempotencyKey)
 
 	if err := validateCapture(in); err != nil {
-		return Hold{}, s.fail(l, "capture hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 
 	var (
@@ -179,26 +175,24 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		return emit(ctx, tx, eventHoldCaptured, toHold, hold)
 	})
 	if err != nil {
-		return Hold{}, s.fail(l, "capture hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 
 	if replayed {
-		l.Info("capture replayed", "hold_id", hold.ID, "duration", time.Since(start))
+		op.info("capture replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
 	released, _ := hold.Amount.Sub(in.Amount)
-	l.Info("hold captured",
+	op.info("hold captured",
 		"hold_id", hold.ID,
 		"captured", in.Amount,
 		"released", released,
-		"transaction_id", hold.CaptureTransactionID,
-		"duration", time.Since(start))
+		"transaction_id", hold.CaptureTransactionID)
 	return hold, nil
 }
 
 func (s *service) voidHold(ctx context.Context, id uuid.UUID) (Hold, error) {
-	l := logger.For(ctx, s.log).With("op", "void_hold", "hold_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "void hold", "hold_id", id)
 
 	var (
 		hold     Hold
@@ -235,14 +229,14 @@ func (s *service) voidHold(ctx context.Context, id uuid.UUID) (Hold, error) {
 		return emit(ctx, tx, eventHoldVoided, toHold, hold)
 	})
 	if err != nil {
-		return Hold{}, s.fail(l, "void hold", err, start)
+		return Hold{}, op.fail(err)
 	}
 
 	if replayed {
-		l.Info("void replayed", "hold_id", hold.ID)
+		op.info("void replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
-	l.Info("hold voided", "hold_id", hold.ID, "released", hold.Amount, "duration", time.Since(start))
+	op.info("hold voided", "hold_id", hold.ID, "released", hold.Amount)
 	return hold, nil
 }
 
@@ -316,14 +310,13 @@ func (h Hold) matches(in CreateHoldInput) bool {
 }
 
 func (s *service) listHolds(ctx context.Context, in ListHoldsInput) ([]Hold, error) {
-	l := logger.For(ctx, s.log).With("op", "list_holds", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "list holds", "account_id", in.AccountID)
 
 	switch {
 	case in.Limit < 1 || in.Limit > maxListLimit:
-		return nil, s.fail(l, "list holds", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	case !slices.Contains([]HoldStatus{"", HoldPending, HoldCaptured, HoldVoided, HoldExpired}, in.Status):
-		return nil, s.fail(l, "list holds", fmt.Errorf("%w: status must be pending, captured, voided or expired", ErrInvalid), start)
+		return nil, op.fail(fmt.Errorf("%w: status must be pending, captured, voided or expired", ErrInvalid))
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+holdColumns+` FROM ledger_holds
@@ -331,11 +324,11 @@ func (s *service) listHolds(ctx context.Context, in ListHoldsInput) ([]Hold, err
 		ORDER BY id DESC
 		LIMIT $4`, nullUUID(in.AccountID), nullString(string(in.Status)), nullUUID(in.Before), in.Limit)
 	if err != nil {
-		return nil, s.fail(l, "list holds", err, start)
+		return nil, op.fail(err)
 	}
 	holds, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Hold, error) { return scanHold(row) })
 	if err != nil {
-		return nil, s.fail(l, "list holds", err, start)
+		return nil, op.fail(err)
 	}
 	return holds, nil
 }

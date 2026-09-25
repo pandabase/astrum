@@ -11,59 +11,54 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 func (s *service) createLedger(ctx context.Context, in CreateLedgerInput) (Ledger, error) {
-	l := logger.For(ctx, s.log).With("op", "create_ledger", "name", in.Name)
-	start := time.Now()
+	op := s.begin(ctx, "create ledger", "name", in.Name)
 
 	if err := validateDetails(in.Name, in.Description, in.Metadata, true); err != nil {
-		return Ledger{}, s.fail(l, "create ledger", err, start)
+		return Ledger{}, op.fail(err)
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return Ledger{}, s.fail(l, "create ledger", err, start)
+		return Ledger{}, op.fail(err)
 	}
 	ledger, err := insertLedger(ctx, s.pool, id, in)
 	if err != nil {
-		return Ledger{}, s.fail(l, "create ledger", err, start)
+		return Ledger{}, op.fail(err)
 	}
-	l.Info("ledger created", "ledger_id", ledger.ID, "duration", time.Since(start))
+	op.info("ledger created", "ledger_id", ledger.ID)
 	return ledger, nil
 }
 
 func (s *service) ledger(ctx context.Context, id uuid.UUID) (Ledger, error) {
-	l := logger.For(ctx, s.log).With("op", "get_ledger", "ledger_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get ledger", "ledger_id", id)
 
 	ledger, err := queryLedger(ctx, s.pool, `id = $1`, id)
 	if err != nil {
-		return Ledger{}, s.fail(l, "get ledger", err, start)
+		return Ledger{}, op.fail(err)
 	}
 	return ledger, nil
 }
 
 func (s *service) listLedgers(ctx context.Context, in ListLedgersInput) ([]Ledger, error) {
-	l := logger.For(ctx, s.log).With("op", "list_ledgers", "limit", in.Limit)
-	start := time.Now()
+	op := s.begin(ctx, "list ledgers", "limit", in.Limit)
 
 	if in.Limit < 1 || in.Limit > maxListLimit {
-		return nil, s.fail(l, "list ledgers", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	if err := validateMetadataFilter(in.Metadata); err != nil {
-		return nil, s.fail(l, "list ledgers", err, start)
+		return nil, op.fail(err)
 	}
 	ledgers, err := selectLedgers(ctx, s.pool, in)
 	if err != nil {
-		return nil, s.fail(l, "list ledgers", err, start)
+		return nil, op.fail(err)
 	}
 	return ledgers, nil
 }
 
 func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput) (Ledger, error) {
-	l := logger.For(ctx, s.log).With("op", "update_ledger", "ledger_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "update ledger", "ledger_id", id)
 
 	var (
 		ledger  Ledger
@@ -88,9 +83,9 @@ func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput
 		return err
 	})
 	if err != nil {
-		return Ledger{}, s.fail(l, "update ledger", err, start)
+		return Ledger{}, op.fail(err)
 	}
-	l.Info("ledger updated", "changed", changed, "version", ledger.Version, "duration", time.Since(start))
+	op.info("ledger updated", "changed", changed, "version", ledger.Version)
 	return ledger, nil
 }
 
@@ -158,13 +153,12 @@ func decodeObject(raw jsontext.Value) (map[string]any, error) {
 }
 
 func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *time.Time) (Ledger, error) {
-	l := logger.For(ctx, s.log).With("op", "close_period", "ledger_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "close period", "ledger_id", id)
 
 	if closedBefore != nil {
 		at := closedBefore.Truncate(time.Microsecond)
 		if !representableTime(at) {
-			return Ledger{}, s.fail(l, "close period", fmt.Errorf("%w: closed_before is out of range", ErrInvalid), start)
+			return Ledger{}, op.fail(fmt.Errorf("%w: closed_before is out of range", ErrInvalid))
 		}
 		closedBefore = &at
 	}
@@ -198,9 +192,9 @@ func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *t
 		err = waitForOlderTransactions(ctx, s.pool, xid)
 	}
 	if err != nil {
-		return Ledger{}, s.fail(l, "close period", err, start)
+		return Ledger{}, op.fail(err)
 	}
-	l.Info("period closed", "closed_before", closedBefore, "version", ledger.Version, "duration", time.Since(start))
+	op.info("period closed", "closed_before", closedBefore, "version", ledger.Version)
 	return ledger, nil
 }
 

@@ -10,16 +10,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
 	"github.com/pandabase/astrum/internal/kernel/events"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/money"
 )
 
 func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in UpdateTransactionInput) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "update_transaction", "transaction_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "update transaction", "transaction_id", id)
 
 	if err := validateUpdateTransaction(in); err != nil {
-		return Transaction{}, s.fail(l, "update transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
 	var (
@@ -50,18 +48,17 @@ func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in Update
 		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings, add: in.Postings, status: TransactionPending}, nil
 	}, &txn, nil)
 	if err != nil {
-		return Transaction{}, s.fail(l, "update transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
-	l.Info("transaction updated", "changed", changed, "version", txn.Version, "duration", time.Since(start))
+	op.info("transaction updated", "changed", changed, "version", txn.Version)
 	return txn, nil
 }
 
 func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingInput) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "post_transaction", "transaction_id", id, "partial", len(in.Postings) > 0)
-	start := time.Now()
+	op := s.begin(ctx, "post transaction", "transaction_id", id, "partial", len(in.Postings) > 0)
 
 	if err := validatePartialEntries(in.Postings); err != nil {
-		return Transaction{}, s.fail(l, "post transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
 	var txn Transaction
@@ -82,15 +79,14 @@ func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingI
 			(len(in.Postings) == 0 || sameContent(PostInput{Postings: current.Postings}, PostInput{Postings: in.Postings}))
 	})
 	if err != nil {
-		return Transaction{}, s.fail(l, "post transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
-	l.Info("transaction posted", "version", txn.Version, "entries", len(txn.Postings), "duration", time.Since(start))
+	op.info("transaction posted", "version", txn.Version, "entries", len(txn.Postings))
 	return txn, nil
 }
 
 func (s *service) archiveTransaction(ctx context.Context, id uuid.UUID) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "archive_transaction", "transaction_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "archive transaction", "transaction_id", id)
 
 	var txn Transaction
 	err := s.changePending(ctx, id, func(current Transaction) (Transaction, *balanceChange, error) {
@@ -99,9 +95,9 @@ func (s *service) archiveTransaction(ctx context.Context, id uuid.UUID) (Transac
 		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings}, nil
 	}, &txn, func(current Transaction) bool { return current.Status == TransactionArchived })
 	if err != nil {
-		return Transaction{}, s.fail(l, "archive transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
-	l.Info("transaction archived", "version", txn.Version, "duration", time.Since(start))
+	op.info("transaction archived", "version", txn.Version)
 	return txn, nil
 }
 

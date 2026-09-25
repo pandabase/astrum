@@ -5,27 +5,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/money"
 )
 
 const maxCategoryDepth = 7
 
 func (s *service) createCategory(ctx context.Context, in CreateCategoryInput) (Category, error) {
-	l := logger.For(ctx, s.log).With("op", "create_category", "ledger_id", in.LedgerID, "name", in.Name)
-	start := time.Now()
+	op := s.begin(ctx, "create category", "ledger_id", in.LedgerID, "name", in.Name)
 
 	if err := validateCategory(in); err != nil {
-		return Category{}, s.fail(l, "create category", err, start)
+		return Category{}, op.fail(err)
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return Category{}, s.fail(l, "create category", err, start)
+		return Category{}, op.fail(err)
 	}
 	c, err := scanCategory(s.pool.QueryRow(ctx, `
 		INSERT INTO ledger_categories (id, ledger_id, currency, normal_side, name, description, metadata)
@@ -34,18 +31,17 @@ func (s *service) createCategory(ctx context.Context, in CreateCategoryInput) (C
 		id, in.LedgerID, string(in.Currency), string(in.NormalSide), in.Name, in.Description,
 		string(normalizeMetadata(in.Metadata))))
 	if err != nil {
-		return Category{}, s.fail(l, "create category", err, start)
+		return Category{}, op.fail(err)
 	}
-	l.Info("category created", "category_id", c.ID, "duration", time.Since(start))
+	op.info("category created", "category_id", c.ID)
 	return c, nil
 }
 
 func (s *service) category(ctx context.Context, id uuid.UUID, r EffectiveRange) (Category, error) {
-	l := logger.For(ctx, s.log).With("op", "get_category", "category_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get category", "category_id", id)
 
 	if err := validateRange(r); err != nil {
-		return Category{}, s.fail(l, "get category", err, start)
+		return Category{}, op.fail(err)
 	}
 	var c Category
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -57,20 +53,19 @@ func (s *service) category(ctx context.Context, id uuid.UUID, r EffectiveRange) 
 		return err
 	})
 	if err != nil {
-		return Category{}, s.fail(l, "get category", err, start)
+		return Category{}, op.fail(err)
 	}
 	return c, nil
 }
 
 func (s *service) listCategories(ctx context.Context, in ListCategoriesInput) ([]Category, error) {
-	l := logger.For(ctx, s.log).With("op", "list_categories", "limit", in.Limit)
-	start := time.Now()
+	op := s.begin(ctx, "list categories", "limit", in.Limit)
 
 	if in.Limit < 1 || in.Limit > maxListLimit {
-		return nil, s.fail(l, "list categories", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	if err := validateMetadataFilter(in.Metadata); err != nil {
-		return nil, s.fail(l, "list categories", err, start)
+		return nil, op.fail(err)
 	}
 	var categories []Category
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -100,14 +95,13 @@ func (s *service) listCategories(ctx context.Context, in ListCategoriesInput) ([
 		return nil
 	})
 	if err != nil {
-		return nil, s.fail(l, "list categories", err, start)
+		return nil, op.fail(err)
 	}
 	return categories, nil
 }
 
 func (s *service) updateCategory(ctx context.Context, id uuid.UUID, in UpdateInput) (Category, error) {
-	l := logger.For(ctx, s.log).With("op", "update_category", "category_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "update category", "category_id", id)
 
 	var c Category
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -134,30 +128,28 @@ func (s *service) updateCategory(ctx context.Context, id uuid.UUID, in UpdateInp
 		return err
 	})
 	if err != nil {
-		return Category{}, s.fail(l, "update category", err, start)
+		return Category{}, op.fail(err)
 	}
-	l.Info("category updated", "version", c.Version, "duration", time.Since(start))
+	op.info("category updated", "version", c.Version)
 	return c, nil
 }
 
 func (s *service) deleteCategory(ctx context.Context, id uuid.UUID) error {
-	l := logger.For(ctx, s.log).With("op", "delete_category", "category_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "delete category", "category_id", id)
 
 	err := s.changeGraph(ctx, id, func(tx pgx.Tx, c Category) error {
 		_, err := tx.Exec(ctx, `DELETE FROM ledger_categories WHERE id = $1`, id)
 		return err
 	})
 	if err != nil {
-		return s.fail(l, "delete category", err, start)
+		return op.fail(err)
 	}
-	l.Info("category deleted", "duration", time.Since(start))
+	op.info("category deleted")
 	return nil
 }
 
 func (s *service) setMember(ctx context.Context, categoryID, accountID uuid.UUID, member bool) (Category, error) {
-	l := logger.For(ctx, s.log).With("op", "set_category_account", "category_id", categoryID, "account_id", accountID, "member", member)
-	start := time.Now()
+	op := s.begin(ctx, "set category account", "category_id", categoryID, "account_id", accountID, "member", member)
 
 	var c Category
 	err := s.changeGraph(ctx, categoryID, func(tx pgx.Tx, current Category) error {
@@ -181,15 +173,14 @@ func (s *service) setMember(ctx context.Context, categoryID, accountID uuid.UUID
 		return err
 	})
 	if err != nil {
-		return Category{}, s.fail(l, "set category account", err, start)
+		return Category{}, op.fail(err)
 	}
-	l.Info("category membership set", "duration", time.Since(start))
+	op.info("category membership set")
 	return s.category(ctx, c.ID, EffectiveRange{})
 }
 
 func (s *service) setChild(ctx context.Context, parentID, childID uuid.UUID, nested bool) (Category, error) {
-	l := logger.For(ctx, s.log).With("op", "set_category_child", "category_id", parentID, "child_id", childID, "nested", nested)
-	start := time.Now()
+	op := s.begin(ctx, "set category child", "category_id", parentID, "child_id", childID, "nested", nested)
 
 	err := s.changeGraph(ctx, parentID, func(tx pgx.Tx, parent Category) error {
 		if !nested {
@@ -234,9 +225,9 @@ func (s *service) setChild(ctx context.Context, parentID, childID uuid.UUID, nes
 		return err
 	})
 	if err != nil {
-		return Category{}, s.fail(l, "set category child", err, start)
+		return Category{}, op.fail(err)
 	}
-	l.Info("category nesting set", "duration", time.Since(start))
+	op.info("category nesting set")
 	return s.category(ctx, parentID, EffectiveRange{})
 }
 

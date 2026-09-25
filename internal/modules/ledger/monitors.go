@@ -5,24 +5,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 func (s *service) createMonitor(ctx context.Context, in CreateBalanceMonitorInput) (BalanceMonitor, error) {
-	l := logger.For(ctx, s.log).With("op", "create_balance_monitor", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "create balance monitor", "account_id", in.AccountID)
 
 	if err := validateMonitor(in); err != nil {
-		return BalanceMonitor{}, s.fail(l, "create balance monitor", err, start)
+		return BalanceMonitor{}, op.fail(err)
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return BalanceMonitor{}, s.fail(l, "create balance monitor", err, start)
+		return BalanceMonitor{}, op.fail(err)
 	}
 	var m BalanceMonitor
 	err = db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -42,38 +39,36 @@ func (s *service) createMonitor(ctx context.Context, in CreateBalanceMonitorInpu
 		return nil
 	})
 	if err != nil {
-		return BalanceMonitor{}, s.fail(l, "create balance monitor", err, start)
+		return BalanceMonitor{}, op.fail(err)
 	}
-	l.Info("balance monitor created", "monitor_id", m.ID, "field", m.Condition.Field, "operator", m.Condition.Operator,
-		"value", m.Condition.Value, "duration", time.Since(start))
+	op.info("balance monitor created", "monitor_id", m.ID, "field", m.Condition.Field, "operator", m.Condition.Operator,
+		"value", m.Condition.Value)
 	return m, nil
 }
 
 func (s *service) monitor(ctx context.Context, id uuid.UUID) (BalanceMonitor, error) {
-	l := logger.For(ctx, s.log).With("op", "get_balance_monitor", "monitor_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get balance monitor", "monitor_id", id)
 
 	monitors, err := s.readMonitors(ctx, `m.id = $1`, id)
 	if err == nil && len(monitors) == 0 {
 		err = ErrNotFound
 	}
 	if err != nil {
-		return BalanceMonitor{}, s.fail(l, "get balance monitor", err, start)
+		return BalanceMonitor{}, op.fail(err)
 	}
 	return monitors[0], nil
 }
 
 func (s *service) listMonitors(ctx context.Context, in ListBalanceMonitorsInput) ([]BalanceMonitor, error) {
-	l := logger.For(ctx, s.log).With("op", "list_balance_monitors", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "list balance monitors", "account_id", in.AccountID)
 
 	if in.Limit < 1 || in.Limit > maxListLimit {
-		return nil, s.fail(l, "list balance monitors", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	monitors, err := s.readMonitors(ctx, `($1::uuid IS NULL OR m.account_id = $1) AND ($2::uuid IS NULL OR m.id < $2)
 		ORDER BY m.id DESC LIMIT $3`, nullUUID(in.AccountID), nullUUID(in.Before), in.Limit)
 	if err != nil {
-		return nil, s.fail(l, "list balance monitors", err, start)
+		return nil, op.fail(err)
 	}
 	return monitors, nil
 }
@@ -101,11 +96,10 @@ func (s *service) readMonitors(ctx context.Context, where string, args ...any) (
 }
 
 func (s *service) updateMonitor(ctx context.Context, id uuid.UUID, in UpdateInput) (BalanceMonitor, error) {
-	l := logger.For(ctx, s.log).With("op", "update_balance_monitor", "monitor_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "update balance monitor", "monitor_id", id)
 
 	if in.Name != nil {
-		return BalanceMonitor{}, s.fail(l, "update balance monitor", fmt.Errorf("%w: balance monitors have no name", ErrInvalid), start)
+		return BalanceMonitor{}, op.fail(fmt.Errorf("%w: balance monitors have no name", ErrInvalid))
 	}
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		current, err := scanMonitor(tx.QueryRow(ctx, `SELECT `+monitorColumns+` FROM ledger_balance_monitors WHERE id = $1 FOR UPDATE`, id))
@@ -125,24 +119,23 @@ func (s *service) updateMonitor(ctx context.Context, id uuid.UUID, in UpdateInpu
 		return err
 	})
 	if err != nil {
-		return BalanceMonitor{}, s.fail(l, "update balance monitor", err, start)
+		return BalanceMonitor{}, op.fail(err)
 	}
-	l.Info("balance monitor updated", "duration", time.Since(start))
+	op.info("balance monitor updated")
 	return s.monitor(ctx, id)
 }
 
 func (s *service) deleteMonitor(ctx context.Context, id uuid.UUID) error {
-	l := logger.For(ctx, s.log).With("op", "delete_balance_monitor", "monitor_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "delete balance monitor", "monitor_id", id)
 
 	tag, err := s.pool.Exec(ctx, `DELETE FROM ledger_balance_monitors WHERE id = $1`, id)
 	if err == nil && tag.RowsAffected() == 0 {
 		err = ErrNotFound
 	}
 	if err != nil {
-		return s.fail(l, "delete balance monitor", err, start)
+		return op.fail(err)
 	}
-	l.Info("balance monitor deleted", "duration", time.Since(start))
+	op.info("balance monitor deleted")
 	return nil
 }
 

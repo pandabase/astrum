@@ -3,10 +3,9 @@ package ledger
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/jackc/pgx/v5"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 var integrityChecks = []struct {
@@ -112,8 +111,7 @@ var integrityChecks = []struct {
 }
 
 func (s *service) verify(ctx context.Context) (VerifyReport, error) {
-	l := logger.For(ctx, s.log).With("op", "verify")
-	start := time.Now()
+	op := s.begin(ctx, "verify")
 
 	report := VerifyReport{Issues: []string{}}
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
@@ -139,15 +137,15 @@ func (s *service) verify(ctx context.Context) (VerifyReport, error) {
 		})
 
 	if err != nil {
-		return VerifyReport{}, s.fail(l, "verify", err, start)
+		return VerifyReport{}, op.fail(err)
 	}
 
 	report.OK = len(report.Issues) == 0
 	if !report.OK {
-		l.Error("ledger integrity violated", "issues", len(report.Issues), "first", report.Issues[0], "duration", time.Since(start))
+		op.logAt(log.ErrorLevel, "ledger integrity violated", "issues", len(report.Issues), "first", report.Issues[0])
 		return report, nil
 	}
 
-	l.Info("ledger verified", "chain_head", report.ChainHead, "duration", time.Since(start))
+	op.info("ledger verified", "chain_head", report.ChainHead)
 	return report, nil
 }

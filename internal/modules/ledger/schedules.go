@@ -11,26 +11,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTransaction, error) {
-	l := logger.For(ctx, s.log).With("op", "schedule", "idempotency_key", in.IdempotencyKey, "execute_at", in.ExecuteAt)
-	start := time.Now()
+	op := s.begin(ctx, "schedule transaction", "idempotency_key", in.IdempotencyKey, "execute_at", in.ExecuteAt)
 
 	if err := validateSchedule(in); err != nil {
-		return ScheduledTransaction{}, s.fail(l, "schedule transaction", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
 	in.ExecuteAt = in.ExecuteAt.Truncate(time.Microsecond)
 	in.Metadata = normalizeMetadata(in.Metadata)
 
 	request, err := json.Marshal(in.PostInput)
 	if err != nil {
-		return ScheduledTransaction{}, s.fail(l, "schedule transaction", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return ScheduledTransaction{}, s.fail(l, "schedule transaction", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
 
 	var (
@@ -65,31 +63,29 @@ func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTran
 		return nil
 	})
 	if err != nil {
-		return ScheduledTransaction{}, s.fail(l, "schedule transaction", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
 
 	if replayed {
-		l.Info("schedule replayed", "schedule_id", st.ID, "duration", time.Since(start))
+		op.info("schedule replayed", "schedule_id", st.ID)
 		return st, nil
 	}
-	l.Info("transaction scheduled", "schedule_id", st.ID, "duration", time.Since(start))
+	op.info("transaction scheduled", "schedule_id", st.ID)
 	return st, nil
 }
 
 func (s *service) scheduled(ctx context.Context, id uuid.UUID) (ScheduledTransaction, error) {
-	l := logger.For(ctx, s.log).With("op", "get_schedule", "schedule_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get schedule", "schedule_id", id)
 
 	st, err := selectSchedule(ctx, s.pool, `id = $1`, id)
 	if err != nil {
-		return ScheduledTransaction{}, s.fail(l, "get schedule", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
 	return st, nil
 }
 
 func (s *service) cancelSchedule(ctx context.Context, id uuid.UUID) (ScheduledTransaction, error) {
-	l := logger.For(ctx, s.log).With("op", "cancel_schedule", "schedule_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "cancel schedule", "schedule_id", id)
 
 	var st ScheduledTransaction
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -113,9 +109,9 @@ func (s *service) cancelSchedule(ctx context.Context, id uuid.UUID) (ScheduledTr
 		return err
 	})
 	if err != nil {
-		return ScheduledTransaction{}, s.fail(l, "cancel schedule", err, start)
+		return ScheduledTransaction{}, op.fail(err)
 	}
-	l.Info("schedule canceled", "schedule_id", st.ID, "duration", time.Since(start))
+	op.info("schedule canceled", "schedule_id", st.ID)
 	return st, nil
 }
 
@@ -206,14 +202,13 @@ func (st ScheduledTransaction) matches(in ScheduleInput) bool {
 }
 
 func (s *service) listSchedules(ctx context.Context, in ListSchedulesInput) ([]ScheduledTransaction, error) {
-	l := logger.For(ctx, s.log).With("op", "list_schedules", "status", in.Status)
-	start := time.Now()
+	op := s.begin(ctx, "list schedules", "status", in.Status)
 
 	switch {
 	case in.Limit < 1 || in.Limit > maxListLimit:
-		return nil, s.fail(l, "list schedules", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	case !slices.Contains([]ScheduleStatus{"", ScheduleScheduled, ScheduleExecuted, ScheduleFailed, ScheduleCanceled}, in.Status):
-		return nil, s.fail(l, "list schedules", fmt.Errorf("%w: status must be scheduled, executed, failed or canceled", ErrInvalid), start)
+		return nil, op.fail(fmt.Errorf("%w: status must be scheduled, executed, failed or canceled", ErrInvalid))
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+scheduleColumns+` FROM ledger_scheduled_transactions
@@ -221,11 +216,11 @@ func (s *service) listSchedules(ctx context.Context, in ListSchedulesInput) ([]S
 		ORDER BY id DESC
 		LIMIT $3`, nullString(string(in.Status)), nullUUID(in.Before), in.Limit)
 	if err != nil {
-		return nil, s.fail(l, "list schedules", err, start)
+		return nil, op.fail(err)
 	}
 	schedules, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ScheduledTransaction, error) { return scanSchedule(row) })
 	if err != nil {
-		return nil, s.fail(l, "list schedules", err, start)
+		return nil, op.fail(err)
 	}
 	return schedules, nil
 }

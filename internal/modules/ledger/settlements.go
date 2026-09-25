@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/kernel/typeid"
 	"github.com/pandabase/astrum/internal/money"
 )
@@ -19,12 +18,11 @@ import (
 const constraintSettlementKey = "ledger_settlements_idempotency_key_key"
 
 func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput) (Settlement, error) {
-	l := logger.For(ctx, s.log).With("op", "create_settlement", "idempotency_key", in.IdempotencyKey,
+	op := s.begin(ctx, "create settlement", "idempotency_key", in.IdempotencyKey,
 		"settled_account_id", in.SettledAccountID, "contra_account_id", in.ContraAccountID)
-	start := time.Now()
 
 	if err := validateSettlement(in); err != nil {
-		return Settlement{}, s.fail(l, "create settlement", err, start)
+		return Settlement{}, op.fail(err)
 	}
 	if in.UpperBound != nil {
 		bound := in.UpperBound.Truncate(time.Microsecond)
@@ -122,14 +120,14 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		return emit(ctx, tx, eventSettlementCreated, toSettlement, st)
 	})
 	if err != nil {
-		return Settlement{}, s.fail(l, "create settlement", err, start)
+		return Settlement{}, op.fail(err)
 	}
 	if replayed {
-		l.Info("settlement replayed", "settlement_id", st.ID, "duration", time.Since(start))
+		op.info("settlement replayed", "settlement_id", st.ID)
 		return st, nil
 	}
-	l.Info("settlement created", "settlement_id", st.ID, "amount", st.Amount, "entries", st.EntryCount,
-		"transaction_id", st.TransactionID, "duration", time.Since(start))
+	op.info("settlement created", "settlement_id", st.ID, "amount", st.Amount, "entries", st.EntryCount,
+		"transaction_id", st.TransactionID)
 	return st, nil
 }
 
@@ -163,25 +161,23 @@ func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, 
 }
 
 func (s *service) settlement(ctx context.Context, id uuid.UUID) (Settlement, error) {
-	l := logger.For(ctx, s.log).With("op", "get_settlement", "settlement_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get settlement", "settlement_id", id)
 
 	st, err := scanSettlement(s.pool.QueryRow(ctx, `SELECT `+settlementColumns+` FROM ledger_settlements WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	}
 	if err != nil {
-		return Settlement{}, s.fail(l, "get settlement", err, start)
+		return Settlement{}, op.fail(err)
 	}
 	return st, nil
 }
 
 func (s *service) listSettlements(ctx context.Context, in ListSettlementsInput) ([]Settlement, error) {
-	l := logger.For(ctx, s.log).With("op", "list_settlements", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "list settlements", "account_id", in.AccountID)
 
 	if in.Limit < 1 || in.Limit > maxListLimit {
-		return nil, s.fail(l, "list settlements", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+settlementColumns+` FROM ledger_settlements
@@ -189,11 +185,11 @@ func (s *service) listSettlements(ctx context.Context, in ListSettlementsInput) 
 		ORDER BY id DESC
 		LIMIT $3`, nullUUID(in.AccountID), nullUUID(in.Before), in.Limit)
 	if err != nil {
-		return nil, s.fail(l, "list settlements", err, start)
+		return nil, op.fail(err)
 	}
 	settlements, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Settlement, error) { return scanSettlement(row) })
 	if err != nil {
-		return nil, s.fail(l, "list settlements", err, start)
+		return nil, op.fail(err)
 	}
 	return settlements, nil
 }

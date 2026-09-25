@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 	"github.com/pandabase/astrum/internal/money"
 )
 
@@ -26,68 +23,63 @@ type service struct {
 }
 
 func (s *service) createCurrency(ctx context.Context, in CreateCurrencyInput) (Currency, error) {
-	l := logger.For(ctx, s.log).With("op", "create_currency", "code", in.Code, "exponent", in.Exponent)
-	start := time.Now()
+	op := s.begin(ctx, "create currency", "code", in.Code, "exponent", in.Exponent)
 
 	if err := validateCurrency(in); err != nil {
-		return Currency{}, s.fail(l, "create currency", err, start)
+		return Currency{}, op.fail(err)
 	}
 	c, created, err := insertCurrency(ctx, s.pool, in)
 	if err != nil {
-		return Currency{}, s.fail(l, "create currency", err, start)
+		return Currency{}, op.fail(err)
 	}
 	if !created {
 		existing, err := selectCurrency(ctx, s.pool, in.Code)
 		if err != nil {
-			return Currency{}, s.fail(l, "create currency", err, start)
+			return Currency{}, op.fail(err)
 		}
 		if existing.Exponent != in.Exponent {
-			return Currency{}, s.fail(l, "create currency",
-				fmt.Errorf("%w: %s has exponent %d", ErrCurrencyExists, existing.Code, existing.Exponent), start)
+			return Currency{}, op.fail(fmt.Errorf("%w: %s has exponent %d", ErrCurrencyExists, existing.Code, existing.Exponent))
 		}
-		l.Info("currency creation replayed", "duration", time.Since(start))
+		op.info("currency creation replayed")
 		return existing, nil
 	}
-	l.Info("currency created", "duration", time.Since(start))
+	op.info("currency created")
 	return c, nil
 }
 
 func (s *service) currency(ctx context.Context, code money.Currency) (Currency, error) {
-	l := logger.For(ctx, s.log).With("op", "get_currency", "code", code)
-	start := time.Now()
+	op := s.begin(ctx, "get currency", "code", code)
 
 	c, err := selectCurrency(ctx, s.pool, code)
 	if err != nil {
-		return Currency{}, s.fail(l, "get currency", err, start)
+		return Currency{}, op.fail(err)
 	}
 	return c, nil
 }
 
 func (s *service) listCurrencies(ctx context.Context, after money.Currency, limit int) ([]Currency, error) {
-	l := logger.For(ctx, s.log).With("op", "list_currencies", "after", after, "limit", limit)
-	start := time.Now()
+	op := s.begin(ctx, "list currencies", "after", after, "limit", limit)
 
 	if limit < 1 || limit > maxListLimit {
-		return nil, s.fail(l, "list currencies", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	currencies, err := selectCurrencies(ctx, s.pool, after, limit)
 	if err != nil {
-		return nil, s.fail(l, "list currencies", err, start)
+		return nil, op.fail(err)
 	}
 	return currencies, nil
 }
 
 func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Account, error) {
-	l := logger.For(ctx, s.log).With("op", "create_account", "code", in.Code, "currency", in.Currency)
-	start := time.Now()
+	op := s.begin(ctx, "create account", "code", in.Code, "currency", in.Currency)
 
 	if err := validateAccount(in); err != nil {
-		return Account{}, s.fail(l, "create account", err, start)
+		return Account{}, op.fail(err)
 	}
 
 	id, err := uuid.NewV7()
 	if err != nil {
-		return Account{}, s.fail(l, "create account", err, start)
+		return Account{}, op.fail(err)
 	}
 	var (
 		acc     Account
@@ -102,33 +94,31 @@ func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Acc
 		return emit(ctx, tx, eventAccountCreated, toAccount, acc)
 	})
 	if err != nil {
-		return Account{}, s.fail(l, "create account", err, start)
+		return Account{}, op.fail(err)
 	}
 	if !created {
 		existing, err := selectAccountByCode(ctx, s.pool, in.LedgerID, in.Code)
 		if err != nil {
-			return Account{}, s.fail(l, "create account", err, start)
+			return Account{}, op.fail(err)
 		}
 		if !existing.sameTerms(in) {
-			return Account{}, s.fail(l, "create account", ErrAccountExists, start)
+			return Account{}, op.fail(ErrAccountExists)
 		}
-		l.Info("account creation replayed", "account_id", existing.ID, "duration", time.Since(start))
+		op.info("account creation replayed", "account_id", existing.ID)
 		return existing, nil
 	}
 
-	l.Info("account created",
+	op.info("account created",
 		"account_id", acc.ID,
 		"normal_side", acc.NormalSide,
 		"allow_negative", acc.AllowNegative,
-		"overdraft_limit", acc.OverdraftLimit,
-		"duration", time.Since(start))
+		"overdraft_limit", acc.OverdraftLimit)
 	return acc, nil
 }
 
 func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target AccountStatus) (Account, error) {
-	op := map[AccountStatus]string{AccountOpen: "unfreeze account", AccountFrozen: "freeze account", AccountClosed: "close account"}[target]
-	l := logger.For(ctx, s.log).With("op", strings.ReplaceAll(op, " ", "_"), "account_id", id)
-	start := time.Now()
+	name := map[AccountStatus]string{AccountOpen: "unfreeze account", AccountFrozen: "freeze account", AccountClosed: "close account"}[target]
+	op := s.begin(ctx, name, "account_id", id)
 
 	var (
 		acc     Account
@@ -159,20 +149,19 @@ func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target Acc
 		return emit(ctx, tx, eventAccountUpdated, toAccount, acc)
 	})
 	if err != nil {
-		return Account{}, s.fail(l, op, err, start)
+		return Account{}, op.fail(err)
 	}
 
 	if !changed {
-		l.Info("account status unchanged", "status", acc.Status, "duration", time.Since(start))
+		op.info("account status unchanged", "status", acc.Status)
 		return acc, nil
 	}
-	l.Info("account status changed", "from", from, "to", acc.Status, "duration", time.Since(start))
+	op.info("account status changed", "from", from, "to", acc.Status)
 	return acc, nil
 }
 
 func (s *service) updateAccount(ctx context.Context, id uuid.UUID, in UpdateInput) (Account, error) {
-	l := logger.For(ctx, s.log).With("op", "update_account", "account_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "update account", "account_id", id)
 
 	var (
 		acc     Account
@@ -199,50 +188,47 @@ func (s *service) updateAccount(ctx context.Context, id uuid.UUID, in UpdateInpu
 		return emit(ctx, tx, eventAccountUpdated, toAccount, acc)
 	})
 	if err != nil {
-		return Account{}, s.fail(l, "update account", err, start)
+		return Account{}, op.fail(err)
 	}
-	l.Info("account updated", "changed", changed, "version", acc.Version, "duration", time.Since(start))
+	op.info("account updated", "changed", changed, "version", acc.Version)
 	return acc, nil
 }
 
 func (s *service) account(ctx context.Context, id uuid.UUID) (Account, error) {
-	l := logger.For(ctx, s.log).With("op", "get_account", "account_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get account", "account_id", id)
 
 	acc, err := selectAccount(ctx, s.pool, id)
 	if err != nil {
-		return Account{}, s.fail(l, "get account", err, start)
+		return Account{}, op.fail(err)
 	}
-	l.Debug("account loaded", "posted", acc.Posted.Amount, "available", acc.Available.Amount, "version", acc.Version)
+	op.debug("account loaded", "posted", acc.Posted.Amount, "available", acc.Available.Amount, "version", acc.Version)
 	return acc, nil
 }
 
 func (s *service) accountEntries(ctx context.Context, id uuid.UUID, after int64, limit int) ([]StatementLine, error) {
-	l := logger.For(ctx, s.log).With("op", "account_entries", "account_id", id, "after", after, "limit", limit)
-	start := time.Now()
+	op := s.begin(ctx, "account entries", "account_id", id, "after", after, "limit", limit)
 
 	if limit < 1 || limit > maxStatementLimit || after < 0 {
 		err := fmt.Errorf("%w: limit must be 1-%d and after non-negative", ErrInvalid, maxStatementLimit)
-		return nil, s.fail(l, "account entries", err, start)
+		return nil, op.fail(err)
 	}
 	acc, err := selectAccount(ctx, s.pool, id)
 	if err != nil {
-		return nil, s.fail(l, "account entries", err, start)
+		return nil, op.fail(err)
 	}
 	lines, err := selectAccountEntries(ctx, s.pool, acc, after, limit)
 	if err != nil {
-		return nil, s.fail(l, "account entries", err, start)
+		return nil, op.fail(err)
 	}
-	l.Debug("account entries loaded", "lines", len(lines), "duration", time.Since(start))
+	op.debug("account entries loaded", "lines", len(lines))
 	return lines, nil
 }
 
 func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "post", "idempotency_key", in.IdempotencyKey)
-	start := time.Now()
+	op := s.begin(ctx, "post transaction", "idempotency_key", in.IdempotencyKey)
 
 	if err := validatePost(in); err != nil {
-		return Transaction{}, s.fail(l, "post transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
 	o, err := s.batcher.submit(ctx, &postingRequest{in: in})
@@ -250,10 +236,10 @@ func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
 		err = o.err
 	}
 	if err != nil {
-		return Transaction{}, s.fail(l, "post transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
-	s.logPosted(l, o, start)
+	s.logPosted(op, o)
 	return o.txn, nil
 }
 
@@ -268,12 +254,11 @@ func (s *service) runBatch(ctx context.Context, reqs []*postingRequest, atomic b
 }
 
 func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) ([]BatchResult, error) {
-	l := logger.For(ctx, s.log).With("op", "post_batch", "size", len(ins), "atomic", atomic)
-	start := time.Now()
+	op := s.begin(ctx, "post batch", "size", len(ins), "atomic", atomic)
 
 	if len(ins) == 0 || len(ins) > maxBatchSize {
 		err := fmt.Errorf("%w: batch needs 1-%d transactions", ErrInvalid, maxBatchSize)
-		return nil, s.fail(l, "post batch", err, start)
+		return nil, op.fail(err)
 	}
 
 	results := make([]BatchResult, len(ins))
@@ -282,7 +267,7 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	for i, in := range ins {
 		if err := validatePost(in); err != nil {
 			if atomic {
-				return nil, s.fail(l, "post batch", fmt.Errorf("transaction %d: %w", i, err), start)
+				return nil, op.fail(fmt.Errorf("transaction %d: %w", i, err))
 			}
 			results[i] = failedResult(err)
 			continue
@@ -294,7 +279,7 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	if len(reqs) > 0 {
 		posted, err := s.runBatch(ctx, reqs, atomic)
 		if err != nil {
-			return nil, s.fail(l, "post batch", err, start)
+			return nil, op.fail(err)
 		}
 		for j, o := range posted {
 			if o.err != nil {
@@ -316,67 +301,63 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 	if failed > 0 {
 		level = log.WarnLevel
 	}
-	l.Log(level, "batch processed", "succeeded", len(results)-failed, "failed", failed, "duration", time.Since(start))
+	op.logAt(level, "batch processed", "succeeded", len(results)-failed, "failed", failed)
 	return results, nil
 }
 
 func (s *service) transaction(ctx context.Context, id uuid.UUID) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "get_transaction", "transaction_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get transaction", "transaction_id", id)
 
 	txn, err := selectTransaction(ctx, s.pool, id)
 	if err != nil {
-		return Transaction{}, s.fail(l, "get transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
-	l.Debug("transaction loaded", "postings", len(txn.Postings))
+	op.debug("transaction loaded", "postings", len(txn.Postings))
 	return txn, nil
 }
 
 func (s *service) listAccounts(ctx context.Context, in ListAccountsInput) ([]Account, error) {
-	l := logger.For(ctx, s.log).With("op", "list_accounts", "status", in.Status, "currency", in.Currency, "limit", in.Limit)
-	start := time.Now()
+	op := s.begin(ctx, "list accounts", "status", in.Status, "currency", in.Currency, "limit", in.Limit)
 
 	if err := validateListAccounts(in); err != nil {
-		return nil, s.fail(l, "list accounts", err, start)
+		return nil, op.fail(err)
 	}
 	accounts, err := selectAccounts(ctx, s.pool, in)
 	if err != nil {
-		return nil, s.fail(l, "list accounts", err, start)
+		return nil, op.fail(err)
 	}
-	l.Debug("accounts listed", "count", len(accounts), "duration", time.Since(start))
+	op.debug("accounts listed", "count", len(accounts))
 	return accounts, nil
 }
 
 func (s *service) listTransactions(ctx context.Context, in ListTransactionsInput) ([]Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "list_transactions", "account_id", in.AccountID, "limit", in.Limit)
-	start := time.Now()
+	op := s.begin(ctx, "list transactions", "account_id", in.AccountID, "limit", in.Limit)
 
 	switch {
 	case in.Limit < 1 || in.Limit > maxListLimit:
-		return nil, s.fail(l, "list transactions", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	case in.Status != "" && in.Status != TransactionPending && in.Status != TransactionPosted && in.Status != TransactionArchived:
-		return nil, s.fail(l, "list transactions", fmt.Errorf("%w: status must be pending, posted or archived", ErrInvalid), start)
+		return nil, op.fail(fmt.Errorf("%w: status must be pending, posted or archived", ErrInvalid))
 	}
 	if err := validateMetadataFilter(in.Metadata); err != nil {
-		return nil, s.fail(l, "list transactions", err, start)
+		return nil, op.fail(err)
 	}
 	if err := validateRange(in.Effective); err != nil {
-		return nil, s.fail(l, "list transactions", err, start)
+		return nil, op.fail(err)
 	}
 	txns, err := selectTransactions(ctx, s.pool, in)
 	if err != nil {
-		return nil, s.fail(l, "list transactions", err, start)
+		return nil, op.fail(err)
 	}
-	l.Debug("transactions listed", "count", len(txns), "duration", time.Since(start))
+	op.debug("transactions listed", "count", len(txns))
 	return txns, nil
 }
 
 func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (Transaction, error) {
-	l := logger.For(ctx, s.log).With("op", "reverse", "transaction_id", id, "idempotency_key", in.IdempotencyKey)
-	start := time.Now()
+	op := s.begin(ctx, "reverse transaction", "transaction_id", id, "idempotency_key", in.IdempotencyKey)
 
 	if err := validateReverse(in); err != nil {
-		return Transaction{}, s.fail(l, "reverse transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
 	var o postingResult
@@ -414,10 +395,10 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		return o.err
 	})
 	if err != nil {
-		return Transaction{}, s.fail(l, "reverse transaction", err, start)
+		return Transaction{}, op.fail(err)
 	}
 
-	s.logPosted(l, o, start)
+	s.logPosted(op, o)
 	return o.txn, nil
 }
 
@@ -437,28 +418,14 @@ func reversalRequest(original Transaction, in ReverseInput) *postingRequest {
 	}
 }
 
-func (s *service) logPosted(l *log.Logger, o postingResult, start time.Time) {
+func (s *service) logPosted(op *operation, o postingResult) {
 	if o.replayed {
-		l.Info("transaction replayed", "transaction_id", o.txn.ID, "duration", time.Since(start))
+		op.info("transaction replayed", "transaction_id", o.txn.ID)
 		return
 	}
-	l.Info("transaction posted",
+	op.info("transaction posted",
 		"transaction_id", o.txn.ID,
-		"postings", len(o.txn.Postings),
-		"duration", time.Since(start))
-}
-
-func (s *service) fail(l *log.Logger, op string, err error, start time.Time) error {
-	if domainErr := asDomainError(err); domainErr != nil {
-		l.Warn(op+" rejected", "err", err, "duration", time.Since(start))
-		return domainErr
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		l.Warn(op+" abandoned", "err", err, "duration", time.Since(start))
-		return err
-	}
-	l.Error(op+" failed", "err", err, "duration", time.Since(start))
-	return fmt.Errorf("ledger: %s: %w", op, err)
+		"postings", len(o.txn.Postings))
 }
 
 var domainErrors = []error{

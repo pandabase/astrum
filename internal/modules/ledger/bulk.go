@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 const (
@@ -21,14 +20,13 @@ const (
 )
 
 func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkRequest, error) {
-	l := logger.For(ctx, s.log).With("op", "create_bulk_request", "idempotency_key", in.IdempotencyKey, "items", len(in.Transactions))
-	start := time.Now()
+	op := s.begin(ctx, "create bulk request", "idempotency_key", in.IdempotencyKey, "items", len(in.Transactions))
 
 	for i := range in.Transactions {
 		in.Transactions[i].IdempotencyKey = fmt.Sprintf("%s/%d", in.IdempotencyKey, i)
 	}
 	if err := validateBulk(in); err != nil {
-		return BulkRequest{}, s.fail(l, "create bulk request", err, start)
+		return BulkRequest{}, op.fail(err)
 	}
 	requests := make([]string, len(in.Transactions))
 	indexes := make([]int, len(in.Transactions))
@@ -36,7 +34,7 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 	for i, t := range in.Transactions {
 		raw, err := json.Marshal(t)
 		if err != nil {
-			return BulkRequest{}, s.fail(l, "create bulk request", err, start)
+			return BulkRequest{}, op.fail(err)
 		}
 		requests[i], indexes[i] = string(raw), i
 		h.Write(raw)
@@ -80,39 +78,37 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 		return err
 	})
 	if err != nil {
-		return BulkRequest{}, s.fail(l, "create bulk request", err, start)
+		return BulkRequest{}, op.fail(err)
 	}
 	if replayed {
-		l.Info("bulk request replayed", "bulk_id", bulk.ID, "duration", time.Since(start))
+		op.info("bulk request replayed", "bulk_id", bulk.ID)
 		return bulk, nil
 	}
-	l.Info("bulk request accepted", "bulk_id", bulk.ID, "duration", time.Since(start))
+	op.info("bulk request accepted", "bulk_id", bulk.ID)
 	return bulk, nil
 }
 
 func (s *service) bulk(ctx context.Context, id uuid.UUID) (BulkRequest, error) {
-	l := logger.For(ctx, s.log).With("op", "get_bulk_request", "bulk_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get bulk request", "bulk_id", id)
 
 	b, err := scanBulk(s.pool.QueryRow(ctx, `SELECT `+bulkColumns+` FROM ledger_bulk_requests WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	}
 	if err != nil {
-		return BulkRequest{}, s.fail(l, "get bulk request", err, start)
+		return BulkRequest{}, op.fail(err)
 	}
 	return b, nil
 }
 
 func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit int) ([]BulkResult, error) {
-	l := logger.For(ctx, s.log).With("op", "bulk_results", "bulk_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "bulk results", "bulk_id", id)
 
 	if _, err := s.bulk(ctx, id); err != nil {
 		return nil, err
 	}
 	if limit < 1 || limit > maxListLimit {
-		return nil, s.fail(l, "bulk results", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT index, transaction_id, error_code, error_detail
@@ -121,7 +117,7 @@ func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit in
 		ORDER BY index
 		LIMIT $3`, id, after, limit)
 	if err != nil {
-		return nil, s.fail(l, "bulk results", err, start)
+		return nil, op.fail(err)
 	}
 	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (BulkResult, error) {
 		var r BulkResult
@@ -129,7 +125,7 @@ func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit in
 		return r, err
 	})
 	if err != nil {
-		return nil, s.fail(l, "bulk results", err, start)
+		return nil, op.fail(err)
 	}
 	return results, nil
 }

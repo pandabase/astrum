@@ -8,27 +8,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pandabase/astrum/internal/kernel/db"
-	"github.com/pandabase/astrum/internal/kernel/logger"
 )
 
 const maxMetadataFilters = 20
 
 func (s *service) listEntries(ctx context.Context, in ListEntriesInput) ([]Entry, error) {
-	l := logger.For(ctx, s.log).With("op", "list_entries", "limit", in.Limit)
-	start := time.Now()
+	op := s.begin(ctx, "list entries", "limit", in.Limit)
 
 	if in.Status == "" {
 		in.Status = TransactionPosted
 	}
 	if err := validateListEntries(in); err != nil {
-		return nil, s.fail(l, "list entries", err, start)
+		return nil, op.fail(err)
 	}
 
 	var postedBefore uint64
 	if in.StatementID != uuid.Nil {
 		st, err := queryStatement(ctx, s.pool, in.StatementID)
 		if err != nil {
-			return nil, s.fail(l, "list entries", err, start)
+			return nil, op.fail(err)
 		}
 		if in.Status != TransactionPosted || (in.AccountID != uuid.Nil && in.AccountID != st.AccountID) {
 			return []Entry{}, nil
@@ -40,9 +38,9 @@ func (s *service) listEntries(ctx context.Context, in ListEntriesInput) ([]Entry
 
 	entries, err := selectEntries(ctx, s.pool, in, postedBefore)
 	if err != nil {
-		return nil, s.fail(l, "list entries", err, start)
+		return nil, op.fail(err)
 	}
-	l.Debug("entries listed", "count", len(entries), "duration", time.Since(start))
+	op.debug("entries listed", "count", len(entries))
 	return entries, nil
 }
 
@@ -69,11 +67,10 @@ func (r EffectiveRange) truncated() EffectiveRange {
 }
 
 func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange) (Balances, error) {
-	l := logger.For(ctx, s.log).With("op", "account_balances", "account_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "account balances", "account_id", id)
 
 	if err := validateRange(r); err != nil {
-		return Balances{}, s.fail(l, "account balances", err, start)
+		return Balances{}, op.fail(err)
 	}
 	r = r.truncated()
 	var b Balances
@@ -97,18 +94,17 @@ func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange
 		return err
 	})
 	if err != nil {
-		return Balances{}, s.fail(l, "account balances", err, start)
+		return Balances{}, op.fail(err)
 	}
 	return b, nil
 }
 
 func (s *service) createStatement(ctx context.Context, in CreateStatementInput) (Statement, error) {
-	l := logger.For(ctx, s.log).With("op", "create_statement", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "create statement", "account_id", in.AccountID)
 
 	in.From, in.Until = in.From.Truncate(time.Microsecond), in.Until.Truncate(time.Microsecond)
 	if err := validateStatement(in); err != nil {
-		return Statement{}, s.fail(l, "create statement", err, start)
+		return Statement{}, op.fail(err)
 	}
 
 	var st Statement
@@ -156,37 +152,34 @@ func (s *service) createStatement(ctx context.Context, in CreateStatementInput) 
 		return err
 	})
 	if err != nil {
-		return Statement{}, s.fail(l, "create statement", err, start)
+		return Statement{}, op.fail(err)
 	}
-	l.Info("statement created",
+	op.info("statement created",
 		"statement_id", st.ID,
 		"entries", st.EntryCount,
-		"ending", st.Ending.Amount,
-		"duration", time.Since(start))
+		"ending", st.Ending.Amount)
 	return st, nil
 }
 
 func (s *service) statement(ctx context.Context, id uuid.UUID) (Statement, error) {
-	l := logger.For(ctx, s.log).With("op", "get_statement", "statement_id", id)
-	start := time.Now()
+	op := s.begin(ctx, "get statement", "statement_id", id)
 
 	st, err := queryStatement(ctx, s.pool, id)
 	if err != nil {
-		return Statement{}, s.fail(l, "get statement", err, start)
+		return Statement{}, op.fail(err)
 	}
 	return st, nil
 }
 
 func (s *service) listStatements(ctx context.Context, in ListStatementsInput) ([]Statement, error) {
-	l := logger.For(ctx, s.log).With("op", "list_statements", "account_id", in.AccountID)
-	start := time.Now()
+	op := s.begin(ctx, "list statements", "account_id", in.AccountID)
 
 	if in.Limit < 1 || in.Limit > maxListLimit {
-		return nil, s.fail(l, "list statements", fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit), start)
+		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
 	statements, err := selectStatements(ctx, s.pool, in)
 	if err != nil {
-		return nil, s.fail(l, "list statements", err, start)
+		return nil, op.fail(err)
 	}
 	return statements, nil
 }
