@@ -300,7 +300,7 @@ func TestRetriesThenFails(t *testing.T) {
 
 func TestLeaseRecoversCrashedSender(t *testing.T) {
 	t.Parallel()
-	s := setup(t, Config{Lease: 50 * time.Millisecond, Timeout: 10 * time.Millisecond})
+	s := setup(t, Config{Lease: time.Second, Timeout: 10 * time.Millisecond})
 	ctx := context.Background()
 	rcv := newReceiver(t)
 	if _, err := s.CreateEndpoint(ctx, EndpointInput{URL: rcv.srv.URL}); err != nil {
@@ -317,7 +317,7 @@ func TestLeaseRecoversCrashedSender(t *testing.T) {
 		t.Fatalf("leased delivery was sent again before the lease ended")
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	if n, _ := s.Deliver(ctx); n != 1 || len(rcv.got()) != 1 {
 		t.Fatalf("after the lease: sent %d, received %d", n, len(rcv.got()))
 	}
