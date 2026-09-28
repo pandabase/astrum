@@ -56,9 +56,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected arguments %v", fs.Args())
 	}
+
 	if cfg.Operations > 0 {
 		cfg.Duration = 0
 	}
@@ -67,6 +69,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+
 	l = l.WithPrefix("bench")
 	if !*quiet {
 		cfg.Progress = func(p bench.Progress) {
@@ -79,6 +82,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
+
 	if errors.Is(err, context.Canceled) {
 		l.Warn("interrupted; reporting what completed")
 	}
@@ -87,12 +91,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		if err := json.MarshalWrite(stdout, report, jsontext.WithIndent("  ")); err != nil {
 			return err
 		}
+
 		if _, err := io.WriteString(stdout, "\n"); err != nil {
 			return err
 		}
 	} else if err := bench.WriteText(stdout, report); err != nil {
 		return err
 	}
+
 	return outcome(l, report)
 }
 
@@ -104,6 +110,7 @@ func outcome(l *log.Logger, r bench.Report) error {
 		l.Warn("some operations failed", "failed", r.Failed)
 		return fmt.Errorf("%d of %d operations failed", r.Failed, r.Operations)
 	}
+
 	return nil
 }
 
@@ -111,5 +118,6 @@ func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
+
 	return fallback
 }

@@ -29,6 +29,7 @@ func TestSignAndVerify(t *testing.T) {
 	if !strings.HasPrefix(sig, "t=1800000000,v1=") {
 		t.Fatalf("signature = %s", sig)
 	}
+
 	tests := []struct {
 		name   string
 		secret string
@@ -152,6 +153,7 @@ func event(t *testing.T, eventType string, data any) Event {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return e
 }
 
@@ -163,10 +165,12 @@ func dispatchAll(t *testing.T, s *Service, want int) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if total += n; total < want {
 			if time.Now().After(deadline) {
 				t.Fatalf("dispatched %d of %d events", total, want)
 			}
+
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
@@ -189,13 +193,16 @@ func TestDeliverySignedAndFiltered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.HasPrefix(all.Secret, "whsec_") {
 		t.Fatalf("secret = %q", all.Secret)
 	}
+
 	holds, err := s.CreateEndpoint(ctx, EndpointInput{URL: rcv.srv.URL + "/holds", EventTypes: []string{"hold.*"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	off := false
 	if _, err := s.CreateEndpoint(ctx, EndpointInput{URL: rcv.srv.URL + "/off", Enabled: &off}); err != nil {
 		t.Fatal(err)
@@ -208,6 +215,7 @@ func TestDeliverySignedAndFiltered(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("received %d requests, want 3", len(got))
 	}
+
 	for _, r := range got {
 		var body struct {
 			Object string `json:"object"`
@@ -217,9 +225,11 @@ func TestDeliverySignedAndFiltered(t *testing.T) {
 		if err := json.Unmarshal(r.body, &body); err != nil || body.Object != "event" || !strings.HasPrefix(body.ID, "evt_") {
 			t.Fatalf("body = %s", r.body)
 		}
+
 		if r.header.Get(EventIDHeader) != body.ID {
 			t.Fatalf("event id header = %s, body id %s", r.header.Get(EventIDHeader), body.ID)
 		}
+
 		if !Verify(all.Secret, r.header.Get(SignatureHeader), r.body, time.Now(), time.Minute) &&
 			!Verify(holds.Secret, r.header.Get(SignatureHeader), r.body, time.Now(), time.Minute) {
 			t.Fatalf("signature does not verify: %s", r.header.Get(SignatureHeader))
@@ -247,6 +257,7 @@ func TestRetriesThenFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	publish(t, s, event(t, "account.created", map[string]string{"object": "account"}))
 
 	dispatchAll(t, s, 1)
@@ -255,15 +266,19 @@ func TestRetriesThenFails(t *testing.T) {
 		if _, err := s.Deliver(ctx); err != nil {
 			t.Fatal(err)
 		}
+
 		ds, err := s.ListDeliveries(ctx, ListDeliveriesInput{EndpointID: ep.ID, Limit: 10})
 		if err != nil || len(ds) != 1 {
 			t.Fatalf("deliveries = %+v, %v", ds, err)
 		}
+
 		if d = ds[0]; time.Now().After(deadline) {
 			t.Fatalf("delivery never failed: %+v", d)
 		}
+
 		time.Sleep(10 * time.Millisecond)
 	}
+
 	if d.Status != "failed" || d.Attempts != 3 || *d.LastStatusCode != 503 || d.NextAttemptAt != nil {
 		t.Fatalf("after exhausting retries = %+v", d)
 	}
@@ -272,10 +287,12 @@ func TestRetriesThenFails(t *testing.T) {
 	if d, err = s.RetryDelivery(ctx, d.ID); err != nil || d.Status != "pending" {
 		t.Fatalf("retry = %+v, %v", d, err)
 	}
+
 	drain(t, s, 0)
 	if d, _ = s.Delivery(ctx, d.ID); d.Status != "succeeded" || d.Attempts != 4 || d.DeliveredAt == nil {
 		t.Fatalf("after manual retry = %+v", d)
 	}
+
 	if d, _ = s.RetryDelivery(ctx, d.ID); d.Status != "succeeded" {
 		t.Fatalf("retrying a delivered event changed it: %+v", d)
 	}
@@ -289,14 +306,17 @@ func TestLeaseRecoversCrashedSender(t *testing.T) {
 	if _, err := s.CreateEndpoint(ctx, EndpointInput{URL: rcv.srv.URL}); err != nil {
 		t.Fatal(err)
 	}
+
 	publish(t, s, event(t, "hold.voided", map[string]string{"object": "hold"}))
 	dispatchAll(t, s, 1)
 	if claimed, err := s.claim(ctx); err != nil || len(claimed) != 1 {
 		t.Fatalf("claim = %d, %v", len(claimed), err)
 	}
+
 	if n, _ := s.Deliver(ctx); n != 0 {
 		t.Fatalf("leased delivery was sent again before the lease ended")
 	}
+
 	time.Sleep(100 * time.Millisecond)
 	if n, _ := s.Deliver(ctx); n != 1 || len(rcv.got()) != 1 {
 		t.Fatalf("after the lease: sent %d, received %d", n, len(rcv.got()))
@@ -316,22 +336,27 @@ func TestDispatchWaitsForInFlight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer slow.Rollback(ctx)
 	if err := Insert(ctx, slow, event(t, "transaction.created", map[string]string{"n": "older"})); err != nil {
 		t.Fatal(err)
 	}
+
 	publish(t, s, event(t, "transaction.created", map[string]string{"n": "newer"}))
 
 	if n, err := s.Dispatch(ctx); err != nil || n != 0 {
 		t.Fatalf("dispatched %d while an older event was in flight (%v)", n, err)
 	}
+
 	if err := slow.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	dispatchAll(t, s, 2)
 	if _, err := s.Deliver(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := rcv.got(); len(got) != 2 {
 		t.Fatalf("received %d", len(got))
 	}
@@ -359,6 +384,7 @@ func TestEndpointValidation(t *testing.T) {
 			t.Errorf("validateEndpoint(%s, %v) = %v, want ok %v", tt.url, tt.types, err, tt.ok)
 		}
 	}
+
 	lax := NewService(nil, testdb.Logger(), Config{AllowInsecureURLs: true})
 	if err := lax.validateEndpoint("http://localhost:9000", "", nil); err != nil {
 		t.Fatalf("insecure URL refused with AllowInsecureURLs: %v", err)
@@ -381,12 +407,14 @@ func TestHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		defer resp.Body.Close()
 		var out map[string]any
 		_ = json.UnmarshalRead(resp.Body, &out)
 		if resp.StatusCode != want {
 			t.Fatalf("%s %s = %d %v, want %d", method, path, resp.StatusCode, out, want)
 		}
+
 		return out
 	}
 
@@ -395,12 +423,15 @@ func TestHTTP(t *testing.T) {
 	if !strings.HasPrefix(id, "we_") || !strings.HasPrefix(ep["secret"].(string), "whsec_") {
 		t.Fatalf("endpoint = %v", ep)
 	}
+
 	if got := call(http.MethodGet, "/v1/webhook_endpoints/"+id, "", 200); got["secret"] != nil {
 		t.Fatalf("secret leaked on read: %v", got)
 	}
+
 	if got := call(http.MethodPatch, "/v1/webhook_endpoints/"+id, `{"enabled":false}`, 200); got["enabled"] != false || got["version"] != float64(1) {
 		t.Fatalf("patched = %v", got)
 	}
+
 	call(http.MethodPatch, "/v1/webhook_endpoints/"+id, `{"enabled":true}`, 200)
 
 	publish(t, s, event(t, "hold.created", map[string]string{"object": "hold"}))
@@ -409,12 +440,14 @@ func TestHTTP(t *testing.T) {
 	if len(evs) != 1 {
 		t.Fatalf("events = %v", evs)
 	}
+
 	evID := evs[0].(map[string]any)["id"].(string)
 	call(http.MethodGet, "/v1/events/"+evID, "", 200)
 	ds := call(http.MethodGet, "/v1/webhook_deliveries?event_id="+evID, "", 200)["data"].([]any)
 	if len(ds) != 1 || ds[0].(map[string]any)["status"] != "succeeded" {
 		t.Fatalf("deliveries = %v", ds)
 	}
+
 	dID := ds[0].(map[string]any)["id"].(string)
 	call(http.MethodPost, "/v1/webhook_deliveries/"+dID+"/retry", "", 200)
 
@@ -424,6 +457,7 @@ func TestHTTP(t *testing.T) {
 	if got := call(http.MethodDelete, "/v1/webhook_endpoints/"+id, "", 200); got["deleted"] != true {
 		t.Fatalf("delete = %v", got)
 	}
+
 	call(http.MethodGet, "/v1/webhook_endpoints/"+id, "", 404)
 }
 
@@ -444,9 +478,11 @@ func TestPrune(t *testing.T) {
 	if _, err := s.CreateEndpoint(ctx, EndpointInput{URL: ok.srv.URL, EventTypes: []string{"hold.*"}}); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := s.CreateEndpoint(ctx, EndpointInput{URL: failing.srv.URL, EventTypes: []string{"transaction.*"}}); err != nil {
 		t.Fatal(err)
 	}
+
 	old := func(eventType string) Event {
 		e := event(t, eventType, map[string]string{"object": "x"})
 		e.ID = idAtRandom(time.Now().Add(-40 * 24 * time.Hour))
@@ -465,19 +501,23 @@ func TestPrune(t *testing.T) {
 	if err != nil || n != 3 {
 		t.Fatalf("Prune = %d, %v; want the 3 old delivered events", n, err)
 	}
+
 	for _, e := range delivered {
 		if _, err := s.Event(ctx, e.ID); err != ErrNotFound {
 			t.Fatalf("event %s survived: %v", e.ID, err)
 		}
+
 		if ds, _ := s.ListDeliveries(ctx, ListDeliveriesInput{EventID: e.ID, Limit: 10}); len(ds) != 0 {
 			t.Fatalf("deliveries of pruned event %s survived: %+v", e.ID, ds)
 		}
 	}
+
 	for name, e := range map[string]Event{"pending delivery": stuck, "recent": recent, "not dispatched": undispatched} {
 		if _, err := s.Event(ctx, e.ID); err != nil {
 			t.Fatalf("%s event was pruned: %v", name, err)
 		}
 	}
+
 	if n, err := s.Prune(ctx); err != nil || n != 0 {
 		t.Fatalf("second Prune = %d, %v", n, err)
 	}

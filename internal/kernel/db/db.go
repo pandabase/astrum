@@ -29,20 +29,24 @@ func Connect(ctx context.Context, url string, opts Options) (*pgxpool.Pool, erro
 	if err != nil {
 		return nil, fmt.Errorf("db: parse url: %w", err)
 	}
+
 	Harden(cfg, opts.MaxConns)
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("db: connect: %w", err)
 	}
+
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("db: ping: %w", err)
 	}
+
 	if err := CheckDurability(ctx, pool); err != nil && !opts.AllowUnsafeDurability {
 		pool.Close()
 		return nil, err
 	}
+
 	return pool, nil
 }
 
@@ -51,6 +55,7 @@ func Harden(cfg *pgxpool.Config, maxConns int32) {
 	if maxConns > 0 {
 		cfg.MaxConns = maxConns
 	}
+
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.HealthCheckPeriod = 15 * time.Second
@@ -71,9 +76,11 @@ func CheckDurability(ctx context.Context, q rowQuerier) error {
 		if err := q.QueryRow(ctx, "SELECT current_setting($1)", name).Scan(&got); err != nil {
 			return fmt.Errorf("db: read %s: %w", name, err)
 		}
+
 		if got != want {
 			return fmt.Errorf("db: unsafe durability: %s = %s, want %s", name, got, want)
 		}
 	}
+
 	return nil
 }

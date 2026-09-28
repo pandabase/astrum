@@ -18,6 +18,7 @@ func feBulkItems(n int, from, to uuid.UUID, amount int64) []ledger.PostInput {
 	for i := range items {
 		items[i] = transfer("", from, to, amount)
 	}
+
 	return items
 }
 
@@ -27,6 +28,7 @@ func feBulkResults(t *testing.T, e *env, id uuid.UUID) []ledger.BulkResult {
 	if err != nil {
 		t.Fatalf("BulkResults() error = %v", err)
 	}
+
 	return results
 }
 
@@ -38,9 +40,11 @@ func feProcessAll(t *testing.T, e *env) int {
 		if err != nil {
 			t.Fatalf("ProcessBulk() error = %v", err)
 		}
+
 		if !found {
 			return n
 		}
+
 		n++
 	}
 }
@@ -74,6 +78,7 @@ func TestBulkEdgeSizeAndKeys(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateBulk() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && (bulk.Total != tt.items || bulk.Status != ledger.BulkPending || bulk.Processed != 0 || bulk.StartedAt != nil) {
 				t.Fatalf("bulk = %+v", bulk)
 			}
@@ -88,6 +93,7 @@ func TestBulkEdgeSizeAndKeys(t *testing.T) {
 		if !strings.Contains(err.Error(), "transaction 2") {
 			t.Fatalf("error = %v, want it to name transaction 2", err)
 		}
+
 		if _, err := e.m.CreateBulk(ctx, ledger.CreateBulkInput{IdempotencyKey: "bad-item", Transactions: feBulkItems(3, a.ID, b.ID, 1)}); err != nil {
 			t.Fatalf("a rejected bulk reserved its key: %v", err)
 		}
@@ -105,10 +111,12 @@ func TestBulkEdgeOutcomes(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	elsewhere := e.accountIn(t, other.ID)
 	replayed := e.post(t, transfer("imp/7", rich.ID, b.ID, 1))
 	e.post(t, transfer("imp/8", rich.ID, b.ID, 2))
@@ -133,12 +141,14 @@ func TestBulkEdgeOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pendingResults := feBulkResults(t, e, bulk.ID)
 	for _, r := range pendingResults {
 		if r.TransactionID != nil || r.ErrorCode != nil || r.ErrorDetail != nil {
 			t.Fatalf("unprocessed result = %+v", r)
 		}
 	}
+
 	if len(pendingResults) != len(items) {
 		t.Fatalf("results = %d, want %d", len(pendingResults), len(items))
 	}
@@ -146,38 +156,47 @@ func TestBulkEdgeOutcomes(t *testing.T) {
 	if n := feProcessAll(t, e); n != 1 {
 		t.Fatalf("processed %d bulk requests, want 1", n)
 	}
+
 	done, err := e.m.Bulk(ctx, bulk.ID)
 	if err != nil || done.Status != ledger.BulkCompleted || done.Processed != 10 || done.Succeeded != 4 || done.Failed != 6 ||
 		done.StartedAt == nil || done.CompletedAt == nil || done.CompletedAt.Before(*done.StartedAt) {
 		t.Fatalf("bulk = %+v, %v", done, err)
 	}
+
 	results := feBulkResults(t, e, bulk.ID)
 	txns := map[uuid.UUID]bool{}
 	for i, r := range results {
 		if r.Index != i {
 			t.Fatalf("result %d has index %d", i, r.Index)
 		}
+
 		if codes[i] == "" {
 			if r.TransactionID == nil || r.ErrorCode != nil || txns[*r.TransactionID] {
 				t.Fatalf("item %d = %+v, want a distinct transaction", i, r)
 			}
+
 			txns[*r.TransactionID] = true
 			txn, err := e.m.Transaction(ctx, *r.TransactionID)
 			if err != nil || txn.IdempotencyKey != fmt.Sprint("imp/", i) {
 				t.Fatalf("item %d transaction = %+v, %v", i, txn, err)
 			}
+
 			if i == 7 && txn.ID != replayed.ID {
 				t.Fatalf("item 7 = %s, want the already posted %s", txn.ID, replayed.ID)
 			}
+
 			continue
 		}
+
 		if r.TransactionID != nil || r.ErrorCode == nil || *r.ErrorCode != codes[i] || r.ErrorDetail == nil || *r.ErrorDetail == "" {
 			t.Fatalf("item %d = %+v, want error %s", i, r, codes[i])
 		}
 	}
+
 	if got := e.balance(t, b.ID); got != 1+2+3 {
 		t.Fatalf("b = %d, want 6", got)
 	}
+
 	e.verify(t)
 }
 
@@ -225,10 +244,12 @@ func TestBulkEdgeReplay(t *testing.T) {
 			for i := range items {
 				fresh[i] = transfer("", a.ID, b.ID, small(t, items[i].Postings[0].Amount))
 			}
+
 			got, err := e.m.CreateBulk(ctx, ledger.CreateBulkInput{IdempotencyKey: "rp", Transactions: tt.mutate(fresh)})
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateBulk() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && got.ID != first.ID {
 				t.Fatalf("replay created %s, want %s", got.ID, first.ID)
 			}
@@ -238,6 +259,7 @@ func TestBulkEdgeReplay(t *testing.T) {
 	if n := feProcessAll(t, e); n != 1 {
 		t.Fatalf("processed %d, want 1", n)
 	}
+
 	done, err := e.m.CreateBulk(ctx, ledger.CreateBulkInput{IdempotencyKey: "rp", Transactions: feBulkItems(0, a.ID, b.ID, 1)})
 	wantErr(t, err, ledger.ErrInvalid)
 	done, err = e.m.CreateBulk(ctx, ledger.CreateBulkInput{IdempotencyKey: "rp", Transactions: []ledger.PostInput{
@@ -246,12 +268,15 @@ func TestBulkEdgeReplay(t *testing.T) {
 	if err != nil || done.ID != first.ID || done.Status != ledger.BulkCompleted || done.Succeeded != 3 {
 		t.Fatalf("replay after completion = %+v, %v", done, err)
 	}
+
 	if n := feProcessAll(t, e); n != 0 {
 		t.Fatalf("a replayed completed bulk was processed again (%d)", n)
 	}
+
 	if got := e.balance(t, b.ID); got != 5 {
 		t.Fatalf("b = %d, want 5 (duplicate rows both post, once)", got)
 	}
+
 	e.verify(t)
 }
 
@@ -265,6 +290,7 @@ func TestBulkEdgeResultsPaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	feProcessAll(t, e)
 
 	tests := []struct {
@@ -293,14 +319,17 @@ func TestBulkEdgeResultsPaging(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("BulkResults() error = %v, want %v", err, tt.err)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if len(got) != tt.count || (tt.count > 0 && got[0].Index != tt.first) {
 				t.Fatalf("results = %+v, want %d starting at %d", got, tt.count, tt.first)
 			}
 		})
 	}
+
 	_, err = e.m.Bulk(ctx, uuid.New())
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -321,6 +350,7 @@ func TestBulkEdgeClaims(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		var (
 			wg    sync.WaitGroup
 			mu    sync.Mutex
@@ -333,6 +363,7 @@ func TestBulkEdgeClaims(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				if ok {
 					mu.Lock()
 					found++
@@ -340,10 +371,12 @@ func TestBulkEdgeClaims(t *testing.T) {
 				}
 			})
 		}
+
 		wg.Wait()
 		if found != 1 {
 			t.Fatalf("%d workers claimed the request, want 1", found)
 		}
+
 		if done, _ := e.m.Bulk(ctx, bulk.ID); done.Status != ledger.BulkCompleted || done.Succeeded != 20 {
 			t.Fatalf("bulk = %+v", done)
 		}
@@ -356,6 +389,7 @@ func TestBulkEdgeClaims(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+
 		var (
 			wg    sync.WaitGroup
 			mu    sync.Mutex
@@ -368,6 +402,7 @@ func TestBulkEdgeClaims(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				if ok {
 					mu.Lock()
 					found++
@@ -375,10 +410,12 @@ func TestBulkEdgeClaims(t *testing.T) {
 				}
 			})
 		}
+
 		wg.Wait()
 		if found != n {
 			t.Fatalf("%d of %d workers found a request", found, n)
 		}
+
 		if extra := feProcessAll(t, e); extra != 0 {
 			t.Fatalf("%d requests were left for a later worker", extra)
 		}
@@ -389,17 +426,21 @@ func TestBulkEdgeClaims(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := e.pool.Exec(ctx, `
 			UPDATE ledger_bulk_requests SET status = 'processing', lease_until = now() + interval '1 hour', started_at = now()
 			WHERE id = $1`, bulk.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if n := feProcessAll(t, e); n != 0 {
 			t.Fatalf("claimed %d leased requests", n)
 		}
+
 		if _, err := e.pool.Exec(ctx, `UPDATE ledger_bulk_requests SET lease_until = now() - interval '1 second' WHERE id = $1`, bulk.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if n := feProcessAll(t, e); n != 1 {
 			t.Fatalf("claimed %d expired leases, want 1", n)
 		}
@@ -408,5 +449,6 @@ func TestBulkEdgeClaims(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 20+20+3 {
 		t.Fatalf("b = %d, want 43", got)
 	}
+
 	e.verify(t)
 }

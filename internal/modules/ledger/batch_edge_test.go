@@ -28,15 +28,18 @@ func peSetup(t *testing.T, cfg Config) *peEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pool := testdb.New(t, map[string]fs.FS{probe.Name(): probe.Migrations(), "events": events.Migrations()})
 	m, err := New(pool, testdb.Logger(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	l, err := m.CreateLedger(context.Background(), CreateLedgerInput{Name: "edge"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	e := &peEnv{m: m, ledger: l}
 	e.open = e.account(t, Credit, true)
 	return e
@@ -50,6 +53,7 @@ func (e *peEnv) account(t *testing.T, side Side, allowNegative bool) Account {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return acc
 }
 
@@ -59,10 +63,12 @@ func (e *peEnv) balance(t *testing.T, id uuid.UUID) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	n, ok := acc.Posted.Amount.Int64()
 	if !ok {
 		t.Fatalf("balance %s does not fit", acc.Posted.Amount)
 	}
+
 	return n
 }
 
@@ -73,6 +79,7 @@ func (e *peEnv) keyExists(t *testing.T, key string) bool {
 		`SELECT EXISTS (SELECT 1 FROM ledger_transactions WHERE idempotency_key = $1)`, key).Scan(&exists); err != nil {
 		t.Fatal(err)
 	}
+
 	return exists
 }
 
@@ -97,6 +104,7 @@ func peOutcomes(t *testing.T, reqs []*request) []postingResult {
 			t.Fatalf("request %d got no outcome", i)
 		}
 	}
+
 	return out
 }
 
@@ -118,12 +126,15 @@ func TestBatchEdgeGroupCommitSkipsCancelledRequests(t *testing.T) {
 	if out[0].err != nil || out[2].err != nil || out[0].replayed || out[2].replayed {
 		t.Fatalf("live outcomes = %+v, %+v", out[0], out[2])
 	}
+
 	if !errors.Is(out[1].err, context.Canceled) {
 		t.Fatalf("cancelled outcome = %v, want context.Canceled", out[1].err)
 	}
+
 	if e.keyExists(t, "dead") {
 		t.Fatal("cancelled request was committed")
 	}
+
 	if got := e.balance(t, x.ID); got != 7 {
 		t.Fatalf("x = %d, want 7", got)
 	}
@@ -135,6 +146,7 @@ func TestBatchEdgeGroupCommitSkipsCancelledRequests(t *testing.T) {
 			t.Fatalf("all-cancelled outcome %d = %v", i, o.err)
 		}
 	}
+
 	if e.keyExists(t, "dead-1") || e.keyExists(t, "dead-2") {
 		t.Fatal("all-cancelled group wrote entries")
 	}
@@ -162,12 +174,15 @@ func TestBatchEdgeGroupFailureRetriesIndividually(t *testing.T) {
 			t.Fatalf("entry %d error = %v", i, out[i].err)
 		}
 	}
+
 	if out[2].err == nil {
 		t.Fatal("poison entry succeeded")
 	}
+
 	if e.keyExists(t, "poison") {
 		t.Fatal("poison entry was written")
 	}
+
 	if e.balance(t, x.ID) != 0 || e.balance(t, y.ID) != 5 || e.balance(t, z.ID) != 5 {
 		t.Fatalf("x %d y %d z %d, want 0 5 5", e.balance(t, x.ID), e.balance(t, y.ID), e.balance(t, z.ID))
 	}
@@ -196,9 +211,11 @@ func TestBatchEdgeGroupDomainFailuresStayLocal(t *testing.T) {
 			t.Fatalf("entry %d error = %v, want %v", i, out[i].err, want)
 		}
 	}
+
 	if !out[4].replayed || out[4].txn.ID != out[2].txn.ID {
 		t.Fatalf("duplicate = %+v", out[4])
 	}
+
 	if e.balance(t, x.ID) != 0 || e.balance(t, y.ID) != 10 {
 		t.Fatalf("x %d y %d, want 0 10", e.balance(t, x.ID), e.balance(t, y.ID))
 	}
@@ -224,6 +241,7 @@ func TestBatchEdgeGroupConflictThenMatchingReplay(t *testing.T) {
 	if !errors.Is(out[0].err, ErrIdempotencyConflict) {
 		t.Fatalf("different body = %v, want conflict", out[0].err)
 	}
+
 	if out[1].err != nil || !out[1].replayed || out[1].txn.ID != committed.txn.ID {
 		t.Fatalf("matching body = %+v, %v; want replay of %s", out[1].txn.ID, out[1].err, committed.txn.ID)
 	}
@@ -246,8 +264,10 @@ func TestBatchEdgeQueuedRequestCancelledBeforeWorkersRun(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("request never reached the queue")
 		}
+
 		time.Sleep(time.Millisecond)
 	}
+
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("submit error = %v, want context.Canceled", err)
@@ -264,9 +284,11 @@ func TestBatchEdgeQueuedRequestCancelledBeforeWorkersRun(t *testing.T) {
 	if _, err := e.m.Post(context.Background(), peTransfer("queued-live", e.open.ID, x.ID, 2)); err != nil {
 		t.Fatal(err)
 	}
+
 	if e.keyExists(t, "queued-dead") {
 		t.Fatal("request cancelled while queued was committed")
 	}
+
 	if got := e.balance(t, x.ID); got != 2 {
 		t.Fatalf("x = %d, want 2", got)
 	}
@@ -285,9 +307,11 @@ func TestBatchEdgeSubmitHonoursFullQueue(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("submit error = %v, want context.DeadlineExceeded", err)
 	}
+
 	if len(b.queue) != 1 {
 		t.Fatalf("queue length = %d, want only the filler", len(b.queue))
 	}
+
 	filler := <-b.queue
 	if filler.req.in.IdempotencyKey != "filler" {
 		t.Fatalf("unexpected queued request %s", filler.req.in.IdempotencyKey)

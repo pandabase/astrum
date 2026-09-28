@@ -50,10 +50,12 @@ func (o *operation) fail(err error) error {
 		o.warn(o.name+" rejected", "err", err)
 		return domainErr
 	}
+
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		o.warn(o.name+" abandoned", "err", err)
 		return err
 	}
+
 	o.log.Error(o.name+" failed", o.withDuration([]any{"err", err})...)
 	return fmt.Errorf("ledger: %s: %w", o.name, err)
 }

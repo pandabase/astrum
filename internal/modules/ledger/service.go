@@ -28,21 +28,26 @@ func (s *service) createCurrency(ctx context.Context, in CreateCurrencyInput) (C
 	if err := validateCurrency(in); err != nil {
 		return Currency{}, op.fail(err)
 	}
+
 	c, created, err := insertCurrency(ctx, s.pool, in)
 	if err != nil {
 		return Currency{}, op.fail(err)
 	}
+
 	if !created {
 		existing, err := selectCurrency(ctx, s.pool, in.Code)
 		if err != nil {
 			return Currency{}, op.fail(err)
 		}
+
 		if existing.Exponent != in.Exponent {
 			return Currency{}, op.fail(fmt.Errorf("%w: %s has exponent %d", ErrCurrencyExists, existing.Code, existing.Exponent))
 		}
+
 		op.info("currency creation replayed")
 		return existing, nil
 	}
+
 	op.info("currency created")
 	return c, nil
 }
@@ -54,6 +59,7 @@ func (s *service) currency(ctx context.Context, code money.Currency) (Currency, 
 	if err != nil {
 		return Currency{}, op.fail(err)
 	}
+
 	return c, nil
 }
 
@@ -63,10 +69,12 @@ func (s *service) listCurrencies(ctx context.Context, after money.Currency, limi
 	if limit < 1 || limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	currencies, err := selectCurrencies(ctx, s.pool, after, limit)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return currencies, nil
 }
 
@@ -81,6 +89,7 @@ func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Acc
 	if err != nil {
 		return Account{}, op.fail(err)
 	}
+
 	var (
 		acc     Account
 		created bool
@@ -91,19 +100,23 @@ func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Acc
 		if err != nil || !created {
 			return err
 		}
+
 		return emit(ctx, tx, eventAccountCreated, toAccount, acc)
 	})
 	if err != nil {
 		return Account{}, op.fail(err)
 	}
+
 	if !created {
 		existing, err := selectAccountByCode(ctx, s.pool, in.LedgerID, in.Code)
 		if err != nil {
 			return Account{}, op.fail(err)
 		}
+
 		if !existing.sameTerms(in) {
 			return Account{}, op.fail(ErrAccountExists)
 		}
+
 		op.info("account creation replayed", "account_id", existing.ID)
 		return existing, nil
 	}
@@ -131,6 +144,7 @@ func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target Acc
 		if err != nil {
 			return err
 		}
+
 		from = current.Status
 		switch {
 		case current.Status == target:
@@ -142,9 +156,11 @@ func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target Acc
 			return fmt.Errorf("%w: posted %s, pending %s, held %s",
 				ErrAccountNotEmpty, current.Posted.Amount, current.Pending.Amount, current.Held)
 		}
+
 		if acc, err = updateAccountStatus(ctx, tx, id, target); err != nil {
 			return err
 		}
+
 		changed = true
 		return emit(ctx, tx, eventAccountUpdated, toAccount, acc)
 	})
@@ -156,6 +172,7 @@ func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target Acc
 		op.info("account status unchanged", "status", acc.Status)
 		return acc, nil
 	}
+
 	op.info("account status changed", "from", from, "to", acc.Status)
 	return acc, nil
 }
@@ -172,24 +189,29 @@ func (s *service) updateAccount(ctx context.Context, id uuid.UUID, in UpdateInpu
 		if err != nil {
 			return err
 		}
+
 		next := current
 		next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, false)
 		if err != nil {
 			return err
 		}
+
 		changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata)
 		if !changed {
 			acc = current
 			return nil
 		}
+
 		if acc, err = updateAccountDetails(ctx, tx, next); err != nil {
 			return err
 		}
+
 		return emit(ctx, tx, eventAccountUpdated, toAccount, acc)
 	})
 	if err != nil {
 		return Account{}, op.fail(err)
 	}
+
 	op.info("account updated", "changed", changed, "version", acc.Version)
 	return acc, nil
 }
@@ -201,6 +223,7 @@ func (s *service) account(ctx context.Context, id uuid.UUID) (Account, error) {
 	if err != nil {
 		return Account{}, op.fail(err)
 	}
+
 	op.debug("account loaded", "posted", acc.Posted.Amount, "available", acc.Available.Amount, "version", acc.Version)
 	return acc, nil
 }
@@ -212,14 +235,17 @@ func (s *service) accountEntries(ctx context.Context, id uuid.UUID, after int64,
 		err := fmt.Errorf("%w: limit must be 1-%d and after non-negative", ErrInvalid, maxStatementLimit)
 		return nil, op.fail(err)
 	}
+
 	acc, err := selectAccount(ctx, s.pool, id)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	lines, err := selectAccountEntries(ctx, s.pool, acc, after, limit)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	op.debug("account entries loaded", "lines", len(lines))
 	return lines, nil
 }
@@ -235,6 +261,7 @@ func (s *service) post(ctx context.Context, in PostInput) (Transaction, error) {
 	if err == nil {
 		err = o.err
 	}
+
 	if err != nil {
 		return Transaction{}, op.fail(err)
 	}
@@ -249,6 +276,7 @@ func (s *service) runBatch(ctx context.Context, reqs []*postingRequest, atomic b
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+
 	defer func() { <-s.batchSlots }()
 	return runRequests(ctx, s, reqs, atomic)
 }
@@ -269,9 +297,11 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 			if atomic {
 				return nil, op.fail(fmt.Errorf("transaction %d: %w", i, err))
 			}
+
 			results[i] = failedResult(err)
 			continue
 		}
+
 		reqs = append(reqs, &postingRequest{in: in})
 		positions = append(positions, i)
 	}
@@ -281,11 +311,13 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 		if err != nil {
 			return nil, op.fail(err)
 		}
+
 		for j, o := range posted {
 			if o.err != nil {
 				results[positions[j]] = failedResult(o.err)
 				continue
 			}
+
 			txn := o.txn
 			results[positions[j]] = BatchResult{Transaction: &txn, Replayed: o.replayed}
 		}
@@ -297,10 +329,12 @@ func (s *service) postBatch(ctx context.Context, ins []PostInput, atomic bool) (
 			failed++
 		}
 	}
+
 	level := log.InfoLevel
 	if failed > 0 {
 		level = log.WarnLevel
 	}
+
 	op.logAt(level, "batch processed", "succeeded", len(results)-failed, "failed", failed)
 	return results, nil
 }
@@ -312,6 +346,7 @@ func (s *service) transaction(ctx context.Context, id uuid.UUID) (Transaction, e
 	if err != nil {
 		return Transaction{}, op.fail(err)
 	}
+
 	op.debug("transaction loaded", "postings", len(txn.Postings))
 	return txn, nil
 }
@@ -322,10 +357,12 @@ func (s *service) listAccounts(ctx context.Context, in ListAccountsInput) ([]Acc
 	if err := validateListAccounts(in); err != nil {
 		return nil, op.fail(err)
 	}
+
 	accounts, err := selectAccounts(ctx, s.pool, in)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	op.debug("accounts listed", "count", len(accounts))
 	return accounts, nil
 }
@@ -339,16 +376,20 @@ func (s *service) listTransactions(ctx context.Context, in ListTransactionsInput
 	case in.Status != "" && in.Status != TransactionPending && in.Status != TransactionPosted && in.Status != TransactionArchived:
 		return nil, op.fail(fmt.Errorf("%w: status must be pending, posted or archived", ErrInvalid))
 	}
+
 	if err := validateMetadataFilter(in.Metadata); err != nil {
 		return nil, op.fail(err)
 	}
+
 	if err := validateRange(in.Effective); err != nil {
 		return nil, op.fail(err)
 	}
+
 	txns, err := selectTransactions(ctx, s.pool, in)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	op.debug("transactions listed", "count", len(txns))
 	return txns, nil
 }
@@ -366,9 +407,11 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		if err != nil {
 			return err
 		}
+
 		if original.Status != TransactionPosted {
 			return fmt.Errorf("%w: transaction %s is %s", ErrNotPosted, id, original.Status)
 		}
+
 		req := reversalRequest(original, in)
 
 		prior, err := selectReversal(ctx, tx, id)
@@ -386,12 +429,14 @@ func (s *service) reverse(ctx context.Context, id uuid.UUID, in ReverseInput) (T
 		if err != nil && !errors.Is(err, errAborted) {
 			return err
 		}
+
 		o = results[0]
 		if o.replayed {
 			if prior, err := selectReversal(ctx, tx, id); err != nil || prior.ID != o.txn.ID {
 				return ErrIdempotencyConflict
 			}
 		}
+
 		return o.err
 	})
 	if err != nil {
@@ -407,6 +452,7 @@ func reversalRequest(original Transaction, in ReverseInput) *postingRequest {
 	for i, p := range original.Postings {
 		postings[i] = Posting{AccountID: p.AccountID, Side: p.Side.opposite(), Amount: p.Amount, Currency: p.Currency}
 	}
+
 	return &postingRequest{
 		in: PostInput{
 			IdempotencyKey: in.IdempotencyKey,
@@ -423,6 +469,7 @@ func (s *service) logPosted(op *operation, o postingResult) {
 		op.info("transaction replayed", "transaction_id", o.txn.ID)
 		return
 	}
+
 	op.info("transaction posted",
 		"transaction_id", o.txn.ID,
 		"postings", len(o.txn.Postings))
@@ -485,14 +532,17 @@ func asDomainError(err error) error {
 	case constraintPeriodOpen:
 		return ErrPeriodClosed
 	}
+
 	if db.Code(err) == "22003" {
 		return money.ErrOverflow
 	}
+
 	for _, target := range domainErrors {
 		if errors.Is(err, target) {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -500,6 +550,7 @@ func failedResult(err error) BatchResult {
 	if domainErr := asDomainError(err); domainErr != nil {
 		err = domainErr
 	}
+
 	return BatchResult{Error: err.Error(), Err: err}
 }
 

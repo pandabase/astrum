@@ -20,6 +20,7 @@ func feCategory(t *testing.T, e *env, name string, currency money.Currency, side
 	if err != nil {
 		t.Fatalf("CreateCategory(%s) error = %v", name, err)
 	}
+
 	return c
 }
 
@@ -29,6 +30,7 @@ func feRollUp(t *testing.T, e *env, id uuid.UUID) ledger.Balances {
 	if err != nil {
 		t.Fatalf("Category() error = %v", err)
 	}
+
 	return c.Balances
 }
 
@@ -50,11 +52,13 @@ func TestCategoriesEdgeUnnest(t *testing.T) {
 	if err != nil || un.ID != root.ID {
 		t.Fatalf("UnnestCategory() = %+v, %v", un, err)
 	}
+
 	wantBalance(t, "after unnest", un.Balances.Posted, 10, 0, 10)
 	wantBalance(t, "child keeps its own", feRollUp(t, e, child.ID).Posted, 100, 0, 100)
 	if kids, err := e.m.ListCategories(ctx, ledger.ListCategoriesInput{ParentID: root.ID, Limit: 10}); err != nil || len(kids) != 0 {
 		t.Fatalf("children after unnest = %+v, %v", kids, err)
 	}
+
 	if accs, err := e.m.ListAccounts(ctx, ledger.ListAccountsInput{CategoryID: root.ID, Limit: 10}); err != nil || len(accs) != 1 || accs[0].ID != x.ID {
 		t.Fatalf("root accounts after unnest = %+v, %v", accs, err)
 	}
@@ -76,6 +80,7 @@ func TestCategoriesEdgeUnnest(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("UnnestCategory() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && got.ID != tt.parent {
 				t.Fatalf("returned %s, want the parent %s", got.ID, tt.parent)
 			}
@@ -87,6 +92,7 @@ func TestCategoriesEdgeUnnest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "flipped", flipped.Balances.Posted, 110, 0, 110)
 		_, err = e.m.NestCategory(ctx, root.ID, child.ID)
 		wantErr(t, err, ledger.ErrCategoryCycle)
@@ -107,11 +113,13 @@ func TestCategoriesEdgeUnnest(t *testing.T) {
 		if _, err := e.m.UnnestCategory(ctx, left.ID, leaf.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "one path left", feRollUp(t, e, top.ID).Posted, 100, 0, 100)
 		wantBalance(t, "left emptied", feRollUp(t, e, left.ID).Posted, 0, 0, 0)
 		if _, err := e.m.UnnestCategory(ctx, right.ID, leaf.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "no path left", feRollUp(t, e, top.ID).Posted, 0, 0, 0)
 	})
 }
@@ -142,6 +150,7 @@ func TestCategoriesEdgeGraph(t *testing.T) {
 				e.nest(t, chain[i-1], chain[i])
 			}
 		}
+
 		_, err := e.m.NestCategory(ctx, chain[4].ID, chain[0].ID)
 		wantErr(t, err, ledger.ErrCategoryCycle)
 		_, err = e.m.NestCategory(ctx, chain[3].ID, chain[1].ID)
@@ -161,6 +170,7 @@ func TestCategoriesEdgeGraph(t *testing.T) {
 		if first.Balances != second.Balances || second.Balances.Posted.Amount != amt(9) {
 			t.Fatalf("balances %+v then %+v", first.Balances, second.Balances)
 		}
+
 		kids, err := e.m.ListCategories(ctx, ledger.ListCategoriesInput{ParentID: p.ID, Limit: 10})
 		if err != nil || len(kids) != 1 {
 			t.Fatalf("children = %d, %v", len(kids), err)
@@ -176,12 +186,14 @@ func TestCategoriesEdgeGraph(t *testing.T) {
 					e.nest(t, out[i-1], out[i])
 				}
 			}
+
 			return out
 		}
 		upper, lower := mk("up", 4), mk("low", 3)
 		if _, err := e.m.NestCategory(ctx, upper[3].ID, lower[0].ID); err != nil {
 			t.Fatalf("a chain of exactly 7 was refused: %v", err)
 		}
+
 		upper2, lower2 := mk("up2", 4), mk("low2", 4)
 		_, err := e.m.NestCategory(ctx, upper2[3].ID, lower2[0].ID)
 		wantErr(t, err, ledger.ErrCategoryDepth)
@@ -199,10 +211,12 @@ func TestCategoriesEdgeGraph(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		foreign, err := e.m.CreateCategory(ctx, ledger.CreateCategoryInput{LedgerID: other.ID, Currency: "USD", NormalSide: ledger.Debit, Name: "foreign"})
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		for name, tt := range map[string]struct {
 			parent, child uuid.UUID
 			want          error
@@ -267,6 +281,7 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	wantBalance(t, "eur", eurCat.Balances.Posted, 70, 0, 70)
 	_, err = e.m.AddCategoryAccount(ctx, eurCat.ID, usd.ID)
 	wantErr(t, err, ledger.ErrCategoryMismatch)
@@ -284,12 +299,14 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 		if _, err := e.m.CreateHold(ctx, feHoldAt("cat-hold", held.ID, 20, time.Now().Add(time.Hour))); err != nil {
 			t.Fatal(err)
 		}
+
 		c := e.addAccount(t, e.category(t, "held", ledger.Debit), held)
 		wantBalance(t, "unbounded available", c.Balances.Available, 50, 20, 30)
 		windowed, err := e.m.Category(ctx, c.ID, ledger.EffectiveRange{From: new(time.Now().Add(-time.Hour))})
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "windowed available", windowed.Balances.Available, 50, 0, 50)
 	})
 
@@ -299,6 +316,7 @@ func TestCategoriesEdgeCurrenciesAndHolds(t *testing.T) {
 			_, err := e.m.Category(ctx, eurCat.ID, r)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
+
 		_, err := e.m.Category(ctx, uuid.New(), ledger.EffectiveRange{})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
@@ -318,6 +336,7 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 	if err := e.m.DeleteCategory(ctx, parent.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	wantBalance(t, "orphaned child", feRollUp(t, e, child.ID).Posted, 12, 0, 12)
 	if kids, err := e.m.ListCategories(ctx, ledger.ListCategoriesInput{ParentID: parent.ID, Limit: 10}); err != nil || len(kids) != 0 {
 		t.Fatalf("children of a deleted category = %+v, %v", kids, err)
@@ -347,6 +366,7 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "unchanged", got.Balances.Posted, 12, 0, 12)
 		got, err = e.m.RemoveCategoryAccount(ctx, child.ID, uuid.New())
 		if err != nil || got.ID != child.ID {
@@ -359,9 +379,11 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 		if _, err := e.m.CloseAccount(ctx, closed.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := e.m.FreezeAccount(ctx, acc.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		c := e.addAccount(t, e.category(t, "statuses", ledger.Debit), closed, acc)
 		wantBalance(t, "members", c.Balances.Posted, 12, 0, 12)
 	})
@@ -370,9 +392,11 @@ func TestCategoriesEdgeDeleteAndMembership(t *testing.T) {
 		if err := e.m.DeleteCategory(ctx, child.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if cats, err := e.m.ListCategories(ctx, ledger.ListCategoriesInput{AccountID: acc.ID, Limit: 10}); err != nil || len(cats) != 1 {
 			t.Fatalf("categories of the account = %d, %v", len(cats), err)
 		}
+
 		if e.balance(t, acc.ID) != 12 {
 			t.Fatal("deleting a category changed an account")
 		}
@@ -422,16 +446,19 @@ func TestCategoriesEdgeUpdate(t *testing.T) {
 		if !errors.Is(err, step.err) {
 			t.Fatalf("%s: error = %v, want %v", step.name, err, step.err)
 		}
+
 		if err != nil {
 			got, err = e.m.Category(ctx, c.ID, ledger.EffectiveRange{})
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
+
 		if got.Version != step.version || !jsonSame(t, got.Metadata, step.metadata) {
 			t.Fatalf("%s: version %d metadata %s, want %d %s", step.name, got.Version, got.Metadata, step.version, step.metadata)
 		}
 	}
+
 	_, err = e.m.UpdateCategory(ctx, uuid.New(), ledger.UpdateInput{Name: new("x")})
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -459,6 +486,7 @@ func TestCategoriesEdgeCreateAndList(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateCategory() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && (c.Version != 0 || !jsonSame(t, c.Metadata, `{}`)) {
 				t.Fatalf("created = %+v", c)
 			}
@@ -470,17 +498,20 @@ func TestCategoriesEdgeCreateAndList(t *testing.T) {
 	for i := range cats {
 		cats[i] = fresh.category(t, fmt.Sprint("list-", i), ledger.Debit)
 	}
+
 	ids := func(cs []ledger.Category) string {
 		out := make([]string, len(cs))
 		for i, c := range cs {
 			out[i] = c.Name
 		}
+
 		return strings.Join(out, ",")
 	}
 	filters := map[string]string{}
 	for i := range 21 {
 		filters[fmt.Sprint("k", i)] = "v"
 	}
+
 	tests := []struct {
 		name string
 		in   ledger.ListCategoriesInput
@@ -506,6 +537,7 @@ func TestCategoriesEdgeCreateAndList(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListCategories() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && ids(got) != tt.want {
 				t.Fatalf("categories = %s, want %s", ids(got), tt.want)
 			}

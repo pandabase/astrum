@@ -43,6 +43,7 @@ func nullUUID(id uuid.UUID) *uuid.UUID {
 	if id == uuid.Nil {
 		return nil
 	}
+
 	return &id
 }
 
@@ -50,6 +51,7 @@ func nullString(s string) *string {
 	if s == "" {
 		return nil
 	}
+
 	return &s
 }
 
@@ -67,6 +69,7 @@ func metadataFilter(m map[string]string) *string {
 	if len(m) == 0 {
 		return nil
 	}
+
 	raw, _ := json.Marshal(m, json.Deterministic(true))
 	return new(string(raw))
 }
@@ -75,6 +78,7 @@ func xidBound(bound uint64) *string {
 	if bound == 0 {
 		return nil
 	}
+
 	return new(strconv.FormatUint(bound, 10))
 }
 
@@ -89,5 +93,6 @@ func selectSnapshotXmin(ctx context.Context, q querier) (uint64, error) {
 	if err := q.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot())::text`).Scan(&xmin); err != nil {
 		return 0, err
 	}
+
 	return strconv.ParseUint(xmin, 10, 64)
 }

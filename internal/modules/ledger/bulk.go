@@ -25,9 +25,11 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 	for i := range in.Transactions {
 		in.Transactions[i].IdempotencyKey = fmt.Sprintf("%s/%d", in.IdempotencyKey, i)
 	}
+
 	if err := validateBulk(in); err != nil {
 		return BulkRequest{}, op.fail(err)
 	}
+
 	requests := make([]string, len(in.Transactions))
 	indexes := make([]int, len(in.Transactions))
 	h := sha256.New()
@@ -36,10 +38,12 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 		if err != nil {
 			return BulkRequest{}, op.fail(err)
 		}
+
 		requests[i], indexes[i] = string(raw), i
 		h.Write(raw)
 		h.Write([]byte{'\n'})
 	}
+
 	hash := h.Sum(nil)
 
 	var (
@@ -51,6 +55,7 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 		if err != nil {
 			return err
 		}
+
 		bulk, err = scanBulk(tx.QueryRow(ctx, `
 			INSERT INTO ledger_bulk_requests (id, idempotency_key, request_hash, total)
 			VALUES ($1, $2, $3, $4)
@@ -62,16 +67,20 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 				in.IdempotencyKey).Scan(&existing); err != nil {
 				return err
 			}
+
 			if !bytes.Equal(existing, hash) {
 				return ErrIdempotencyConflict
 			}
+
 			replayed = true
 			bulk, err = scanBulk(tx.QueryRow(ctx, `SELECT `+bulkColumns+` FROM ledger_bulk_requests WHERE idempotency_key = $1`, in.IdempotencyKey))
 			return err
 		}
+
 		if err != nil {
 			return err
 		}
+
 		_, err = tx.Exec(ctx, `
 			INSERT INTO ledger_bulk_items (bulk_id, index, request)
 			SELECT $1, i, r::jsonb FROM unnest($2::int[], $3::text[]) AS x(i, r)`, bulk.ID, indexes, requests)
@@ -80,10 +89,12 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 	if err != nil {
 		return BulkRequest{}, op.fail(err)
 	}
+
 	if replayed {
 		op.info("bulk request replayed", "bulk_id", bulk.ID)
 		return bulk, nil
 	}
+
 	op.info("bulk request accepted", "bulk_id", bulk.ID)
 	return bulk, nil
 }
@@ -95,9 +106,11 @@ func (s *service) bulk(ctx context.Context, id uuid.UUID) (BulkRequest, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	}
+
 	if err != nil {
 		return BulkRequest{}, op.fail(err)
 	}
+
 	return b, nil
 }
 
@@ -107,9 +120,11 @@ func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit in
 	if _, err := s.bulk(ctx, id); err != nil {
 		return nil, err
 	}
+
 	if limit < 1 || limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT index, transaction_id, error_code, error_detail
 		FROM ledger_bulk_items
@@ -119,6 +134,7 @@ func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit in
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	results, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (BulkResult, error) {
 		var r BulkResult
 		err := row.Scan(&r.Index, &r.TransactionID, &r.ErrorCode, &r.ErrorDetail)
@@ -127,6 +143,7 @@ func (s *service) bulkResults(ctx context.Context, id uuid.UUID, after, limit in
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return results, nil
 }
 
@@ -148,9 +165,11 @@ func (s *service) processBulk(ctx context.Context, chunk int) (bool, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
+
 	if err != nil {
 		return false, err
 	}
+
 	l := s.log.With("op", "process_bulk_request", "bulk_id", id)
 	start := time.Now()
 	l.Info("bulk request started", "processed", processed, "total", total)
@@ -161,12 +180,15 @@ func (s *service) processBulk(ctx context.Context, chunk int) (bool, error) {
 			l.Warn("bulk request paused", "processed", processed, "err", err)
 			return true, err
 		}
+
 		if next < 0 {
 			l.Warn("bulk request taken over by another worker", "processed", processed)
 			return true, nil
 		}
+
 		processed = next
 	}
+
 	l.Info("bulk request completed", "total", total, "duration", time.Since(start))
 	return true, nil
 }
@@ -180,6 +202,7 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 	if err != nil {
 		return 0, err
 	}
+
 	var (
 		indexes []int
 		inputs  []PostInput
@@ -191,6 +214,7 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 		if err := json.Unmarshal(raw, &in); err != nil {
 			return fmt.Errorf("decode bulk item %d: %w", index, err)
 		}
+
 		indexes, inputs = append(indexes, index), append(inputs, in)
 		return nil
 	}); err != nil {
@@ -201,6 +225,7 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 	if err != nil {
 		return 0, err
 	}
+
 	var (
 		txnIDs            = make([]*uuid.UUID, len(results))
 		codes, details    = make([]*string, len(results)), make([]*string, len(results))
@@ -213,6 +238,7 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 			failed++
 			continue
 		}
+
 		txnIDs[i] = &r.Transaction.ID
 		succeeded++
 	}
@@ -229,10 +255,12 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 		if err != nil {
 			return err
 		}
+
 		if tag.RowsAffected() == 0 {
 			next = -1
 			return nil
 		}
+
 		if _, err := tx.Exec(ctx, `
 			UPDATE ledger_bulk_items AS b
 			SET transaction_id = r.txn, error_code = r.code, error_detail = r.detail
@@ -240,12 +268,15 @@ func (s *service) processChunk(ctx context.Context, id uuid.UUID, processed, chu
 			WHERE b.bulk_id = $1 AND b.index = r.index`, id, indexes, txnIDs, codes, details); err != nil {
 			return err
 		}
+
 		b, err := scanBulk(tx.QueryRow(ctx, `SELECT `+bulkColumns+` FROM ledger_bulk_requests WHERE id = $1`, id))
 		if err != nil || b.Status != BulkCompleted {
 			return err
 		}
+
 		return emit(ctx, tx, eventBulkCompleted, toBulk, b)
 	})
+
 	return next, err
 }
 
@@ -266,13 +297,16 @@ func validateBulk(in CreateBulkInput) error {
 	if len(in.Transactions) == 0 || len(in.Transactions) > maxBulkItems {
 		return fmt.Errorf("%w: a bulk request needs 1-%d transactions", ErrInvalid, maxBulkItems)
 	}
+
 	if err := validateKeyAndText(in.IdempotencyKey, "", nil); err != nil {
 		return err
 	}
+
 	for i, t := range in.Transactions {
 		if err := validatePost(t); err != nil {
 			return fmt.Errorf("transaction %d: %w", i, err)
 		}
 	}
+
 	return nil
 }

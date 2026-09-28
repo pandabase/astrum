@@ -43,6 +43,7 @@ func newEdgeEnv(t *testing.T) *edgeEnv {
 			httpx.JSON(w, r, http.StatusOK, map[string]string{"scope": auth.Scope(r)})
 		})
 	}
+
 	srv := httptest.NewServer(httpx.Logging(testdb.Logger(), svc.Middleware([]string{"/healthz"}, mux)))
 	t.Cleanup(srv.Close)
 	return &edgeEnv{t: t, svc: svc, srv: srv}
@@ -54,6 +55,7 @@ func (e *edgeEnv) key(name string, role auth.Role) (auth.Key, string) {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	return k, token
 }
 
@@ -70,17 +72,20 @@ func (e *edgeEnv) raw(method, path string, header http.Header, body string) edge
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	maps.Copy(req.Header, header)
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	out := edgeResp{status: resp.StatusCode, header: resp.Header, raw: raw}
 	_ = json.Unmarshal(raw, &out.body)
 	return out
@@ -92,6 +97,7 @@ func (e *edgeEnv) call(method, path, token, body string) edgeResp {
 	if token != "" {
 		h.Set("Authorization", "Bearer "+token)
 	}
+
 	return e.raw(method, path, h, body)
 }
 
@@ -101,6 +107,7 @@ func (e *edgeEnv) must(want int, method, path, token, body string) map[string]an
 	if resp.status != want {
 		e.t.Fatalf("%s %s = %d %s, want %d", method, path, resp.status, resp.raw, want)
 	}
+
 	return resp.body
 }
 
@@ -113,6 +120,7 @@ func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 	if _, err := e.svc.Revoke(context.Background(), revokedKey.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	unknown := "sk_" + strings.TrimPrefix(typeid.Encode("key", uuid.Must(uuid.NewV7())), "key_") + token[29:]
 	tampered := token[:len(token)-1] + map[bool]string{true: "B", false: "A"}[strings.HasSuffix(token, "A")]
 
@@ -150,23 +158,29 @@ func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 			for _, v := range tt.values {
 				h.Add("Authorization", v)
 			}
+
 			resp := e.raw(http.MethodGet, "/v1/things", h, "")
 			if resp.status != tt.status {
 				t.Fatalf("status = %d %s, want %d", resp.status, resp.raw, tt.status)
 			}
+
 			if tt.status != 401 {
 				return
 			}
+
 			want := `Bearer realm="astrum"`
 			if tt.errTok {
 				want += `, error="invalid_token"`
 			}
+
 			if got := resp.header.Get("WWW-Authenticate"); got != want {
 				t.Fatalf("WWW-Authenticate = %q, want %q", got, want)
 			}
+
 			if resp.body["code"] != "unauthorized" || resp.header.Get("Content-Type") != "application/problem+json" {
 				t.Fatalf("problem = %s", resp.raw)
 			}
+
 			if strings.Contains(string(resp.raw), token) {
 				t.Fatal("response echoes the token")
 			}
@@ -177,14 +191,17 @@ func TestAuthEdgeAuthorizationHeader(t *testing.T) {
 		if resp := e.call(http.MethodGet, "/healthz", "", ""); resp.status != 200 {
 			t.Fatalf("healthz = %d", resp.status)
 		}
+
 		for _, p := range []string{"/healthz/", "/healthz?x=1#", "/HEALTHZ", "/v1/../healthz"} {
 			resp := e.call(http.MethodGet, p, "", "")
 			if p == "/healthz?x=1#" {
 				if resp.status != 200 {
 					t.Fatalf("%s = %d, want the query to be ignored", p, resp.status)
 				}
+
 				continue
 			}
+
 			if resp.status != 401 {
 				t.Fatalf("%s = %d, want 401", p, resp.status)
 			}
@@ -244,6 +261,7 @@ func TestAuthEdgeRoles(t *testing.T) {
 				if resp.status != want[name][role] {
 					t.Fatalf("%s %s as %s = %d %s, want %d", rt.method, rt.path, role, resp.status, resp.raw, want[name][role])
 				}
+
 				if resp.status == 403 {
 					detail := fmt.Sprintf("a %s key cannot %s %s", role, rt.method, strings.SplitN(rt.path, "?", 2)[0])
 					if resp.body["code"] != "forbidden" || resp.body["detail"] != detail {
@@ -279,9 +297,11 @@ func TestAuthEdgeKeyAdminPathTricks(t *testing.T) {
 			if resp.status != tt.status {
 				t.Fatalf("%s %s = %d %s, want %d", tt.method, tt.path, resp.status, resp.raw, tt.status)
 			}
+
 			if strings.Contains(string(resp.raw), `"api_key"`) || strings.Contains(string(resp.raw), "sk_") {
 				t.Fatalf("write key reached key admin: %s", resp.raw)
 			}
+
 			if loc := resp.header.Get("Location"); resp.status == http.StatusTemporaryRedirect && loc != "/v1/api_keys" {
 				t.Fatalf("Location = %q", loc)
 			}
@@ -293,11 +313,13 @@ func TestAuthEdgeKeyAdminPathTricks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		req.Header.Set("Authorization", "Bearer "+writer)
 		resp, err := e.srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden || resp.Request.URL.Path != "/v1/api_keys" {
 			t.Fatalf("followed redirect = %d at %s, want 403 at /v1/api_keys", resp.StatusCode, resp.Request.URL.Path)
@@ -308,6 +330,7 @@ func TestAuthEdgeKeyAdminPathTricks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, k := range keys {
 		if k.Name == "sneaky" {
 			t.Fatal("write key created an API key through a path trick")
@@ -323,6 +346,7 @@ func TestAuthEdgeInvalidUTF8PathRejected(t *testing.T) {
 	if resp.status != http.StatusBadRequest {
 		t.Fatalf("status = %d", resp.status)
 	}
+
 	var p httpx.Problem
 	if err := json.Unmarshal(resp.raw, &p); err != nil || p.Code != httpx.CodeInvalidRequest {
 		t.Fatalf("400 body %q is not a valid problem document: %v", resp.raw, err)
@@ -338,15 +362,18 @@ func TestAuthEdgeMe(t *testing.T) {
 	if len(me) != len(keys) {
 		t.Fatalf("me has %d members, want %d: %v", len(me), len(keys), me)
 	}
+
 	for _, name := range keys {
 		if _, ok := me[name]; !ok {
 			t.Fatalf("me lacks %s: %v", name, me)
 		}
 	}
+
 	if me["object"] != "api_key" || me["id"] != typeid.Encode("key", k.ID) || me["name"] != "ops" || me["role"] != "admin" ||
 		me["hint"] != "…"+admin[len(admin)-4:] || me["created_by"] != nil || me["revoked_at"] != nil || me["expires_at"] != nil {
 		t.Fatalf("me = %v", me)
 	}
+
 	if _, err := time.Parse(time.RFC3339Nano, me["created_at"].(string)); err != nil {
 		t.Fatalf("created_at = %v", me["created_at"])
 	}
@@ -356,6 +383,7 @@ func TestAuthEdgeMe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	got := e.must(200, http.MethodGet, "/v1/me", expiring, "")
 	if at, err := time.Parse(time.RFC3339Nano, got["expires_at"].(string)); err != nil || !at.Equal(exp) {
 		t.Fatalf("expires_at = %v, want %v", got["expires_at"], exp)
@@ -366,6 +394,7 @@ func TestAuthEdgeMe(t *testing.T) {
 			t.Fatalf("%s /v1/me = %d, want 405", m, resp.status)
 		}
 	}
+
 	if resp := e.call(http.MethodGet, "/v1/me", "", ""); resp.status != 401 {
 		t.Fatalf("anonymous me = %d", resp.status)
 	}
@@ -381,6 +410,7 @@ func TestAuthEdgeMeWithoutMiddleware(t *testing.T) {
 	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"code":"unauthorized"`) {
 		t.Fatalf("me without a key in context = %d %s", w.Code, w.Body.String())
 	}
+
 	if scope := auth.Scope(httptest.NewRequest(http.MethodGet, "/", nil)); scope != "" {
 		t.Fatalf("Scope without a key = %q", scope)
 	}
@@ -421,16 +451,20 @@ func TestAuthEdgeCreate(t *testing.T) {
 			if resp.status != tt.status {
 				t.Fatalf("status = %d %s, want %d", resp.status, resp.raw, tt.status)
 			}
+
 			if tt.status != 201 {
 				if resp.body["code"] != tt.code {
 					t.Fatalf("code = %v, want %s", resp.body["code"], tt.code)
 				}
+
 				return
 			}
+
 			secret, _ := resp.body["secret"].(string)
 			if !strings.HasPrefix(secret, "sk_") || resp.body["created_by"] != typeid.Encode("key", adminKey.ID) || resp.body["hint"] != "…"+secret[len(secret)-4:] {
 				t.Fatalf("created = %s", resp.raw)
 			}
+
 			if got := e.must(200, http.MethodGet, "/v1/me", secret, ""); got["id"] != resp.body["id"] {
 				t.Fatalf("new key authenticates as %v", got["id"])
 			}
@@ -452,6 +486,7 @@ func TestAuthEdgeListKeys(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("pagination does not terminate")
 		}
+
 		page := e.must(200, http.MethodGet, next, admin, "")
 		data := page["data"].([]any)
 		for _, item := range data {
@@ -459,22 +494,29 @@ func TestAuthEdgeListKeys(t *testing.T) {
 			if k["secret"] != nil || k["object"] != "api_key" {
 				t.Fatalf("listed key = %v", k)
 			}
+
 			ids = append(ids, k["id"].(string))
 		}
+
 		if page["has_more"] != true {
 			if page["next_cursor"] != nil {
 				t.Fatalf("last page cursor = %v", page["next_cursor"])
 			}
+
 			break
 		}
+
 		if len(data) != 2 {
 			t.Fatalf("page size = %d", len(data))
 		}
+
 		next = "/v1/api_keys?limit=2&cursor=" + page["next_cursor"].(string)
 	}
+
 	if len(ids) != 7 {
 		t.Fatalf("listed %d keys, want 7", len(ids))
 	}
+
 	for i := 1; i < len(ids); i++ {
 		if ids[i-1] <= ids[i] {
 			t.Fatalf("keys not newest first: %v", ids)
@@ -484,14 +526,17 @@ func TestAuthEdgeListKeys(t *testing.T) {
 	if all := e.must(200, http.MethodGet, "/v1/api_keys?limit=100", admin, ""); len(all["data"].([]any)) != 7 || all["has_more"] != false {
 		t.Fatalf("full page = %v", all)
 	}
+
 	nilCursor := base64.RawURLEncoding.EncodeToString(uuid.Nil[:])
 	if page := e.must(200, http.MethodGet, "/v1/api_keys?cursor="+nilCursor, admin, ""); len(page["data"].([]any)) != 7 {
 		t.Fatalf("nil uuid cursor = %v, want it treated as no cursor", page)
 	}
+
 	maxCursor := base64.RawURLEncoding.EncodeToString(uuid.Max[:])
 	if page := e.must(200, http.MethodGet, "/v1/api_keys?cursor="+maxCursor, admin, ""); len(page["data"].([]any)) != 7 {
 		t.Fatalf("max cursor = %v", page)
 	}
+
 	oldest, _ := uuid.Parse(strings.Repeat("0", 31) + "1")
 	if page := e.must(200, http.MethodGet, "/v1/api_keys?cursor="+base64.RawURLEncoding.EncodeToString(oldest[:]), admin, ""); len(page["data"].([]any)) != 0 || page["has_more"] != false {
 		t.Fatalf("cursor below every key = %v", page)
@@ -523,16 +568,20 @@ func TestAuthEdgeRevoke(t *testing.T) {
 	if first["revoked_at"] == nil || first["id"] != victimID || first["secret"] != nil {
 		t.Fatalf("revoke = %v", first)
 	}
+
 	if resp := e.call(http.MethodGet, "/v1/me", victimToken, ""); resp.status != 401 {
 		t.Fatalf("revoked key = %d", resp.status)
 	}
+
 	second := e.must(200, http.MethodPost, "/v1/api_keys/"+victimID+"/revoke", admin, "")
 	if second["revoked_at"] != first["revoked_at"] {
 		t.Fatalf("second revoke moved revoked_at from %v to %v", first["revoked_at"], second["revoked_at"])
 	}
+
 	if got := e.must(200, http.MethodGet, "/v1/api_keys/"+victimID, admin, ""); got["revoked_at"] != first["revoked_at"] {
 		t.Fatalf("get after revoke = %v", got)
 	}
+
 	if resp := e.call(http.MethodPost, "/v1/api_keys/"+victimID+"/revoke", "", ""); resp.status != 401 {
 		t.Fatalf("anonymous revoke = %d", resp.status)
 	}
@@ -560,10 +609,12 @@ func TestAuthEdgeRevoke(t *testing.T) {
 				if method == http.MethodPost {
 					path += "/revoke"
 				}
+
 				resp := e.call(method, path, admin, "")
 				if resp.status != tt.status {
 					t.Fatalf("%s %s = %d %s, want %d", method, path, resp.status, resp.raw, tt.status)
 				}
+
 				want := map[int]string{404: httpx.CodeNotFound, 400: httpx.CodeInvalidRequest}[tt.status]
 				if resp.body["code"] != want {
 					t.Fatalf("code = %v, want %s", resp.body["code"], want)
@@ -577,12 +628,15 @@ func TestAuthEdgeRevoke(t *testing.T) {
 		if self["revoked_at"] == nil {
 			t.Fatalf("self revoke = %v", self)
 		}
+
 		if resp := e.call(http.MethodGet, "/v1/api_keys", admin, ""); resp.status != 401 {
 			t.Fatalf("self-revoked admin = %d, want 401", resp.status)
 		}
+
 		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
 			t.Fatalf("active admins = %d, %v", n, err)
 		}
+
 		e.must(200, http.MethodGet, "/v1/api_keys", backup, "")
 	})
 
@@ -592,9 +646,11 @@ func TestAuthEdgeRevoke(t *testing.T) {
 		if resp.status != http.StatusConflict || resp.body["code"] != "last_admin_key" {
 			t.Fatalf("revoke last admin = %d %s", resp.status, resp.raw)
 		}
+
 		if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
 			t.Fatalf("active admins = %d, %v", n, err)
 		}
+
 		e.must(200, http.MethodGet, "/v1/api_keys", backup, "")
 	})
 }
@@ -625,14 +681,17 @@ func TestAuthEdgeConcurrentRevokesKeepOneAdmin(t *testing.T) {
 					}
 				})
 			}
+
 			wg.Wait()
 			close(failures)
 			for err := range failures {
 				t.Fatal(err)
 			}
+
 			if revoked.Load() != 1 || refused.Load() != 1 {
 				t.Fatalf("revoked %d, refused %d, want 1 and 1", revoked.Load(), refused.Load())
 			}
+
 			if n, err := e.svc.ActiveAdmins(context.Background()); err != nil || n != 1 {
 				t.Fatalf("active admins = %d, %v", n, err)
 			}
@@ -660,10 +719,12 @@ func TestAuthEdgeWebhookEndpointsAreAdminOnly(t *testing.T) {
 				t.Errorf("%s %s as non-admin = %d, want 403", tt.method, tt.path, resp.status)
 			}
 		}
+
 		if resp := e.call(tt.method, tt.path, admin, `{}`); resp.status == http.StatusForbidden || resp.status == http.StatusUnauthorized {
 			t.Errorf("%s %s as admin = %d", tt.method, tt.path, resp.status)
 		}
 	}
+
 	if resp := e.call(http.MethodGet, "/v1/webhook_endpointsx", writer, ""); resp.status == http.StatusForbidden {
 		t.Errorf("prefix match leaked to a sibling path")
 	}
@@ -681,9 +742,11 @@ func TestAuthEdgeClosePeriodIsAdminOnly(t *testing.T) {
 			t.Errorf("close_period as non-admin = %d, want 403", resp.status)
 		}
 	}
+
 	if resp := e.call(http.MethodPost, path, admin, `{"closed_before":null}`); resp.status == http.StatusForbidden || resp.status == http.StatusUnauthorized {
 		t.Errorf("close_period as admin = %d", resp.status)
 	}
+
 	if resp := e.call(http.MethodPatch, "/v1/ledgers/ldg_01h455vb4pex5vsknk084sn02q", writer, `{}`); resp.status == http.StatusForbidden {
 		t.Errorf("writers lost access to other ledger routes")
 	}

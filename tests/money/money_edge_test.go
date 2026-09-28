@@ -32,13 +32,16 @@ func TestEdgeParseAmountAccepts(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if a.String() != s || a.Big().String() != s {
 				t.Fatalf("round trip = %s / %s", a, a.Big())
 			}
+
 			var back money.Amount
 			if err := back.UnmarshalText([]byte(s)); err != nil || back != a {
 				t.Fatalf("UnmarshalText = %v, %v", back, err)
 			}
+
 			fromBig, err := money.AmountFromBig(a.Big())
 			if err != nil || fromBig != a {
 				t.Fatalf("AmountFromBig = %v, %v", fromBig, err)
@@ -78,9 +81,11 @@ func TestEdgeParseAmountRejects(t *testing.T) {
 			if !errors.Is(err, money.ErrInvalidAmount) {
 				t.Fatalf("ParseAmount(%q) = %v, %v", s, a, err)
 			}
+
 			if !a.IsZero() {
 				t.Fatalf("ParseAmount(%q) returned %v on error", s, a)
 			}
+
 			if !strings.Contains(err.Error(), strconv.Quote(s)) {
 				t.Fatalf("error %q does not quote the input", err)
 			}
@@ -96,6 +101,7 @@ func TestEdgeNewAmountInt64(t *testing.T) {
 			t.Fatalf("NewAmount(%d) = %s, Int64 = %d %v", n, a, got, ok)
 		}
 	}
+
 	for _, s := range []string{"9223372036854775808", "-9223372036854775809", "18446744073709551616"} {
 		if _, ok := money.MustParseAmount(s).Int64(); ok {
 			t.Fatalf("%s fits in int64", s)
@@ -108,10 +114,12 @@ func TestEdgeZeroSign(t *testing.T) {
 	if zero.Neg() != zero || zero.Abs() != zero || zero.Sign() != 0 || !zero.IsZero() || zero.String() != "0" {
 		t.Fatalf("zero = %v", zero)
 	}
+
 	var unset money.Amount
 	if unset != zero || unset.String() != "0" {
 		t.Fatalf("zero value = %s", unset)
 	}
+
 	diff, err := money.MustParseAmount("5").Sub(money.MustParseAmount("5"))
 	if err != nil || diff != zero || diff.Sign() != 0 {
 		t.Fatalf("5 - 5 = %v, %v", diff, err)
@@ -156,12 +164,15 @@ func TestEdgeArithmeticBoundaries(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
+
 			if tt.wantErr != nil {
 				if !got.IsZero() {
 					t.Fatalf("overflow returned %s", got)
 				}
+
 				return
 			}
+
 			if got.String() != tt.want {
 				t.Fatalf("= %s, want %s", got, tt.want)
 			}
@@ -180,6 +191,7 @@ func TestEdgeCompareAcrossWords(t *testing.T) {
 			} else if i > j {
 				want = 1
 			}
+
 			if got := a.Cmp(b); got != want {
 				t.Fatalf("Cmp(%s, %s) = %d, want %d", ordered[i], ordered[j], got, want)
 			}
@@ -211,6 +223,7 @@ func TestEdgeAmountFromBig(t *testing.T) {
 			if !errors.Is(err, tt.err) || (tt.err == nil && got.String() != tt.want) {
 				t.Fatalf("AmountFromBig(%s) = %s, %v", tt.in, got, err)
 			}
+
 			if tt.in.Cmp(before) != 0 {
 				t.Fatalf("AmountFromBig mutated its input to %s", tt.in)
 			}
@@ -234,6 +247,7 @@ func TestEdgeUnmarshalTextKeepsValueOnError(t *testing.T) {
 	if err := a.UnmarshalText([]byte("nope")); err == nil {
 		t.Fatal("accepted")
 	}
+
 	if a != money.NewAmount(42) {
 		t.Fatalf("value changed to %s", a)
 	}
@@ -248,9 +262,11 @@ func TestEdgeAmountJSON(t *testing.T) {
 			t.Fatalf("Unmarshal(%s) accepted as %s", raw, v.A)
 		}
 	}
+
 	if err := json.Unmarshal([]byte(`{"a":"-`+max38+`"}`), &v); err != nil || v.A.String() != "-"+max38 {
 		t.Fatalf("Unmarshal(min) = %s, %v", v.A, err)
 	}
+
 	raw, err := json.Marshal(v)
 	if err != nil || string(raw) != `{"a":"-`+max38+`"}` {
 		t.Fatalf("Marshal = %s, %v", raw, err)
@@ -302,15 +318,19 @@ func TestEdgeScanNumeric(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ScanNumeric(%v) = %v, want %v", tt.in, err, tt.err)
 			}
+
 			if tt.err != nil {
 				if a != money.NewAmount(7) {
 					t.Fatalf("ScanNumeric changed the value to %s on error", a)
 				}
+
 				return
 			}
+
 			if a.String() != tt.want {
 				t.Fatalf("ScanNumeric = %s, want %s", a, tt.want)
 			}
+
 			n, err := a.NumericValue()
 			if err != nil || !n.Valid || n.Int.String() != tt.want || n.Exp != 0 {
 				t.Fatalf("NumericValue = %+v, %v", n, err)

@@ -21,6 +21,7 @@ func edgeEnv(t *testing.T) {
 	for _, k := range edgeEnvVars {
 		t.Setenv(k, "")
 	}
+
 	t.Setenv("DATABASE_URL", "postgres://localhost/astrum")
 	t.Setenv("LEDGER_SEAL_KEY", edgeSealKey)
 }
@@ -31,6 +32,7 @@ func TestEdgeDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want := config.Config{
 		DatabaseURL:            "postgres://localhost/astrum",
 		HTTPAddr:               ":8080",
@@ -72,6 +74,7 @@ func TestEdgeStringPassthrough(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if got := tt.get(cfg); got != tt.value {
 				t.Fatalf("%s = %q, want %q verbatim", tt.env, got, tt.value)
 			}
@@ -111,11 +114,13 @@ func TestEdgeIntegers(t *testing.T) {
 				if err == nil {
 					t.Fatalf("%s=%q accepted", v.env, raw)
 				}
+
 				if want := "config: " + v.env + " must be a positive integer"; err.Error() != want {
 					t.Fatalf("error = %q, want %q", err, want)
 				}
 			})
 		}
+
 		for _, a := range accepted {
 			t.Run(v.env+" accepts "+a.raw, func(t *testing.T) {
 				edgeEnv(t)
@@ -126,16 +131,20 @@ func TestEdgeIntegers(t *testing.T) {
 					t.Setenv("LEDGER_WORKERS", "")
 					t.Setenv("DB_MAX_CONNS", a.raw)
 				}
+
 				cfg, err := config.Load()
 				if v.env == "DB_MAX_CONNS" && a.want <= 8 {
 					if err == nil || !strings.Contains(err.Error(), "LEDGER_WORKERS (8) must be below DB_MAX_CONNS") {
 						t.Fatalf("DB_MAX_CONNS=%s with default workers: %v", a.raw, err)
 					}
+
 					return
 				}
+
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				if got := v.get(cfg); got != a.want {
 					t.Fatalf("%s=%q = %d, want %d", v.env, a.raw, got, a.want)
 				}
@@ -153,6 +162,7 @@ func TestEdgeLargeIntegers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if cfg.DBMaxConns != 1<<63-1 || cfg.LedgerWorkers != 1<<63-2 || cfg.LedgerMaxBatch != 1<<63-1 {
 		t.Fatalf("cfg = %+v", cfg)
 	}
@@ -182,6 +192,7 @@ func TestEdgeWorkersBelowConnections(t *testing.T) {
 			if tt.ok != (err == nil) {
 				t.Fatalf("Load() = %v, want ok=%v", err, tt.ok)
 			}
+
 			if err != nil && !strings.Contains(err.Error(), "must be below DB_MAX_CONNS") {
 				t.Fatalf("error = %v", err)
 			}
@@ -221,6 +232,7 @@ func TestEdgeBooleans(t *testing.T) {
 				}
 			})
 		}
+
 		for _, raw := range falsy {
 			t.Run(v.env+"="+raw, func(t *testing.T) {
 				edgeEnv(t)
@@ -231,6 +243,7 @@ func TestEdgeBooleans(t *testing.T) {
 				}
 			})
 		}
+
 		for _, raw := range invalid {
 			t.Run(v.env+" rejects "+raw, func(t *testing.T) {
 				edgeEnv(t)
@@ -276,8 +289,10 @@ func TestEdgeEventRetention(t *testing.T) {
 				if err == nil || err.Error() != "config: EVENT_RETENTION must be a positive duration such as 720h" {
 					t.Fatalf("EVENT_RETENTION=%q: %v", tt.raw, err)
 				}
+
 				return
 			}
+
 			if err != nil || cfg.EventRetention != tt.want {
 				t.Fatalf("EVENT_RETENTION=%q = %s, %v; want %s", tt.raw, cfg.EventRetention, err, tt.want)
 			}
@@ -309,11 +324,14 @@ func TestEdgeSealKeyLength(t *testing.T) {
 				if err != nil || cfg.LedgerSealKey != tt.key {
 					t.Fatalf("Load() = %v, key kept = %v", err, cfg.LedgerSealKey == tt.key)
 				}
+
 				return
 			}
+
 			if err == nil || !strings.Contains(err.Error(), "LEDGER_SEAL_KEY is required and must be at least 32 bytes") {
 				t.Fatalf("Load() = %v", err)
 			}
+
 			if strings.Contains(err.Error(), tt.key) && tt.key != "" {
 				t.Fatalf("error leaks the key: %v", err)
 			}
@@ -340,10 +358,12 @@ func TestEdgeErrorPrecedence(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
+
 			cfg, err := config.Load()
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("Load() = %v, want %q", err, tt.want)
 			}
+
 			if cfg != (config.Config{}) {
 				t.Fatalf("Load() returned a partial config on error: %+v", cfg)
 			}
@@ -373,6 +393,7 @@ func TestConfigEdgeRateLimit(t *testing.T) {
 		if (err == nil) != tt.ok {
 			t.Fatalf("RATE_LIMIT=%q RATE_LIMIT_BURST=%q error = %v, want ok=%v", tt.limit, tt.burst, err, tt.ok)
 		}
+
 		if tt.ok && (cfg.RateLimit != tt.wantLimit || cfg.RateLimitBurst != tt.wantBur) {
 			t.Fatalf("RATE_LIMIT=%q RATE_LIMIT_BURST=%q = %d/%d, want %d/%d", tt.limit, tt.burst, cfg.RateLimit, cfg.RateLimitBurst, tt.wantLimit, tt.wantBur)
 		}

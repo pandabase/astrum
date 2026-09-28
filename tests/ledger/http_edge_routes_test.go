@@ -47,17 +47,20 @@ func (c *heClient) do(method, path string, header http.Header, body string) heRe
 	if err != nil {
 		c.t.Fatal(err)
 	}
+
 	maps.Copy(req.Header, header)
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
 		c.t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.t.Fatal(err)
 	}
+
 	out := heResp{status: resp.StatusCode, header: resp.Header, raw: raw}
 	_ = json.Unmarshal(raw, &out.body)
 	return out
@@ -67,6 +70,7 @@ func heKeyHeader(key string) http.Header {
 	if key == "" {
 		return nil
 	}
+
 	return http.Header{"Idempotency-Key": {key}}
 }
 
@@ -81,6 +85,7 @@ func heMalformed(prefix string) map[string]string {
 	if prefix == "ldg" {
 		other = "acct"
 	}
+
 	return map[string]string{
 		"wrong prefix":      typeid.Encode(other, uuid.Must(uuid.NewV7())),
 		"raw uuid":          uuid.NewString(),
@@ -163,6 +168,7 @@ func heWantProblem(t *testing.T, r heResp, status int, code string) {
 	if r.status != status {
 		t.Fatalf("status = %d %s, want %d", r.status, r.raw, status)
 	}
+
 	if r.body["code"] != code || r.body["status"] != float64(status) || r.header.Get("Content-Type") != "application/problem+json" {
 		t.Fatalf("problem = %s (%s), want code %s", r.raw, r.header.Get("Content-Type"), code)
 	}
@@ -179,6 +185,7 @@ func TestHeRoutesMalformedIDs(t *testing.T) {
 					if rt.key {
 						key = "k-" + uuid.NewString()
 					}
+
 					r := c.do(rt.method, fmt.Sprintf(rt.pattern, id), heKeyHeader(key), rt.body)
 					heWantProblem(t, r, http.StatusBadRequest, httpx.CodeInvalidRequest)
 					if !strings.Contains(r.body["detail"].(string), "typeid: ") {
@@ -200,6 +207,7 @@ func TestHeRoutesUnknownIDs(t *testing.T) {
 				if rt.key {
 					key = "k-" + uuid.NewString()
 				}
+
 				r := c.do(rt.method, fmt.Sprintf(rt.pattern, heID(prefix)), heKeyHeader(key), rt.body)
 				heWantProblem(t, r, http.StatusNotFound, httpx.CodeNotFound)
 			})
@@ -247,9 +255,11 @@ func TestHeRoutesIdempotencyKeyRequired(t *testing.T) {
 			}
 		})
 	}
+
 	t.Run("malformed id wins over missing key", func(t *testing.T) {
 		heWantProblem(t, c.do(http.MethodPost, "/v1/transactions/nope/reverse", nil, ""), http.StatusBadRequest, httpx.CodeInvalidRequest)
 	})
+
 	t.Run("lowercase header name is canonicalized", func(t *testing.T) {
 		r := c.do(http.MethodPost, "/v1/transactions", http.Header{"idempotency-key": {"x"}}, `{"entries":[]}`)
 		if r.body["code"] == "idempotency_key_required" {
@@ -286,12 +296,15 @@ func TestHeRoutesMethodNotAllowed(t *testing.T) {
 			if r.status != tt.status {
 				t.Fatalf("status = %d %s, want %d", r.status, r.raw, tt.status)
 			}
+
 			if !strings.HasPrefix(r.header.Get("Content-Type"), "text/plain") {
 				t.Fatalf("Content-Type = %q, want the mux's plain text", r.header.Get("Content-Type"))
 			}
+
 			if tt.allow == nil {
 				return
 			}
+
 			got := strings.Split(r.header.Get("Allow"), ", ")
 			if strings.Join(got, ",") != strings.Join(tt.allow, ",") {
 				t.Fatalf("Allow = %v, want %v", got, tt.allow)
@@ -302,18 +315,21 @@ func TestHeRoutesMethodNotAllowed(t *testing.T) {
 	t.Run("batch is not an id", func(t *testing.T) {
 		heWantProblem(t, c.do(http.MethodGet, "/v1/transactions/batch", nil, ""), http.StatusBadRequest, httpx.CodeInvalidRequest)
 	})
+
 	t.Run("head on a list", func(t *testing.T) {
 		r := c.do(http.MethodHead, "/v1/ledgers", nil, "")
 		if r.status != 200 || len(r.raw) != 0 {
 			t.Fatalf("HEAD = %d %q", r.status, r.raw)
 		}
 	})
+
 	t.Run("dot segments redirect", func(t *testing.T) {
 		r := c.do(http.MethodGet, "/v1/ledgers/../integrity", nil, "")
 		if r.status != http.StatusTemporaryRedirect || r.header.Get("Location") != "/v1/integrity" {
 			t.Fatalf("status = %d Location %q", r.status, r.header.Get("Location"))
 		}
 	})
+
 	t.Run("encoded dot segment id", func(t *testing.T) {
 		r := c.do(http.MethodGet, "/v1/ledgers/%2e%2e", nil, "")
 		if r.status == http.StatusOK {
@@ -342,51 +358,63 @@ func TestHeRoutesListQueryValidation(t *testing.T) {
 					t.Fatalf("?%s = %d %s", q, r.status, r.raw)
 				}
 			}
+
 			for _, q := range []string{"limit=0", "limit=101", "limit=-1", "limit=abc", "limit=1.5", "limit=%201", "cursor=!!!", "cursor=a", "cursor=" + heCursor(make([]byte, 3))} {
 				r := c.do(http.MethodGet, path+"?"+q, nil, "")
 				heWantProblem(t, r, http.StatusBadRequest, httpx.CodeInvalidRequest)
 			}
 		})
 	}
+
 	for _, path := range uuidRoutes {
 		t.Run(path+" uuid cursor", func(t *testing.T) {
 			for _, n := range []int{8, 15, 17} {
 				heWantProblem(t, c.do(http.MethodGet, path+"?cursor="+heCursor(make([]byte, n)), nil, ""), 400, httpx.CodeInvalidRequest)
 			}
+
 			if r := c.do(http.MethodGet, path+"?cursor="+heCursor(uuid.Max[:]), nil, ""); r.status != 200 {
 				t.Fatalf("max uuid cursor = %d %s", r.status, r.raw)
 			}
+
 			heWantProblem(t, c.do(http.MethodGet, path+"?cursor="+base64.StdEncoding.EncodeToString(uuid.Max[:]), nil, ""), 400, httpx.CodeInvalidRequest)
 		})
 	}
+
 	for _, path := range int64Routes {
 		t.Run(path+" int64 cursor", func(t *testing.T) {
 			for _, n := range []int{7, 9, 16} {
 				heWantProblem(t, c.do(http.MethodGet, path+"?cursor="+heCursor(make([]byte, n)), nil, ""), 400, httpx.CodeInvalidRequest)
 			}
+
 			for _, v := range []int64{0, 1 << 62} {
 				if r := c.do(http.MethodGet, path+"?cursor="+heCursor(binary.BigEndian.AppendUint64(nil, uint64(v))), nil, ""); r.status != 200 {
 					t.Fatalf("cursor %d = %d %s", v, r.status, r.raw)
 				}
 			}
+
 			negative := c.do(http.MethodGet, path+"?cursor="+heCursor(binary.BigEndian.AppendUint64(nil, 1<<63)), nil, "")
 			if path == "/v1/entries" {
 				if negative.status != 200 {
 					t.Fatalf("negative cursor = %d %s", negative.status, negative.raw)
 				}
+
 				return
 			}
+
 			heWantProblem(t, negative, http.StatusUnprocessableEntity, "validation_error")
 		})
 	}
+
 	t.Run("currency cursor", func(t *testing.T) {
 		for _, raw := range []string{"usd", "US", "U$D", "1SD", "_SD", "USD\x00", strings.Repeat("U", 64)} {
 			heWantProblem(t, c.do(http.MethodGet, "/v1/currencies?cursor="+heCursor([]byte(raw)), nil, ""), 400, httpx.CodeInvalidRequest)
 		}
+
 		if r := c.do(http.MethodGet, "/v1/currencies?cursor="+heCursor([]byte("USD")), nil, ""); r.status != 200 {
 			t.Fatalf("USD cursor = %d %s", r.status, r.raw)
 		}
 	})
+
 	t.Run("bulk results cursor", func(t *testing.T) {
 		blk := heID("blk")
 		heWantProblem(t, c.do(http.MethodGet, "/v1/bulk_requests/"+blk+"/results?cursor="+heCursor(make([]byte, 4)), nil, ""), 400, httpx.CodeInvalidRequest)
@@ -433,6 +461,7 @@ func TestHeRoutesFilterValidation(t *testing.T) {
 					t.Fatalf("?%s = %d %s", q, r.status, r.raw)
 				}
 			}
+
 			for _, q := range []string{"metadata[]=v", "metadata[k]=1&metadata[k]=2", "metadata[k=v", "metadata[=v"} {
 				r := c.do(http.MethodGet, path+"?"+q, nil, "")
 				heWantProblem(t, r, http.StatusBadRequest, httpx.CodeInvalidRequest)
@@ -453,6 +482,7 @@ func TestHeRoutesFilterValidation(t *testing.T) {
 					t.Fatalf("?%s = %d %s", q, r.status, r.raw)
 				}
 			}
+
 			inverted := c.do(http.MethodGet, path+sep+"effective_at_lower_bound=2030-01-01T00:00:00Z&effective_at_upper_bound=2020-01-01T00:00:00Z", nil, "")
 			heWantProblem(t, inverted, http.StatusUnprocessableEntity, "validation_error")
 			for _, q := range []string{
@@ -478,6 +508,7 @@ func TestHeRoutesFilterValidation(t *testing.T) {
 				t.Fatalf("settled=%s = %d %s", v, r.status, r.raw)
 			}
 		}
+
 		for _, v := range []string{"yes", "no", "2", "tRuE", "%20true"} {
 			r := c.do(http.MethodGet, "/v1/entries?settled="+v, nil, "")
 			heWantProblem(t, r, http.StatusBadRequest, httpx.CodeInvalidRequest)
@@ -494,6 +525,7 @@ func TestHeRoutesFilterValidation(t *testing.T) {
 		} {
 			heWantProblem(t, c.do(http.MethodGet, q, nil, ""), http.StatusUnprocessableEntity, "validation_error")
 		}
+
 		for _, q := range []string{"/v1/accounts?ledger_id=" + ldg + "&status=open&currency=USD", "/v1/entries?side=debit&status=posted", "/v1/transactions?status=pending"} {
 			if r := c.do(http.MethodGet, q, nil, ""); r.status != 200 {
 				t.Fatalf("%s = %d %s", q, r.status, r.raw)
@@ -505,6 +537,7 @@ func TestHeRoutesFilterValidation(t *testing.T) {
 		if r := c.do(http.MethodGet, "/v1/currencies/USD", nil, ""); r.status != 200 || r.body["object"] != "currency" {
 			t.Fatalf("USD = %d %s", r.status, r.raw)
 		}
+
 		heWantProblem(t, c.do(http.MethodGet, "/v1/currencies/ZZZ", nil, ""), http.StatusNotFound, httpx.CodeNotFound)
 		for _, code := range []string{"usd", "U", "%2E%2E", "U%24D", strings.Repeat("A", 300)} {
 			heWantProblem(t, c.do(http.MethodGet, "/v1/currencies/"+code, nil, ""), http.StatusNotFound, httpx.CodeNotFound)

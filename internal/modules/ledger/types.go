@@ -57,6 +57,7 @@ func (s Side) opposite() Side {
 	if s == Debit {
 		return Credit
 	}
+
 	return Debit
 }
 
@@ -90,6 +91,7 @@ func (c *BalanceCondition) violation(v money.Amount) string {
 	if c == nil {
 		return ""
 	}
+
 	bounds := []struct {
 		op    string
 		bound *money.Amount
@@ -107,6 +109,7 @@ func (c *BalanceCondition) violation(v money.Amount) string {
 			return fmt.Sprintf("%s is not %s %s", v, b.op, *b.bound)
 		}
 	}
+
 	return ""
 }
 
@@ -121,6 +124,7 @@ func jsonEqual(a, b jsontext.Value) bool {
 		if len(bytes.TrimSpace(raw)) == 0 {
 			return map[string]any{}, true
 		}
+
 		v, err := decodeJSON(raw)
 		return v, err == nil
 	}
@@ -135,9 +139,11 @@ func decodeJSON(raw []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
 		return nil, errors.New("ledger: trailing data after JSON value")
 	}
+
 	return v, nil
 }
 
@@ -146,6 +152,7 @@ func readJSON(dec *jsontext.Decoder) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	switch tok.Kind() {
 	case jsontext.KindBeginObject:
 		obj := map[string]any{}
@@ -154,13 +161,16 @@ func readJSON(dec *jsontext.Decoder) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			key := name.String()
 			v, err := readJSON(dec)
 			if err != nil {
 				return nil, err
 			}
+
 			obj[key] = v
 		}
+
 		_, err := dec.ReadToken()
 		return obj, err
 	case jsontext.KindBeginArray:
@@ -170,8 +180,10 @@ func readJSON(dec *jsontext.Decoder) (any, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			arr = append(arr, v)
 		}
+
 		_, err := dec.ReadToken()
 		return arr, err
 	case jsontext.KindString:
@@ -192,23 +204,27 @@ func jsonValueEqual(a, b any) bool {
 		if !ok || len(a) != len(b) {
 			return false
 		}
+
 		for k, av := range a {
 			bv, ok := b[k]
 			if !ok || !jsonValueEqual(av, bv) {
 				return false
 			}
 		}
+
 		return true
 	case []any:
 		b, ok := b.([]any)
 		if !ok || len(a) != len(b) {
 			return false
 		}
+
 		for i := range a {
 			if !jsonValueEqual(a[i], b[i]) {
 				return false
 			}
 		}
+
 		return true
 	case jsontext.Value:
 		b, ok := b.(jsontext.Value)
@@ -224,23 +240,28 @@ func canonicalNumber(n jsontext.Value) string {
 	if strings.HasPrefix(s, "-") {
 		sign, s = "-", s[1:]
 	}
+
 	exp := 0
 	if i := strings.IndexAny(s, "eE"); i >= 0 {
 		e, err := strconv.Atoi(s[i+1:])
 		if err != nil {
 			return string(n)
 		}
+
 		exp, s = e, s[:i]
 	}
+
 	digits := s
 	if i := strings.IndexByte(s, '.'); i >= 0 {
 		digits = s[:i] + s[i+1:]
 		exp -= len(s) - i - 1
 	}
+
 	digits = strings.TrimLeft(digits, "0")
 	if digits == "" {
 		return "0"
 	}
+
 	trimmed := strings.TrimRight(digits, "0")
 	exp += len(digits) - len(trimmed)
 	return sign + trimmed + "e" + strconv.Itoa(exp)

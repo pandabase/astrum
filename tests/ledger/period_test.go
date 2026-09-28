@@ -24,6 +24,7 @@ func TestPeriodClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if closed.ClosedBefore == nil || !closed.ClosedBefore.Equal(day(10)) || closed.Version != e.ledger.Version+1 {
 		t.Fatalf("closed ledger = %+v", closed)
 	}
@@ -60,9 +61,11 @@ func TestPeriodClose(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if !errors.Is(results[0].Err, ledger.ErrPeriodClosed) || results[1].Err != nil {
 			t.Fatalf("results = %+v", results)
 		}
+
 		results, err = e.m.PostBatch(ctx, []ledger.PostInput{
 			dated("atomic-open", a.ID, b.ID, 1, 12, ""),
 			dated("atomic-closed", a.ID, b.ID, 1, 3, ""),
@@ -70,6 +73,7 @@ func TestPeriodClose(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if !errors.Is(results[0].Err, ledger.ErrBatchAborted) || !errors.Is(results[1].Err, ledger.ErrPeriodClosed) {
 			t.Fatalf("atomic results = %+v", results)
 		}
@@ -95,12 +99,14 @@ func TestPeriodClose(t *testing.T) {
 		if _, err := e.m.ClosePeriod(ctx, e.ledger.ID, nil); err != nil {
 			t.Fatal(err)
 		}
+
 		in := dated("pending-then-close", a.ID, b.ID, 1, 6, "")
 		in.Status = ledger.TransactionPending
 		pending := e.post(t, in)
 		if _, err := e.m.ClosePeriod(ctx, e.ledger.ID, new(day(10))); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := e.m.PostTransaction(ctx, pending.ID, ledger.PostPendingInput{})
 		wantErr(t, err, ledger.ErrPeriodClosed)
 		if _, err := e.m.ArchiveTransaction(ctx, pending.ID); err != nil {
@@ -120,11 +126,13 @@ func TestPeriodClose(t *testing.T) {
 		if err != nil || !reopened.ClosedBefore.Equal(day(3)) {
 			t.Fatalf("reopen = %+v, %v", reopened, err)
 		}
+
 		e.post(t, dated("after-reopen", a.ID, b.ID, 1, 4, ""))
 		cleared, err := e.m.ClosePeriod(ctx, e.ledger.ID, nil)
 		if err != nil || cleared.ClosedBefore != nil {
 			t.Fatalf("clear = %+v, %v", cleared, err)
 		}
+
 		e.post(t, dated("after-clear", a.ID, b.ID, 1, 1, ""))
 	})
 
@@ -133,6 +141,7 @@ func TestPeriodClose(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		second, err := e.m.ClosePeriod(ctx, e.ledger.ID, new(day(2).Add(100*time.Nanosecond)))
 		if err != nil || second.Version != first.Version {
 			t.Fatalf("repeat = %+v, %v; first version %d", second, err, first.Version)
@@ -152,15 +161,18 @@ func TestPeriodClose(t *testing.T) {
 		if _, err := e.m.ClosePeriod(ctx, e.ledger.ID, new(day(10))); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := e.pool.Exec(ctx, `UPDATE ledger_transactions SET effective_at = $2, version = version + 1 WHERE id = $1`,
 			early.ID, day(1))
 		if db.Code(err) == "" {
 			t.Fatal("rewriting a posted transaction into a closed period succeeded")
 		}
+
 		var ledgerID string
 		if err := e.pool.QueryRow(ctx, `SELECT ledger_id::text FROM ledger_transactions WHERE id = $1`, early.ID).Scan(&ledgerID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err = e.pool.Exec(ctx, `
 			INSERT INTO ledger_transactions (id, idempotency_key, ledger_id, status, effective_at, created_xid)
 			VALUES (gen_random_uuid(), 'raw-closed', $1, 'pending', $2, pg_current_xact_id())`, ledgerID, day(1))
@@ -168,6 +180,7 @@ func TestPeriodClose(t *testing.T) {
 			t.Fatalf("raw insert error = %v, want period_open violation", err)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -179,6 +192,7 @@ func TestPeriodCloseWaitsForInFlightTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer tx.Rollback(ctx)
 	if _, err := tx.Exec(ctx, `SELECT pg_current_xact_id()`); err != nil {
 		t.Fatal(err)
@@ -190,9 +204,11 @@ func TestPeriodCloseWaitsForInFlightTransactions(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("close with an older transaction in flight = %v, want deadline exceeded", err)
 	}
+
 	if err := tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.ClosePeriod(ctx, e.ledger.ID, new(day(10))); err != nil {
 		t.Fatal(err)
 	}
@@ -210,18 +226,21 @@ func TestHTTPPeriodClose(t *testing.T) {
 			t.Errorf("body %q = %d %v, want 400", body, got.status, got.body)
 		}
 	}
+
 	closedAt := func(body map[string]any) time.Time {
 		t.Helper()
 		at, err := time.Parse(time.RFC3339Nano, fmt.Sprint(body["closed_before"]))
 		if err != nil {
 			t.Fatalf("closed_before = %v: %v", body["closed_before"], err)
 		}
+
 		return at
 	}
 	closed := a.must(http.StatusOK, http.MethodPost, path, "", `{"closed_before":"2026-01-10T00:00:00Z"}`)
 	if !closedAt(closed).Equal(day(10)) {
 		t.Fatalf("closed = %v", closed)
 	}
+
 	if got := a.must(http.StatusOK, http.MethodGet, "/v1/ledgers/"+a.ledger, "", ""); !closedAt(got).Equal(day(10)) {
 		t.Fatalf("ledger = %v", got)
 	}
@@ -234,6 +253,7 @@ func TestHTTPPeriodClose(t *testing.T) {
 	if got := post("closed", "2026-01-09T12:00:00Z"); got.status != http.StatusConflict || got.body["code"] != "period_closed" {
 		t.Fatalf("backdated post = %d %v", got.status, got.body)
 	}
+
 	if got := post("open", "2026-01-10T00:00:00Z"); got.status != http.StatusCreated {
 		t.Fatalf("post at the boundary = %d %v", got.status, got.body)
 	}
@@ -242,6 +262,7 @@ func TestHTTPPeriodClose(t *testing.T) {
 	if reopened["closed_before"] != nil {
 		t.Fatalf("reopened = %v", reopened)
 	}
+
 	if got := post("closed", "2026-01-09T12:00:00Z"); got.status != http.StatusCreated {
 		t.Fatalf("post after reopening = %d %v", got.status, got.body)
 	}

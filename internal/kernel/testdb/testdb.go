@@ -38,6 +38,7 @@ func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
+
 	defer admin.Close(ctx)
 	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema); err != nil {
 		t.Fatalf("create schema: %v", err)
@@ -47,6 +48,7 @@ func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("parse config: %v", err)
 	}
+
 	db.Harden(cfg, 32)
 	cfg.ConnConfig.RuntimeParams["search_path"] = schema
 
@@ -62,6 +64,7 @@ func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 			t.Errorf("cleanup connect: %v", err)
 			return
 		}
+
 		defer conn.Close(ctx)
 		if _, err := conn.Exec(ctx, `DROP SCHEMA `+schema+` CASCADE`); err != nil {
 			t.Errorf("drop schema: %v", err)
@@ -73,6 +76,7 @@ func New(t testing.TB, migrations map[string]fs.FS) *pgxpool.Pool {
 			t.Fatalf("migrate %s: %v", name, err)
 		}
 	}
+
 	return pool
 }
 
@@ -86,6 +90,7 @@ func URL(t testing.TB) string {
 	if err != nil {
 		t.Fatalf("parse %s: %v", EnvURL, err)
 	}
+
 	q := u.Query()
 	q.Set("search_path", schema)
 	u.RawQuery = q.Encode()
@@ -96,6 +101,7 @@ func Logger() *log.Logger {
 	if os.Getenv("ASTRUM_TEST_LOG") != "" {
 		return log.NewWithOptions(os.Stderr, log.Options{Level: log.DebugLevel, ReportTimestamp: true})
 	}
+
 	return log.New(io.Discard)
 }
 
@@ -104,5 +110,6 @@ func randomSuffix(t testing.TB) string {
 	if _, err := rand.Read(b[:]); err != nil {
 		t.Fatalf("random: %v", err)
 	}
+
 	return hex.EncodeToString(b[:])
 }

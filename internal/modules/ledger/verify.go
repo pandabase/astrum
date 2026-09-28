@@ -121,16 +121,20 @@ func (s *service) verify(ctx context.Context) (VerifyReport, error) {
 				if err != nil {
 					return fmt.Errorf("%s: %w", check.name, err)
 				}
+
 				issues, err := pgx.CollectRows(rows, pgx.RowTo[string])
 				if err != nil {
 					return fmt.Errorf("%s: %w", check.name, err)
 				}
+
 				report.Issues = append(report.Issues, issues...)
 			}
+
 			issues, head, err := s.verifyChain(ctx, tx)
 			if err != nil {
 				return fmt.Errorf("seal chain: %w", err)
 			}
+
 			report.ChainHead = head.String()
 			report.Issues = append(report.Issues, issues...)
 			return nil

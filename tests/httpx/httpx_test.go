@@ -44,6 +44,7 @@ func TestDecode(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Decode() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if !tt.wantErr && got.Name != "astrum" {
 				t.Fatalf("Decode() name = %q, want astrum", got.Name)
 			}
@@ -59,9 +60,11 @@ func TestJSONAndError(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusCreated)
 	}
+
 	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
+
 	if body := strings.TrimSpace(w.Body.String()); body != `{"name":"astrum"}` {
 		t.Errorf("body = %s", body)
 	}
@@ -72,10 +75,12 @@ func TestJSONAndError(t *testing.T) {
 	if err := json.UnmarshalRead(w.Body, &got); err != nil {
 		t.Fatal(err)
 	}
+
 	want := httpx.Problem{Type: "urn:astrum:error:not_found", Title: "Not Found", Status: 404, Code: "not_found", Detail: "missing", RequestID: "req-1"}
 	if w.Code != http.StatusNotFound || got != want {
 		t.Errorf("Error() = %d %+v", w.Code, got)
 	}
+
 	if ct := w.Header().Get("Content-Type"); ct != "application/problem+json" {
 		t.Errorf("Content-Type = %q, want application/problem+json", ct)
 	}
@@ -96,9 +101,11 @@ func TestLoggingRequestID(t *testing.T) {
 		if parsed, err := uuid.Parse(id); err != nil || parsed.Version() != 4 || len(id) != 36 {
 			t.Fatalf("generated request id = %q, want a UUIDv4", id)
 		}
+
 		if seen != id {
 			t.Fatalf("context request id = %q, header = %q", seen, id)
 		}
+
 		if w.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusAccepted)
 		}
@@ -150,6 +157,7 @@ func TestLoggingLogsRequest(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
 		t.Fatalf("decode log %q: %v", buf.String(), err)
 	}
+
 	checks := map[string]any{
 		"prefix": "http",
 		"level":  "warn",
@@ -177,6 +185,7 @@ func TestLoggingRecoversPanic(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
 	}
+
 	if !strings.Contains(buf.String(), "boom") {
 		t.Fatalf("panic not logged: %q", buf.String())
 	}
@@ -188,6 +197,7 @@ func TestDecodeOptional(t *testing.T) {
 	if err := httpx.DecodeOptional(httptest.NewRecorder(), r, &got); err != nil {
 		t.Fatalf("empty body: %v", err)
 	}
+
 	r = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"x"}}`))
 	if err := httpx.DecodeOptional(httptest.NewRecorder(), r, &got); err == nil {
 		t.Fatal("trailing data accepted")
@@ -199,9 +209,11 @@ func TestNewList(t *testing.T) {
 	if l := httpx.NewList([]int{1, 2, 3}, 2, cursor); !l.HasMore || len(l.Data) != 2 || *l.NextCursor != "2" {
 		t.Fatalf("full page = %+v", l)
 	}
+
 	if l := httpx.NewList([]int{1}, 2, cursor); l.HasMore || l.NextCursor != nil {
 		t.Fatalf("last page = %+v", l)
 	}
+
 	if l := httpx.NewList[int](nil, 2, cursor); l.Data == nil || l.Object != "list" {
 		t.Fatalf("empty page = %+v", l)
 	}

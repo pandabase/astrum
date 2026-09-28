@@ -31,9 +31,11 @@ func WriteText(w io.Writer, r Report) error {
 	if r.BatchSize > 0 {
 		setup += fmt.Sprintf(", %d per batch", r.BatchSize)
 	}
+
 	if r.Rate > 0 {
 		setup += fmt.Sprintf(", %.0f/s target", r.Rate)
 	}
+
 	line("setup", "%s, seed %d", setup, r.Seed)
 	line("elapsed", "%s", r.Elapsed.Round(time.Millisecond))
 	line("operations", "%d ok, %d failed", r.Succeeded, r.Failed)
@@ -43,6 +45,7 @@ func WriteText(w io.Writer, r Report) error {
 	for _, code := range slices.Sorted(maps.Keys(r.Errors)) {
 		line("error", "%s × %d", code, r.Errors[code])
 	}
+
 	if r.Integrity != nil {
 		if r.Integrity.OK {
 			line("integrity", "ok")
@@ -50,6 +53,7 @@ func WriteText(w io.Writer, r Report) error {
 			line("integrity", "FAILED: %v", r.Integrity.Issues)
 		}
 	}
+
 	return tw.Flush()
 }
 

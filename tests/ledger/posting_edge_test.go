@@ -27,6 +27,7 @@ func peOpposite(s ledger.Side) ledger.Side {
 	if s == ledger.Debit {
 		return ledger.Credit
 	}
+
 	return ledger.Debit
 }
 
@@ -37,6 +38,7 @@ func peKeyExists(t testing.TB, e *env, key string) bool {
 		`SELECT EXISTS (SELECT 1 FROM ledger_transactions WHERE idempotency_key = $1)`, key).Scan(&exists); err != nil {
 		t.Fatal(err)
 	}
+
 	return exists
 }
 
@@ -131,9 +133,11 @@ func TestPostingEdgeValidation(t *testing.T) {
 				wantErr(t, err, tt.want)
 				return
 			}
+
 			if err != nil {
 				t.Fatalf("Post() error = %v", err)
 			}
+
 			moved++
 			stored, err := e.m.Transaction(ctx, txn.ID)
 			if err != nil || stored.IdempotencyKey != in.IdempotencyKey || stored.Description != in.Description || stored.ExternalID != in.ExternalID {
@@ -141,12 +145,15 @@ func TestPostingEdgeValidation(t *testing.T) {
 			}
 		})
 	}
+
 	if got := e.balance(t, b.ID); got != moved {
 		t.Fatalf("b = %d, want %d (only accepted posts move money)", got, moved)
 	}
+
 	if got := e.balance(t, a.ID); got != 1_000-moved {
 		t.Fatalf("a = %d, want %d", got, 1_000-moved)
 	}
+
 	e.verify(t)
 }
 
@@ -161,9 +168,11 @@ func TestPostingEdgePostingCount(t *testing.T) {
 		for range pairs {
 			out = append(out, peLeg(b.ID, ledger.Debit, 1), peLeg(a.ID, ledger.Credit, 1))
 		}
+
 		if extra > 0 {
 			out = append(out, peLeg(b.ID, ledger.Debit, 1))
 		}
+
 		return out
 	}
 
@@ -177,9 +186,11 @@ func TestPostingEdgePostingCount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if len(txn.Postings) != 1000 {
 			t.Fatalf("postings = %d, want 1000", len(txn.Postings))
 		}
+
 		stored, err := e.m.Transaction(ctx, txn.ID)
 		if err != nil || len(stored.Postings) != 1000 {
 			t.Fatalf("stored postings = %d, %v", len(stored.Postings), err)
@@ -193,6 +204,7 @@ func TestPostingEdgePostingCount(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 501 {
 		t.Fatalf("b = %d, want 501", got)
 	}
+
 	e.verify(t)
 }
 
@@ -212,6 +224,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 		if got := e.get(t, x.ID).Posted.Amount; got != top.Neg() {
 			t.Fatalf("x = %s, want %s", got, top.Neg())
 		}
+
 		_, err := e.m.Post(ctx, transfer("neg-over", x.ID, z.ID, 1))
 		wantErr(t, err, money.ErrOverflow)
 		if got := e.balance(t, z.ID); got != 0 {
@@ -227,6 +240,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 			{AccountID: x.ID, Side: ledger.Credit, Amount: top},
 			peLeg(x.ID, ledger.Credit, 1),
 		}})
+
 		wantErr(t, err, money.ErrOverflow)
 		if e.balance(t, x.ID) != 0 || e.balance(t, y.ID) != 0 || peKeyExists(t, e, "sum-over") {
 			t.Fatal("overflowing transaction left a trace")
@@ -241,6 +255,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 			{AccountID: x.ID, Side: ledger.Debit, Amount: top},
 			{AccountID: y.ID, Side: ledger.Credit, Amount: top},
 		}})
+
 		acc := e.get(t, y.ID)
 		if acc.Posted.Debits != top || acc.Posted.Credits != top || !acc.Posted.Amount.IsZero() || len(txn.Postings) != 4 {
 			t.Fatalf("y posted = %+v", acc.Posted)
@@ -261,6 +276,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 		if got := money.MustParseAmount(strings.Repeat("9", 38)); got != top {
 			t.Fatalf("38 nines = %s, want max", got)
 		}
+
 		for _, s := range []string{strings.Repeat("9", 39), "1" + strings.Repeat("0", 38), "-" + strings.Repeat("9", 39)} {
 			if _, err := money.ParseAmount(s); !errors.Is(err, money.ErrInvalidAmount) {
 				t.Errorf("ParseAmount(%s) error = %v, want ErrInvalidAmount", s, err)
@@ -286,6 +302,7 @@ func TestPostingEdgeAmountBounds(t *testing.T) {
 			}
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -303,6 +320,7 @@ func TestPostingEdgeRepeatedAccounts(t *testing.T) {
 		if after.Posted.Amount != before.Posted.Amount || after.Posted.Debits != amt(140) || after.Posted.Credits != amt(40) {
 			t.Fatalf("a posted = %+v", after.Posted)
 		}
+
 		if after.Version != before.Version+1 {
 			t.Fatalf("version = %d, want %d", after.Version, before.Version+1)
 		}
@@ -348,12 +366,14 @@ func TestPostingEdgeRepeatedAccounts(t *testing.T) {
 			for i, j := range order {
 				ordered[i] = legs[j]
 			}
+
 			e.post(t, ledger.PostInput{IdempotencyKey: "relay-" + name, Postings: ordered})
 			if e.balance(t, relay.ID) != 0 || e.balance(t, sink.ID) != 30 {
 				t.Fatal("relay did not pass funds through")
 			}
 		})
 	}
+
 	e.verify(t)
 }
 
@@ -376,6 +396,7 @@ func TestPostingEdgeCurrencies(t *testing.T) {
 				t.Fatalf("leg %d currency = %s, want %s", i, p.Currency, wantCurrencies[i])
 			}
 		}
+
 		if e.balance(t, usdB.ID) != 10 || e.balance(t, eurB.ID) != 7 || e.balance(t, eurIssuer.ID) != 7 {
 			t.Fatal("multi-currency balances wrong")
 		}
@@ -414,6 +435,7 @@ func TestPostingEdgeCurrencies(t *testing.T) {
 	if e.balance(t, usdA.ID) != 90 || e.balance(t, usdB.ID) != 10 || e.balance(t, eurB.ID) != 8 {
 		t.Fatal("rejected currency transactions moved money")
 	}
+
 	e.verify(t)
 }
 
@@ -427,6 +449,7 @@ func TestPostingEdgeCrossLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	x := e.accountIn(t, other.ID)
 
 	tests := []struct {
@@ -444,9 +467,11 @@ func TestPostingEdgeCrossLedger(t *testing.T) {
 			wantErr(t, err, ledger.ErrCrossLedger)
 		})
 	}
+
 	if e.balance(t, a.ID) != 100 || e.balance(t, x.ID) != 0 || e.get(t, a.ID).Available.Amount != amt(100) {
 		t.Fatal("cross-ledger rejection moved money")
 	}
+
 	e.verify(t)
 }
 
@@ -478,6 +503,7 @@ func TestPostingEdgeEffectiveAt(t *testing.T) {
 			if !txn.EffectiveAt.Equal(want) {
 				t.Fatalf("returned effective_at = %s, want %s", txn.EffectiveAt, want)
 			}
+
 			stored, err := e.m.Transaction(ctx, txn.ID)
 			if err != nil || !stored.EffectiveAt.Equal(want) {
 				t.Fatalf("stored effective_at = %s, %v; want %s", stored.EffectiveAt, err, want)
@@ -504,6 +530,7 @@ func TestPostingEdgeEffectiveAt(t *testing.T) {
 			if !errors.Is(err, ledger.ErrInvalid) {
 				t.Errorf("error = %v, want ErrInvalid", err)
 			}
+
 			if peKeyExists(t, e, key) {
 				t.Fatal("rejected transaction was written")
 			}
@@ -513,6 +540,7 @@ func TestPostingEdgeEffectiveAt(t *testing.T) {
 	if got := e.balance(t, b.ID); got != int64(len(valid))+1 {
 		t.Fatalf("b = %d, want %d", got, len(valid)+1)
 	}
+
 	e.verify(t)
 }
 
@@ -526,6 +554,7 @@ func TestPostingEdgeAccountStatus(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	closed := e.account(t, "USD", ledger.Debit)
 	if _, err := e.m.CloseAccount(ctx, closed.ID); err != nil {
 		t.Fatal(err)
@@ -554,9 +583,11 @@ func TestPostingEdgeAccountStatus(t *testing.T) {
 	if got := peViews(t, e, src.ID); got != [3]money.Amount{amt(1_000), amt(1_000), amt(1_000)} {
 		t.Fatalf("src views = %v", got)
 	}
+
 	if got := peViews(t, e, frozen.ID); got != [3]money.Amount{amt(100), amt(100), amt(100)} {
 		t.Fatalf("frozen views = %v", got)
 	}
+
 	if acc := e.get(t, dst.ID); !acc.Pending.Amount.IsZero() || !acc.Posted.Amount.IsZero() {
 		t.Fatalf("dst = %+v", acc)
 	}
@@ -565,11 +596,13 @@ func TestPostingEdgeAccountStatus(t *testing.T) {
 		if _, err := e.m.UnfreezeAccount(ctx, frozen.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		e.post(t, transfer("thawed", frozen.ID, dst.ID, 100))
 		if e.balance(t, frozen.ID) != 0 || e.balance(t, dst.ID) != 100 {
 			t.Fatal("thawed transfer did not apply")
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -612,9 +645,11 @@ func TestPostingEdgeOverdraft(t *testing.T) {
 			if tt.fund > 0 {
 				e.post(t, in(fmt.Sprintf("od-%d-fund", i), tt.fund))
 			}
+
 			if tt.pendingOut > 0 {
 				e.post(t, pending(out(fmt.Sprintf("od-%d-pending", i), tt.pendingOut)))
 			}
+
 			before := peViews(t, e, acc.ID)
 			_, err := e.m.Post(ctx, out(fmt.Sprintf("od-%d-spend", i), tt.spend))
 			if tt.want != nil {
@@ -622,18 +657,23 @@ func TestPostingEdgeOverdraft(t *testing.T) {
 				if got := peViews(t, e, acc.ID); got != before {
 					t.Fatalf("views = %v after rejection, want %v", got, before)
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			available := e.get(t, acc.ID).Available.Amount
 			if want := amt(tt.fund - tt.pendingOut - tt.spend); available != want {
 				t.Fatalf("available = %s, want %s", available, want)
 			}
+
 			if available != amt(-tt.limit) {
 				return
 			}
+
 			_, err = e.m.Post(ctx, out(fmt.Sprintf("od-%d-extra", i), 1))
 			wantErr(t, err, ledger.ErrInsufficientFunds)
 			e.post(t, in(fmt.Sprintf("od-%d-repay", i), 1))
@@ -649,6 +689,7 @@ func TestPostingEdgeOverdraft(t *testing.T) {
 			t.Fatalf("acc = %d", got)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -670,6 +711,7 @@ func TestPostingEdgeNormalSideMath(t *testing.T) {
 	if r := grow.Postings[1].Resulting; r == nil || r.Posted != (ledger.Balance{Debits: amt(0), Credits: amt(100), Amount: amt(100)}) {
 		t.Fatalf("credit resulting = %+v", r)
 	}
+
 	e.post(t, peLegs("shrink", peLeg(credit.ID, ledger.Debit, 30), peLeg(debit.ID, ledger.Credit, 30)))
 	e.post(t, pending(peLegs("hold", peLeg(credit.ID, ledger.Debit, 20), peLeg(debit.ID, ledger.Credit, 20))))
 
@@ -687,5 +729,6 @@ func TestPostingEdgeNormalSideMath(t *testing.T) {
 			t.Fatalf("%s statement = %+v, %v", name, lines, err)
 		}
 	}
+
 	e.verify(t)
 }

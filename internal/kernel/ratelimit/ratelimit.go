@@ -39,14 +39,17 @@ func (l *Limiter) Allow(key uuid.UUID) (bool, time.Duration) {
 		b = &bucket{tokens: l.burst, last: now}
 		l.buckets[key] = b
 	}
+
 	if elapsed := now.Sub(b.last).Seconds(); elapsed > 0 {
 		b.tokens = math.Min(l.burst, b.tokens+elapsed*l.rate)
 		b.last = now
 	}
+
 	if b.tokens >= 1 {
 		b.tokens--
 		return true, 0
 	}
+
 	return false, time.Duration((1 - b.tokens) / l.rate * float64(time.Second))
 }
 
@@ -54,12 +57,14 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	if l == nil || l.rate <= 0 {
 		return next
 	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key, ok := auth.FromContext(r.Context())
 		if !ok {
 			next.ServeHTTP(w, r)
 			return
 		}
+
 		if allowed, wait := l.Allow(key.ID); !allowed {
 			seconds := int(math.Ceil(wait.Seconds()))
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
@@ -67,6 +72,7 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 				fmt.Sprintf("rate limit of %g requests per second exceeded; retry after %d seconds", l.rate, seconds))
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }

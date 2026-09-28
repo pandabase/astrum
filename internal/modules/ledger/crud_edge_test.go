@@ -51,12 +51,15 @@ func TestCrudEdgeMergePatchRFC7396(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("applyUpdate() error = %v, want %v", err, tt.err)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if !jsonEqual(got, jsontext.Value(tt.want)) {
 				t.Fatalf("metadata = %s, want %s", got, tt.want)
 			}
+
 			if strings.Contains(tt.name, "big numbers") && !strings.Contains(string(got), "123456789012345678901234567890.5") {
 				t.Fatalf("number lost precision: %s", got)
 			}
@@ -100,6 +103,7 @@ func TestCrudEdgeApplyUpdateNames(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("applyUpdate() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && (name != tt.wantName || desc != tt.wantDesc) {
 				t.Fatalf("got %q %q, want %q %q", name, desc, tt.wantName, tt.wantDesc)
 			}
@@ -128,6 +132,7 @@ func TestCrudEdgeSameDetails(t *testing.T) {
 			}
 		})
 	}
+
 	if sameDetails("n", "d", nil, "N", "d", nil) || sameDetails("n", "d", nil, "n", "D", nil) {
 		t.Fatal("name and description are case sensitive")
 	}

@@ -99,6 +99,7 @@ func idempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 		httpx.Error(w, r, http.StatusBadRequest, codeIdempotencyKeyRequired, idempotency.Header+" header is required")
 		return "", false
 	}
+
 	return key, true
 }
 
@@ -107,6 +108,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return false
 	}
+
 	return true
 }
 
@@ -116,6 +118,7 @@ func withID[P typeid.Prefix](w http.ResponseWriter, r *http.Request, fn func(uui
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	fn(id.UUID())
 }
 
@@ -124,11 +127,13 @@ func queryID[P typeid.Prefix](w http.ResponseWriter, r *http.Request, name strin
 	if raw == "" {
 		return uuid.Nil, true
 	}
+
 	var id typeid.ID[P]
 	if err := id.UnmarshalText([]byte(raw)); err != nil {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, name+": "+err.Error())
 		return uuid.Nil, false
 	}
+
 	return id.UUID(), true
 }
 
@@ -139,16 +144,20 @@ func queryMetadata(w http.ResponseWriter, r *http.Request) (map[string]string, b
 		if !found {
 			continue
 		}
+
 		name, found = strings.CutSuffix(name, "]")
 		if !found || name == "" || len(values) != 1 {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "metadata filters take the form metadata[key]=value, once per key")
 			return nil, false
 		}
+
 		if m == nil {
 			m = make(map[string]string)
 		}
+
 		m[name] = values[0]
 	}
+
 	return m, true
 }
 
@@ -162,13 +171,16 @@ func queryEffective(w http.ResponseWriter, r *http.Request) (EffectiveRange, boo
 		if raw == "" {
 			continue
 		}
+
 		t, err := time.Parse(time.RFC3339Nano, raw)
 		if err != nil {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, f.name+" must be an RFC 3339 time")
 			return EffectiveRange{}, false
 		}
+
 		*f.dst = &t
 	}
+
 	return er, true
 }
 
@@ -179,16 +191,19 @@ func page[K any](w http.ResponseWriter, r *http.Request, parse func([]byte) (K, 
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return 0, zero, false
 	}
+
 	raw := r.URL.Query().Get("cursor")
 	if raw == "" {
 		return limit, zero, true
 	}
+
 	b, err := base64.RawURLEncoding.DecodeString(raw)
 	key, ok := parse(b)
 	if err != nil || !ok {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "cursor is invalid")
 		return 0, zero, false
 	}
+
 	return limit, key, true
 }
 
@@ -205,6 +220,7 @@ func int64Cursor(b []byte) (int64, bool) {
 	if len(b) != 8 {
 		return 0, false
 	}
+
 	return int64(binary.BigEndian.Uint64(b)), true
 }
 
@@ -217,6 +233,7 @@ func respond[T, R any](w http.ResponseWriter, r *http.Request, status int, v T, 
 		writeError(w, r, err)
 		return
 	}
+
 	httpx.JSON(w, r, status, render(v))
 }
 
@@ -225,10 +242,12 @@ func respondList[T, R any](w http.ResponseWriter, r *http.Request, items []T, li
 		writeError(w, r, err)
 		return
 	}
+
 	list := httpx.NewList(items, limit, cursor)
 	out := make([]R, len(list.Data))
 	for i, item := range list.Data {
 		out[i] = render(item)
 	}
+
 	httpx.JSON(w, r, http.StatusOK, httpx.List[R]{Object: list.Object, Data: out, HasMore: list.HasMore, NextCursor: list.NextCursor})
 }

@@ -19,14 +19,17 @@ func (s *service) createLedger(ctx context.Context, in CreateLedgerInput) (Ledge
 	if err := validateDetails(in.Name, in.Description, in.Metadata, true); err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	ledger, err := insertLedger(ctx, s.pool, id, in)
 	if err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	op.info("ledger created", "ledger_id", ledger.ID)
 	return ledger, nil
 }
@@ -38,6 +41,7 @@ func (s *service) ledger(ctx context.Context, id uuid.UUID) (Ledger, error) {
 	if err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	return ledger, nil
 }
 
@@ -47,13 +51,16 @@ func (s *service) listLedgers(ctx context.Context, in ListLedgersInput) ([]Ledge
 	if in.Limit < 1 || in.Limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	if err := validateMetadataFilter(in.Metadata); err != nil {
 		return nil, op.fail(err)
 	}
+
 	ledgers, err := selectLedgers(ctx, s.pool, in)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return ledgers, nil
 }
 
@@ -69,22 +76,26 @@ func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput
 		if err != nil {
 			return err
 		}
+
 		next := current
 		next.Name, next.Description, next.Metadata, err = applyUpdate(current.Name, current.Description, current.Metadata, in, true)
 		if err != nil {
 			return err
 		}
+
 		changed = !sameDetails(current.Name, current.Description, current.Metadata, next.Name, next.Description, next.Metadata)
 		if !changed {
 			ledger = current
 			return nil
 		}
+
 		ledger, err = updateLedger(ctx, tx, next)
 		return err
 	})
 	if err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	op.info("ledger updated", "changed", changed, "version", ledger.Version)
 	return ledger, nil
 }
@@ -93,9 +104,11 @@ func applyUpdate(name, description string, metadata jsontext.Value, in UpdateInp
 	if in.Name != nil {
 		name = *in.Name
 	}
+
 	if in.Description != nil {
 		description = *in.Description
 	}
+
 	switch trimmed := bytes.TrimSpace(in.Metadata); {
 	case bytes.Equal(trimmed, []byte("null")):
 		metadata = jsontext.Value(`{}`)
@@ -104,17 +117,21 @@ func applyUpdate(name, description string, metadata jsontext.Value, in UpdateInp
 		if err != nil {
 			return "", "", nil, fmt.Errorf("%w: metadata must be a JSON object", ErrInvalid)
 		}
+
 		target, err := decodeObject(metadata)
 		if err != nil {
 			return "", "", nil, err
 		}
+
 		if metadata, err = json.Marshal(mergePatch(target, patch), json.Deterministic(true)); err != nil {
 			return "", "", nil, err
 		}
 	}
+
 	if err := validateDetails(name, description, metadata, nameRequired); err != nil {
 		return "", "", nil, err
 	}
+
 	return name, description, normalizeMetadata(metadata), nil
 }
 
@@ -126,6 +143,7 @@ func mergePatch(target, patch map[string]any) map[string]any {
 	if target == nil {
 		target = map[string]any{}
 	}
+
 	for k, v := range patch {
 		switch v := v.(type) {
 		case nil:
@@ -137,6 +155,7 @@ func mergePatch(target, patch map[string]any) map[string]any {
 			target[k] = v
 		}
 	}
+
 	return target
 }
 
@@ -144,11 +163,13 @@ func decodeObject(raw jsontext.Value) (map[string]any, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return map[string]any{}, nil
 	}
+
 	v, err := decodeJSON(raw)
 	obj, ok := v.(map[string]any)
 	if err != nil || !ok {
 		return nil, fmt.Errorf("%w: expected a JSON object", ErrInvalid)
 	}
+
 	return obj, nil
 }
 
@@ -160,8 +181,10 @@ func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *t
 		if !representableTime(at) {
 			return Ledger{}, op.fail(fmt.Errorf("%w: closed_before is out of range", ErrInvalid))
 		}
+
 		closedBefore = &at
 	}
+
 	var (
 		ledger Ledger
 		xid    string
@@ -171,17 +194,21 @@ func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *t
 		if err != nil {
 			return err
 		}
+
 		var future bool
 		if err := tx.QueryRow(ctx, `SELECT coalesce($1::timestamptz > now(), false), pg_current_xact_id()::text`, closedBefore).Scan(&future, &xid); err != nil {
 			return err
 		}
+
 		if future {
 			return fmt.Errorf("%w: closed_before cannot be in the future", ErrInvalid)
 		}
+
 		if sameTime(current.ClosedBefore, closedBefore) {
 			ledger = current
 			return nil
 		}
+
 		ledger, err = scanLedger(tx.QueryRow(ctx, `
 			UPDATE ledger_ledgers SET closed_before = $2, version = version + 1
 			WHERE id = $1
@@ -191,9 +218,11 @@ func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *t
 	if err == nil {
 		err = waitForOlderTransactions(ctx, s.pool, xid)
 	}
+
 	if err != nil {
 		return Ledger{}, op.fail(err)
 	}
+
 	op.info("period closed", "closed_before", closedBefore, "version", ledger.Version)
 	return ledger, nil
 }
@@ -202,6 +231,7 @@ func sameTime(a, b *time.Time) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
+
 	return a.Equal(*b)
 }
 
@@ -211,9 +241,11 @@ func waitForOlderTransactions(ctx context.Context, q querier, xid string) error 
 		if err := q.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot()) > $1::xid8`, xid).Scan(&done); err != nil {
 			return fmt.Errorf("wait for in-flight transactions: %w", err)
 		}
+
 		if done {
 			return nil
 		}
+
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("wait for in-flight transactions: %w", ctx.Err())

@@ -48,6 +48,7 @@ func TestPostingEdgeLockVersionDoesNotMaskValidation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if !errors.Is(o.err, tt.want) {
 				t.Fatalf("outcome = status %q err %v, want %v", o.txn.Status, o.err, tt.want)
 			}
@@ -79,11 +80,13 @@ func TestPostingEdgeFundsBoundaries(t *testing.T) {
 			if out == "" {
 				out = Debit
 			}
+
 			in := PostInput{Postings: []Posting{f.posting("a", out.opposite(), tt.spend), f.posting("sink", out, tt.spend)}}
 			_, err := f.state.apply(in, nil)
 			if tt.ok && err != nil {
 				t.Fatalf("apply() error = %v", err)
 			}
+
 			if !tt.ok && !errors.Is(err, ErrInsufficientFunds) {
 				t.Fatalf("apply() error = %v, want ErrInsufficientFunds", err)
 			}
@@ -95,9 +98,11 @@ func TestPostingEdgeFundsBoundaries(t *testing.T) {
 		if _, err := f.state.apply(f.transfer("src", "a", 10), nil); err != nil {
 			t.Fatalf("inflow to over-held account: %v", err)
 		}
+
 		if got := f.available(t, "a"); got != -40 {
 			t.Fatalf("available = %d, want -40", got)
 		}
+
 		if _, err := f.state.apply(f.transfer("a", "src", 1), nil); !errors.Is(err, ErrInsufficientFunds) {
 			t.Fatalf("outflow error = %v, want ErrInsufficientFunds", err)
 		}
@@ -112,11 +117,13 @@ func TestPostingEdgeRejectedTransitionIsAtomic(t *testing.T) {
 		"c":    {version: 9},
 		"open": {allowNegative: true, normalSide: Credit},
 	})
+
 	snapshot := func() map[uuid.UUID]accountState {
 		out := make(map[uuid.UUID]accountState)
 		for id, a := range f.state.accounts {
 			out[id] = *a
 		}
+
 		return out
 	}
 	before := snapshot()
@@ -144,9 +151,11 @@ func TestPostingEdgeRejectedTransitionIsAtomic(t *testing.T) {
 			if _, _, err := f.state.transition(c); err == nil {
 				t.Fatal("transition succeeded")
 			}
+
 			if got := snapshot(); !maps.Equal(got, before) {
 				t.Fatalf("rejected transition changed state")
 			}
+
 			if len(f.state.dirty()) != 0 {
 				t.Fatal("rejected transition left dirty accounts")
 			}

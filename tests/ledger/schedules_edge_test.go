@@ -20,6 +20,7 @@ func feSchedule(t *testing.T, e *env, in ledger.ScheduleInput) ledger.ScheduledT
 	if err != nil {
 		t.Fatalf("Schedule(%s) error = %v", in.IdempotencyKey, err)
 	}
+
 	return st
 }
 
@@ -29,6 +30,7 @@ func feScheduled(t *testing.T, e *env, id uuid.UUID) ledger.ScheduledTransaction
 	if err != nil {
 		t.Fatalf("Scheduled() error = %v", err)
 	}
+
 	return st
 }
 
@@ -39,9 +41,11 @@ func feDrain(t *testing.T, e *env) (executed, failed int) {
 		if err != nil {
 			t.Fatalf("ExecuteDue() error = %v", err)
 		}
+
 		if x+f == 0 {
 			return executed, failed
 		}
+
 		executed, failed = executed+x, failed+f
 	}
 }
@@ -78,6 +82,7 @@ func TestSchedulesEdgeValidation(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Schedule() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && (st.Status != ledger.ScheduleScheduled || st.ResolvedAt != nil || st.TransactionID != nil) {
 				t.Fatalf("schedule = %+v", st)
 			}
@@ -96,6 +101,7 @@ func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
 	if _, err := e.m.CloseAccount(ctx, closed.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	existing := e.post(t, transfer("already-posted", rich.ID, b.ID, 5))
 	past := time.Now().Add(-time.Minute)
 
@@ -134,12 +140,14 @@ func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
 	if executed != 5 || failed != 3 {
 		t.Fatalf("ExecuteDue() executed %d failed %d, want 5 and 3", executed, failed)
 	}
+
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := feScheduled(t, e, ids[i])
 			if st.Status != tt.status {
 				t.Fatalf("status = %s, want %s (failure %v)", st.Status, tt.status, st.Failure)
 			}
+
 			switch tt.status {
 			case ledger.ScheduleScheduled:
 				if st.ResolvedAt != nil || st.TransactionID != nil || st.Failure != nil {
@@ -153,9 +161,11 @@ func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
 				if st.ResolvedAt == nil || st.TransactionID == nil || st.Failure != nil {
 					t.Fatalf("executed schedule = %+v", st)
 				}
+
 				if tt.txnID != nil && *st.TransactionID != *tt.txnID {
 					t.Fatalf("transaction = %s, want the existing %s", *st.TransactionID, *tt.txnID)
 				}
+
 				txn, err := e.m.Transaction(ctx, *st.TransactionID)
 				if err != nil || txn.Status != tt.txnStatus || txn.IdempotencyKey != st.IdempotencyKey {
 					t.Fatalf("transaction = %+v, %v", txn, err)
@@ -163,9 +173,11 @@ func TestSchedulesEdgeExecutionOutcomes(t *testing.T) {
 			}
 		})
 	}
+
 	if e.balance(t, poor.ID) != 0 || e.balance(t, closed.ID) != 0 {
 		t.Fatal("failed schedules moved money")
 	}
+
 	e.verify(t)
 }
 
@@ -181,13 +193,16 @@ func TestSchedulesEdgeKeyConflictWithExistingSchedule(t *testing.T) {
 	if x, f := feDrain(t, e); x != 0 || f != 1 {
 		t.Fatalf("executed %d failed %d, want 0 and 1", x, f)
 	}
+
 	got := feScheduled(t, e, st.ID)
 	if got.Status != ledger.ScheduleFailed || got.Failure == nil || !strings.Contains(*got.Failure, ledger.ErrIdempotencyConflict.Error()) {
 		t.Fatalf("schedule = %+v", got)
 	}
+
 	if e.balance(t, b.ID) != 5 {
 		t.Fatalf("b = %d, want 5", e.balance(t, b.ID))
 	}
+
 	_, err := e.m.CancelSchedule(ctx, st.ID)
 	wantErr(t, err, ledger.ErrScheduleNotPending)
 }
@@ -207,10 +222,12 @@ func TestSchedulesEdgeEffectiveAtIsPreserved(t *testing.T) {
 	if st.TransactionID == nil {
 		t.Fatalf("schedule = %+v", st)
 	}
+
 	txn, err := e.m.Transaction(ctx, *st.TransactionID)
 	if err != nil || !txn.EffectiveAt.Equal(day(3)) || txn.ExternalID != "ext-backdated" {
 		t.Fatalf("transaction = %+v, %v", txn, err)
 	}
+
 	b2, err := e.m.Balances(ctx, b.ID, ledger.EffectiveRange{Until: new(day(4))})
 	if err != nil || b2.Posted.Amount != amt(7) {
 		t.Fatalf("balance by day 4 = %+v, %v", b2, err)
@@ -285,6 +302,7 @@ func TestSchedulesEdgeReplay(t *testing.T) {
 		if err != nil || again.ID != first.ID || again.Status != ledger.ScheduleExecuted {
 			t.Fatalf("replay = %+v, %v", again, err)
 		}
+
 		if x, f := feDrain(t, e); x+f != 0 {
 			t.Fatalf("replay re-queued the schedule: %d executed %d failed", x, f)
 		}
@@ -304,6 +322,7 @@ func TestSchedulesEdgeCancel(t *testing.T) {
 		if err != nil || first.Status != ledger.ScheduleCanceled || first.ResolvedAt == nil {
 			t.Fatalf("cancel = %+v, %v", first, err)
 		}
+
 		second, err := e.m.CancelSchedule(ctx, st.ID)
 		if err != nil || second.Status != ledger.ScheduleCanceled || !second.ResolvedAt.Equal(*first.ResolvedAt) {
 			t.Fatalf("second cancel = %+v, %v", second, err)
@@ -315,9 +334,11 @@ func TestSchedulesEdgeCancel(t *testing.T) {
 		if _, err := e.m.CancelSchedule(ctx, st.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if x, f := feDrain(t, e); x+f != 0 {
 			t.Fatalf("executed %d failed %d, want nothing", x, f)
 		}
+
 		if got := feScheduled(t, e, st.ID); got.Status != ledger.ScheduleCanceled || got.TransactionID != nil {
 			t.Fatalf("schedule = %+v", got)
 		}
@@ -351,6 +372,7 @@ func TestSchedulesEdgeCancel(t *testing.T) {
 			if execErr != nil {
 				t.Fatal(execErr)
 			}
+
 			feDrain(t, e)
 			got := feScheduled(t, e, st.ID)
 			switch got.Status {
@@ -367,6 +389,7 @@ func TestSchedulesEdgeCancel(t *testing.T) {
 			}
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -382,6 +405,7 @@ func TestSchedulesEdgeSweepBatches(t *testing.T) {
 	for i := range 5 {
 		sts = append(sts, feSchedule(t, e, scheduleInput(fmt.Sprint("sb-", i), a.ID, b.ID, 1, base.Add(time.Duration(i)*time.Minute))))
 	}
+
 	want := [][2]int{{2, 0}, {1, 1}, {0, 1}, {0, 0}}
 	for i, w := range want {
 		x, f, err := e.m.ExecuteDue(ctx)
@@ -389,15 +413,18 @@ func TestSchedulesEdgeSweepBatches(t *testing.T) {
 			t.Fatalf("sweep %d = %d executed %d failed %v, want %v", i, x, f, err, w)
 		}
 	}
+
 	for i, st := range sts {
 		wantStatus := ledger.ScheduleExecuted
 		if i >= 3 {
 			wantStatus = ledger.ScheduleFailed
 		}
+
 		if got := feScheduled(t, e, st.ID); got.Status != wantStatus {
 			t.Fatalf("schedule %d = %s, want %s (earliest first)", i, got.Status, wantStatus)
 		}
 	}
+
 	e.verify(t)
 }
 
@@ -425,34 +452,42 @@ func TestSchedulesEdgeConcurrentSweepsRunEachOnce(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				if x+f == 0 {
 					return
 				}
+
 				mu.Lock()
 				executed, failed = executed+x, failed+f
 				mu.Unlock()
 			}
 		})
 	}
+
 	wg.Wait()
 	feDrain(t, e)
 	if executed != total || failed != 0 {
 		t.Fatalf("executed %d failed %d, want %d and 0", executed, failed, total)
 	}
+
 	if got := e.balance(t, b.ID); got != total*(total+1)/2 {
 		t.Fatalf("b = %d, want %d", got, total*(total+1)/2)
 	}
+
 	list, err := e.m.ListSchedules(ctx, ledger.ListSchedulesInput{Status: ledger.ScheduleExecuted, Limit: 1000})
 	if err != nil || len(list) != total {
 		t.Fatalf("executed schedules = %d, %v", len(list), err)
 	}
+
 	seen := map[uuid.UUID]bool{}
 	for _, st := range list {
 		if st.TransactionID == nil || seen[*st.TransactionID] {
 			t.Fatalf("schedule %s has transaction %v (duplicate or missing)", st.ID, st.TransactionID)
 		}
+
 		seen[*st.TransactionID] = true
 	}
+
 	e.verify(t)
 }
 
@@ -479,6 +514,7 @@ func TestSchedulesEdgeList(t *testing.T) {
 		for i, st := range sts {
 			out[i] = st.IdempotencyKey
 		}
+
 		return strings.Join(out, ",")
 	}
 	all := "ls-waiting-2,ls-waiting-1,ls-canceled,ls-failed,ls-executed"
@@ -511,11 +547,13 @@ func TestSchedulesEdgeList(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListSchedules() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && ids(got) != tt.want {
 				t.Fatalf("schedules = %s, want %s", ids(got), tt.want)
 			}
 		})
 	}
+
 	_, err := e.m.Scheduled(ctx, uuid.New())
 	wantErr(t, err, ledger.ErrNotFound)
 }

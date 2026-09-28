@@ -35,11 +35,13 @@ func (r *recorder) record(s *sample, latency time.Duration, transactions int, er
 		r.transactions.Add(int64(transactions))
 		return
 	}
+
 	r.failed.Add(1)
 	code := "transport"
 	if apiErr, ok := errors.AsType[*apiError](err); ok {
 		code = apiErr.Code
 	}
+
 	r.mu.Lock()
 	r.errors[code]++
 	r.mu.Unlock()
@@ -64,12 +66,14 @@ func summarize(latencies []time.Duration) Latency {
 	if len(latencies) == 0 {
 		return Latency{}
 	}
+
 	sorted := slices.Clone(latencies)
 	slices.Sort(sorted)
 	var total time.Duration
 	for _, l := range sorted {
 		total += l
 	}
+
 	return Latency{
 		Mean: total / time.Duration(len(sorted)),
 		P50:  percentile(sorted, 0.50),

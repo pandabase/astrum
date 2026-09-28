@@ -74,11 +74,14 @@ func TestDecodeEdgeJSONRules(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Decode() error = %v", err)
 				}
+
 				return
 			}
+
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("Decode() error = %v, want %q", err, tt.wantErr)
 			}
+
 			if !strings.HasPrefix(err.Error(), "invalid request body: ") {
 				t.Fatalf("Decode() error = %v, want invalid request body prefix", err)
 			}
@@ -93,6 +96,7 @@ func edgeJSONOfSize(t *testing.T, size int) string {
 	if pad < 0 {
 		t.Fatalf("size %d too small", size)
 	}
+
 	return head + strings.Repeat("a", pad) + tail
 }
 
@@ -119,12 +123,14 @@ func TestDecodeEdgeBodyLimits(t *testing.T) {
 			if len(body) != tt.size {
 				t.Fatalf("payload is %d bytes, want %d", len(body), tt.size)
 			}
+
 			var got edgeMeta
 			err := tt.decode(httptest.NewRecorder(), edgeRequest(body), &got)
 			_, isMax := errors.AsType[*http.MaxBytesError](err)
 			if isMax != tt.tooBig {
 				t.Fatalf("error = %v, want MaxBytesError %v", err, tt.tooBig)
 			}
+
 			if !tt.tooBig && err != nil {
 				t.Fatalf("error = %v", err)
 			}
@@ -155,6 +161,7 @@ func TestDecodeEdgeOptional(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("DecodeOptional() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if !tt.wantErr && got.Name != tt.want {
 				t.Fatalf("name = %q, want %q", got.Name, tt.want)
 			}
@@ -176,6 +183,7 @@ func edgeServer(t *testing.T, decode func(http.ResponseWriter, *http.Request, an
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 			return
 		}
+
 		httpx.JSON(w, r, http.StatusOK, in)
 	}))
 	t.Cleanup(srv.Close)
@@ -213,31 +221,39 @@ func TestDecodeEdgeOverHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if tt.contentType != "" {
 				req.Header.Set("Content-Type", tt.contentType)
 			}
+
 			resp, err := srv.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer resp.Body.Close()
 			raw, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if resp.StatusCode != tt.status {
 				t.Fatalf("status = %d %s, want %d", resp.StatusCode, raw, tt.status)
 			}
+
 			if !bytes.HasSuffix(raw, []byte("}\n")) || bytes.Count(raw, []byte("\n")) != 1 {
 				t.Fatalf("body %q does not end with exactly one newline", raw)
 			}
+
 			if tt.status == 200 {
 				return
 			}
+
 			var p httpx.Problem
 			if err := json.Unmarshal(raw, &p); err != nil {
 				t.Fatalf("problem %q: %v", raw, err)
 			}
+
 			if p.Code != httpx.CodeInvalidRequest || !strings.Contains(p.Detail, tt.detail) || resp.Header.Get("Content-Type") != "application/problem+json" {
 				t.Fatalf("problem = %+v (%s), want detail containing %q", p, resp.Header.Get("Content-Type"), tt.detail)
 			}
@@ -251,6 +267,7 @@ func TestDecodeEdgeOversizedClosesConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest || !resp.Close {
 		t.Fatalf("status = %d close = %v, want 400 and a closed connection", resp.StatusCode, resp.Close)
@@ -268,6 +285,7 @@ func TestWriteEdge(t *testing.T) {
 			httpx.JSON(w, r, http.StatusOK, v)
 			bodies = append(bodies, w.Body.String())
 		}
+
 		want := `{"a":"<&>","m":{"b":1,"y":2},"z":1}` + "\n"
 		for _, b := range bodies {
 			if b != want {
@@ -296,10 +314,12 @@ func TestWriteEdge(t *testing.T) {
 		if w.Code != http.StatusInternalServerError || w.Header().Get("Content-Type") != "application/problem+json" {
 			t.Fatalf("status = %d, content type %q", w.Code, w.Header().Get("Content-Type"))
 		}
+
 		var p httpx.Problem
 		if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil || p.Code != httpx.CodeInternal || !strings.HasSuffix(w.Body.String(), "\n") {
 			t.Fatalf("body = %q, %v", w.Body.String(), err)
 		}
+
 		if !strings.Contains(buf.String(), "encode response") {
 			t.Fatalf("encode failure not logged: %q", buf.String())
 		}
@@ -312,12 +332,15 @@ func TestWriteEdge(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
+
 		if got["title"] != "" || got["status"] != float64(599) || got["type"] != "urn:astrum:error:odd" {
 			t.Fatalf("problem = %v", got)
 		}
+
 		if _, ok := got["detail"]; ok {
 			t.Fatalf("empty detail serialized: %v", got)
 		}
+
 		if _, ok := got["request_id"]; ok {
 			t.Fatalf("empty request id serialized: %v", got)
 		}
@@ -330,6 +353,7 @@ func TestWriteEdge(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 			t.Fatalf("status %d body %q is not a problem document: %v", w.Code, w.Body.String(), err)
 		}
+
 		if got.Code != "forbidden" || got.Status != http.StatusForbidden {
 			t.Fatalf("problem = %+v", got)
 		}
@@ -343,10 +367,12 @@ func TestNewListEdge(t *testing.T) {
 	if l := httpx.NewList([]int{0, 1}, 2, cursor); l.HasMore || l.NextCursor != nil || len(l.Data) != 2 || calls != 0 {
 		t.Fatalf("exact page = %+v, cursor calls %d", l, calls)
 	}
+
 	l := httpx.NewList([]int{0, 1, 2, 3}, 1, cursor)
 	if !l.HasMore || len(l.Data) != 1 || *l.NextCursor != "a" || calls != 1 {
 		t.Fatalf("overfull page = %+v, cursor calls %d", l, calls)
 	}
+
 	empty := httpx.NewList([]int{}, 5, cursor)
 	w := httptest.NewRecorder()
 	httpx.JSON(w, httptest.NewRequest(http.MethodGet, "/", nil), http.StatusOK, empty)
@@ -386,6 +412,7 @@ func TestPageLimitEdge(t *testing.T) {
 			if (err == nil) != tt.ok || got != tt.want {
 				t.Fatalf("PageLimit = %d, %v; want %d ok=%v", got, err, tt.want, tt.ok)
 			}
+
 			if err != nil && err.Error() != "limit must be an integer from 1 to 100" {
 				t.Fatalf("error = %q", err)
 			}
@@ -404,6 +431,7 @@ func TestLoggingEdgePanicAfterWrite(t *testing.T) {
 	if w.Code != http.StatusAccepted || w.Body.String() != "partial" {
 		t.Fatalf("response = %d %q, want the partial response untouched", w.Code, w.Body.String())
 	}
+
 	if w.Header().Get("X-Request-ID") == "" {
 		t.Fatal("request id missing after panic")
 	}
@@ -417,6 +445,7 @@ func TestLoggingEdgePanicCarriesRequestID(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
+
 	if p.RequestID == "" || p.RequestID != w.Header().Get("X-Request-ID") || p.Code != httpx.CodeInternal || p.Detail != "" {
 		t.Fatalf("problem = %+v, header %q", p, w.Header().Get("X-Request-ID"))
 	}

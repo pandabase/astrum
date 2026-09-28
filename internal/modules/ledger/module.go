@@ -77,6 +77,7 @@ func New(pool *pgxpool.Pool, logger *log.Logger, cfg Config) (*Module, error) {
 	if len(cfg.SealKey) < minSealKeyLen {
 		return nil, errSealKey
 	}
+
 	cfg = cfg.withDefaults()
 	svc := &service{
 		pool:       pool,
@@ -95,6 +96,7 @@ func (m *Module) Migrations() fs.FS {
 	if err != nil {
 		panic(err)
 	}
+
 	return sub
 }
 
@@ -132,9 +134,11 @@ func (m *Module) sweep(ctx context.Context) {
 				l.Error("expire holds failed", "err", err)
 				break
 			}
+
 			if n > 0 {
 				l.Info("holds expired", "count", n)
 			}
+
 			if n < m.cfg.SweepBatch {
 				break
 			}
@@ -146,9 +150,11 @@ func (m *Module) sweep(ctx context.Context) {
 				l.Error("execute schedules failed", "err", err)
 				break
 			}
+
 			if executed+failed > 0 {
 				l.Info("schedules processed", "executed", executed, "failed", failed)
 			}
+
 			if executed+failed < m.cfg.SweepBatch {
 				break
 			}
@@ -160,10 +166,12 @@ func (m *Module) sweep(ctx context.Context) {
 				l.Error("seal failed", "err", err)
 				break
 			}
+
 			if n > 0 {
 
 				l.Info("ledger sealed", "count", n, "head", head)
 			}
+
 			if n < m.cfg.SweepBatch {
 				break
 			}
@@ -181,12 +189,14 @@ func (m *Module) processBulks(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+
 		for {
 			found, err := m.svc.processBulk(ctx, m.cfg.MaxBatch)
 			if err != nil {
 				l.Error("bulk request failed", "err", err)
 				break
 			}
+
 			if !found {
 				break
 			}
@@ -199,6 +209,7 @@ func (m *Module) CheckSealKey(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	m.svc.sealer.highest.Store(max(m.svc.sealer.highest.Load(), head.seq))
 	return nil
 }

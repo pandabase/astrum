@@ -67,15 +67,18 @@ func (s *Service) handleCreate(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	var creator *uuid.UUID
 	if k, ok := FromContext(r.Context()); ok {
 		creator = &k.ID
 	}
+
 	k, token, err := s.Create(r.Context(), CreateInput{Name: in.Name, Role: in.Role, ExpiresAt: in.ExpiresAt, CreatedBy: creator})
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
+
 	out := toKey(k)
 	out.Secret = token
 	w.Header().Set("Cache-Control", "no-store")
@@ -88,6 +91,7 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	var before uuid.UUID
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
 		b, err := base64.RawURLEncoding.DecodeString(raw)
@@ -96,18 +100,22 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "cursor is invalid")
 			return
 		}
+
 		before = id
 	}
+
 	keys, err := s.List(r.Context(), before, limit+1)
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
+
 	list := httpx.NewList(keys, limit, func(k Key) string { return base64.RawURLEncoding.EncodeToString(k.ID[:]) })
 	out := make([]keyResource, len(list.Data))
 	for i, k := range list.Data {
 		out[i] = toKey(k)
 	}
+
 	httpx.JSON(w, r, http.StatusOK, httpx.List[keyResource]{Object: list.Object, Data: out, HasMore: list.HasMore, NextCursor: list.NextCursor})
 }
 
@@ -117,6 +125,7 @@ func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusUnauthorized, "unauthorized", "send an API key as Authorization: Bearer sk_...")
 		return
 	}
+
 	httpx.JSON(w, r, http.StatusOK, toKey(k))
 }
 
@@ -127,6 +136,7 @@ func (s *Service) handleGet(w http.ResponseWriter, r *http.Request) {
 			writeError(w, r, err)
 			return
 		}
+
 		httpx.JSON(w, r, http.StatusOK, toKey(k))
 	})
 }
@@ -138,6 +148,7 @@ func (s *Service) handleRevoke(w http.ResponseWriter, r *http.Request) {
 			writeError(w, r, err)
 			return
 		}
+
 		httpx.JSON(w, r, http.StatusOK, toKey(k))
 	})
 }
@@ -148,6 +159,7 @@ func (s *Service) withID(w http.ResponseWriter, r *http.Request, fn func(uuid.UU
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	fn(id.UUID())
 }
 

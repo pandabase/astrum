@@ -43,6 +43,7 @@ func TestCurrencyValidate(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if err != nil && !errors.Is(err, money.ErrInvalidCurrency) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidCurrency", err)
 			}
@@ -59,9 +60,11 @@ func TestParseAmount(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if a.String() != s {
 				t.Fatalf("String() = %s, want %s", a, s)
 			}
+
 			if a.Big().String() != s {
 				t.Fatalf("Big() = %s, want %s", a.Big(), s)
 			}
@@ -104,6 +107,7 @@ func TestAmountArithmetic(t *testing.T) {
 			if !errors.Is(err, tt.sumErr) || (err == nil && sum.String() != tt.sum) {
 				t.Fatalf("%s + %s = %s, %v; want %s, %v", tt.a, tt.b, sum, err, tt.sum, tt.sumErr)
 			}
+
 			diff, err := m(tt.a).Sub(m(tt.b))
 			if !errors.Is(err, tt.diffErr) || (err == nil && diff.String() != tt.diff) {
 				t.Fatalf("%s - %s = %s, %v; want %s, %v", tt.a, tt.b, diff, err, tt.diff, tt.diffErr)
@@ -123,11 +127,13 @@ func TestAmountCompare(t *testing.T) {
 			} else if i > j {
 				want = 1
 			}
+
 			if got := money.MustParseAmount(a).Cmp(money.MustParseAmount(b)); got != want {
 				t.Fatalf("Cmp(%s, %s) = %d, want %d", a, b, got, want)
 			}
 		}
 	}
+
 	if money.MustParseAmount("12") != money.NewAmount(12) {
 		t.Fatal("equal amounts are not ==")
 	}
@@ -141,10 +147,12 @@ func TestAmountJSON(t *testing.T) {
 	if err != nil || string(out) != `{"amount":"`+max38+`"}` {
 		t.Fatalf("Marshal = %s, %v", out, err)
 	}
+
 	var d doc
 	if err := json.Unmarshal(out, &d); err != nil || d.Amount.String() != max38 {
 		t.Fatalf("Unmarshal = %s, %v", d.Amount, err)
 	}
+
 	for _, bad := range []string{`{"amount":100}`, `{"amount":"1.5"}`, `{"amount":null}`, `{"amount":"` + max38 + `0"}`} {
 		d := doc{Amount: money.NewAmount(7)}
 		err := json.Unmarshal([]byte(bad), &d)
@@ -152,8 +160,10 @@ func TestAmountJSON(t *testing.T) {
 			if err != nil || !d.Amount.IsZero() {
 				t.Fatalf("Unmarshal(%s) = %s, %v", bad, d.Amount, err)
 			}
+
 			continue
 		}
+
 		if err == nil {
 			t.Fatalf("Unmarshal(%s) accepted %s", bad, d.Amount)
 		}
@@ -187,6 +197,7 @@ func TestAmountNumeric(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ScanNumeric error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if err == nil && a.String() != tt.want {
 				t.Fatalf("ScanNumeric = %s, want %s", a, tt.want)
 			}
@@ -212,9 +223,11 @@ func FuzzAmount(f *testing.F) {
 		if errA != nil || errB != nil {
 			return
 		}
+
 		if a.String() != x || b.String() != y {
 			t.Fatalf("round trip %q %q -> %s %s", x, y, a, b)
 		}
+
 		exactSum := new(big.Int).Add(a.Big(), b.Big())
 		exactDiff := new(big.Int).Sub(a.Big(), b.Big())
 		check := func(op string, got money.Amount, err error, exact *big.Int) {
@@ -222,8 +235,10 @@ func FuzzAmount(f *testing.F) {
 				if !errors.Is(err, money.ErrOverflow) {
 					t.Fatalf("%s %s %s = %s, want ErrOverflow", x, op, y, got)
 				}
+
 				return
 			}
+
 			if err != nil || got.Big().Cmp(exact) != 0 {
 				t.Fatalf("%s %s %s = %s, %v; want %s", x, op, y, got, err, exact)
 			}
@@ -235,6 +250,7 @@ func FuzzAmount(f *testing.F) {
 		if got, want := a.Cmp(b), a.Big().Cmp(b.Big()); got != want {
 			t.Fatalf("Cmp(%s, %s) = %d, want %d", x, y, got, want)
 		}
+
 		if back, err := money.AmountFromBig(a.Big()); err != nil || back != a {
 			t.Fatalf("AmountFromBig(%s) = %s, %v", x, back, err)
 		}

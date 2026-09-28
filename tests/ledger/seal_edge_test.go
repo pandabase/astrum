@@ -18,18 +18,22 @@ func feSealAll(t *testing.T, e *env) {
 		if _, err := e.m.Seal(ctx); err != nil {
 			t.Fatalf("Seal() error = %v", err)
 		}
+
 		var unsealed int
 		if err := e.pool.QueryRow(ctx, `
 			SELECT count(*) FROM ledger_transactions AS t
 			WHERE t.status = 'posted' AND NOT EXISTS (SELECT 1 FROM ledger_seals AS s WHERE s.transaction_id = t.id)`).Scan(&unsealed); err != nil {
 			t.Fatal(err)
 		}
+
 		if unsealed == 0 {
 			return
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatalf("%d transactions still unsealed", unsealed)
 		}
+
 		time.Sleep(20 * time.Millisecond)
 	}
 }
@@ -45,6 +49,7 @@ func feSealedLedger(t *testing.T) (*env, ledger.Transaction) {
 	if issues := verifyIssues(t, e); len(issues) != 0 {
 		t.Fatalf("untampered ledger has issues: %v", issues)
 	}
+
 	return e, txn
 }
 
@@ -54,20 +59,25 @@ func TestSealEdgeEmptyChain(t *testing.T) {
 	if n, err := e.m.Seal(ctx); err != nil || n != 0 {
 		t.Fatalf("Seal() on an empty ledger = %d, %v", n, err)
 	}
+
 	report, err := e.m.Verify(ctx)
 	if err != nil || !report.OK || report.Issues == nil || len(report.Issues) != 0 {
 		t.Fatalf("Verify() = %+v, %v", report, err)
 	}
+
 	if want := "0:" + strings.Repeat("0", 64); report.ChainHead != want {
 		t.Fatalf("chain head = %s, want %s", report.ChainHead, want)
 	}
+
 	other, err := ledger.New(e.pool, testdb.Logger(), ledger.Config{SealKey: []byte(strings.Repeat("o", 32))})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := other.CheckSealKey(ctx); err != nil {
 		t.Fatalf("any key matches an empty chain: %v", err)
 	}
+
 	if report, err := other.Verify(ctx); err != nil || !report.OK {
 		t.Fatalf("Verify() with another key on an empty chain = %+v, %v", report, err)
 	}
@@ -80,16 +90,20 @@ func TestSealEdgeEmptyChain(t *testing.T) {
 		if _, err := e.m.ArchiveTransaction(ctx, archived.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if n, err := e.m.Seal(ctx); err != nil || n != 0 {
 			t.Fatalf("Seal() = %d, %v; want 0", n, err)
 		}
+
 		var sealable int
 		if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_transactions WHERE status = 'posted'`).Scan(&sealable); err != nil || sealable != 0 {
 			t.Fatalf("posted transactions = %d, %v", sealable, err)
 		}
+
 		if _, err := e.m.PostTransaction(ctx, p.ID, ledger.PostPendingInput{}); err != nil {
 			t.Fatal(err)
 		}
+
 		feSealAll(t, e)
 		report, err := e.m.Verify(ctx)
 		if err != nil || !report.OK || !strings.HasPrefix(report.ChainHead, "1:") {
@@ -127,10 +141,12 @@ func TestSealEdgeKeyLength(t *testing.T) {
 		for i := range key {
 			key[i] = 'x'
 		}
+
 		feSealAll(t, e)
 		if issues := verifyIssues(t, e); len(issues) != 0 {
 			t.Fatalf("issues after mutating the caller's key: %v", issues)
 		}
+
 		if err := e.m.CheckSealKey(context.Background()); err != nil {
 			t.Fatalf("mutating the caller's key slice broke the module: %v", err)
 		}
@@ -217,6 +233,7 @@ func TestSealEdgeTamperDetection(t *testing.T) {
 			for _, want := range tt.wants {
 				requireIssue(t, issues, want)
 			}
+
 			report, err := e.m.Verify(context.Background())
 			if err != nil || report.OK {
 				t.Fatalf("Verify() = %+v, %v; want not OK", report, err)
@@ -236,6 +253,7 @@ func TestSealEdgeSettlementTamper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	feSealAll(t, e)
 	asAttacker(t, e, `DELETE FROM ledger_settlement_entries WHERE settlement_id = $1 AND posting_id = (
 		SELECT min(posting_id) FROM ledger_settlement_entries WHERE settlement_id = $1)`, st.ID)

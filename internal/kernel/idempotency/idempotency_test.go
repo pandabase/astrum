@@ -39,6 +39,7 @@ func (h *harness) handler() http.Handler {
 		if h.release != nil {
 			<-h.release
 		}
+
 		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(int(h.status.Load()))
@@ -51,6 +52,7 @@ func send(h http.Handler, method, key, body string) *httptest.ResponseRecorder {
 	if key != "" {
 		r.Header.Set(Header, key)
 	}
+
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -70,15 +72,19 @@ func TestReplay(t *testing.T) {
 	if second.Code != http.StatusCreated {
 		t.Fatalf("replay status = %d, want 201", second.Code)
 	}
+
 	if second.Header().Get(ReplayedHeader) != "true" {
 		t.Fatal("replay missing Idempotent-Replayed header")
 	}
+
 	if second.Header().Get("Content-Type") != "application/json" {
 		t.Fatalf("replay Content-Type = %q", second.Header().Get("Content-Type"))
 	}
+
 	if second.Body.String() != first.Body.String() {
 		t.Fatalf("replay body = %q, want %q", second.Body.String(), first.Body.String())
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler calls = %d, want 1", n)
 	}
@@ -95,6 +101,7 @@ func TestClientErrorsAreReplayed(t *testing.T) {
 	if again.Code != http.StatusUnprocessableEntity || again.Header().Get(ReplayedHeader) != "true" {
 		t.Fatalf("4xx replay = %d replayed=%q", again.Code, again.Header().Get(ReplayedHeader))
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler calls = %d, want 1", n)
 	}
@@ -123,6 +130,7 @@ func TestKeyReuseWithDifferentRequest(t *testing.T) {
 			}
 		})
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler calls = %d, want 1", n)
 	}
@@ -143,6 +151,7 @@ func TestServerErrorReleasesKey(t *testing.T) {
 	if w.Code != http.StatusCreated || w.Header().Get(ReplayedHeader) != "" {
 		t.Fatalf("retry = %d replayed=%q, want fresh 201", w.Code, w.Header().Get(ReplayedHeader))
 	}
+
 	if n := h.calls.Load(); n != 2 {
 		t.Fatalf("handler calls = %d, want 2", n)
 	}
@@ -188,6 +197,7 @@ func TestConcurrentRequestIsRejectedWhileInFlight(t *testing.T) {
 	if w := <-done; w.Code != http.StatusCreated {
 		t.Fatalf("original = %d, want 201", w.Code)
 	}
+
 	if w := send(handler, http.MethodPost, "k5", `{}`); w.Header().Get(ReplayedHeader) != "true" {
 		t.Fatalf("after completion = %d, want replay", w.Code)
 	}
@@ -212,11 +222,13 @@ func TestRetryStormExecutesOnce(t *testing.T) {
 			mu.Unlock()
 		})
 	}
+
 	wg.Wait()
 
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler calls = %d, want 1", n)
 	}
+
 	if statusSet[http.StatusCreated]+statusSet[http.StatusConflict] != clients {
 		t.Fatalf("unexpected statuses: %v", statusSet)
 	}
@@ -295,6 +307,7 @@ func waitFor(t *testing.T, cond func() bool) {
 		if time.Now().After(deadline) {
 			t.Fatal("condition not met within 5s")
 		}
+
 		time.Sleep(5 * time.Millisecond)
 	}
 }
@@ -309,6 +322,7 @@ func TestTakenOverRequestCannotClobber(t *testing.T) {
 	if claimed, err := h.svc.claim(ctx, "fenced", hash, stale); err != nil || !claimed {
 		t.Fatalf("stale claim = %v, %v", claimed, err)
 	}
+
 	h.svc.lockTimeout = 0
 	time.Sleep(10 * time.Millisecond)
 	owner := uuid.New()
@@ -326,6 +340,7 @@ func TestTakenOverRequestCannotClobber(t *testing.T) {
 	if err := h.svc.pool.QueryRow(ctx, `SELECT lock_token, status FROM idempotency_keys WHERE key = 'fenced'`).Scan(&token, &status); err != nil {
 		t.Fatalf("record lost: %v", err)
 	}
+
 	if token != owner || status != "processing" {
 		t.Fatalf("record = %s/%s, want owner's processing record", token, status)
 	}
@@ -342,9 +357,11 @@ func TestPrune(t *testing.T) {
 	if n, err := h.svc.Prune(ctx); err != nil || n != 0 {
 		t.Fatalf("Prune() = %d, %v; want nothing pruned", n, err)
 	}
+
 	if _, err := h.svc.pool.Exec(ctx, `UPDATE idempotency_keys SET created_at = now() - interval '1 hour' WHERE key = 'old'`); err != nil {
 		t.Fatal(err)
 	}
+
 	h.svc.retention = 30 * time.Minute
 	if n, err := h.svc.Prune(ctx); err != nil || n != 1 {
 		t.Fatalf("Prune() = %d, %v; want 1", n, err)
@@ -370,9 +387,11 @@ func TestScopedKeys(t *testing.T) {
 	if alice.Code != http.StatusCreated || bob.Code != http.StatusCreated || h.calls.Load() != 2 {
 		t.Fatalf("alice %d, bob %d, calls %d; want both to run", alice.Code, bob.Code, h.calls.Load())
 	}
+
 	if again := as("alice", `{"who":"alice"}`); again.Header().Get(ReplayedHeader) != "true" || !strings.Contains(again.Body.String(), "alice") {
 		t.Fatalf("alice replay = %d %s", again.Code, again.Body.String())
 	}
+
 	if h.calls.Load() != 2 {
 		t.Fatalf("calls = %d after replay, want 2", h.calls.Load())
 	}

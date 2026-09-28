@@ -23,6 +23,7 @@ func feHold(t *testing.T, e *env, in ledger.CreateHoldInput) ledger.Hold {
 	if err != nil {
 		t.Fatalf("CreateHold(%s) error = %v", in.IdempotencyKey, err)
 	}
+
 	return h
 }
 
@@ -32,6 +33,7 @@ func feHoldStatus(t *testing.T, e *env, id uuid.UUID) ledger.HoldStatus {
 	if err != nil {
 		t.Fatalf("Hold() error = %v", err)
 	}
+
 	return h.Status
 }
 
@@ -85,22 +87,27 @@ func TestHoldsEdgeReserveBoundaries(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateHold() error = %v, want %v", err, tt.want)
 			}
+
 			after := e.get(t, acc.ID)
 			if tt.want != nil {
 				if after.Held != before.Held || after.Version != before.Version {
 					t.Fatalf("rejected hold changed the account: held %s version %d", after.Held, after.Version)
 				}
+
 				return
 			}
+
 			if after.Held != amt(tt.amount) || after.Version != before.Version+1 {
 				t.Fatalf("held %s version %d, want %d and %d", after.Held, after.Version, tt.amount, before.Version+1)
 			}
+
 			wantAvail, _ := before.Available.Amount.Sub(amt(tt.amount))
 			if after.Available.Amount != wantAvail || after.Posted != before.Posted {
 				t.Fatalf("available %s posted %s, want %s and unchanged", after.Available.Amount, after.Posted.Amount, wantAvail)
 			}
 		})
 	}
+
 	e.verify(t)
 }
 
@@ -114,6 +121,7 @@ func TestHoldsEdgeValidation(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	closed := e.account(t, "USD", ledger.Debit)
 	if _, err := e.m.CloseAccount(ctx, closed.ID); err != nil {
 		t.Fatal(err)
@@ -152,9 +160,11 @@ func TestHoldsEdgeValidation(t *testing.T) {
 			}
 		})
 	}
+
 	if held := feHeld(t, e, acc.ID); held != 3 {
 		t.Fatalf("held = %d, want the 3 valid holds", held)
 	}
+
 	e.verify(t)
 }
 
@@ -190,11 +200,13 @@ func TestHoldsEdgeReplay(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateHold() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && got.ID != first.ID {
 				t.Fatalf("replay created %s, want %s", got.ID, first.ID)
 			}
 		})
 	}
+
 	if feHeld(t, e, acc.ID) != 40 || feHeld(t, e, other.ID) != 0 {
 		t.Fatal("replays reserved funds again")
 	}
@@ -203,10 +215,12 @@ func TestHoldsEdgeReplay(t *testing.T) {
 		if _, err := e.m.VoidHold(ctx, first.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		got, err := e.m.CreateHold(ctx, base)
 		if err != nil || got.ID != first.ID || got.Status != ledger.HoldVoided {
 			t.Fatalf("replay = %+v, %v", got, err)
 		}
+
 		if held := feHeld(t, e, acc.ID); held != 0 {
 			t.Fatalf("held = %d after replaying a voided hold, want 0", held)
 		}
@@ -231,21 +245,26 @@ func TestHoldsEdgeReplay(t *testing.T) {
 						errs = append(errs, err)
 						return
 					}
+
 					ids[h.ID]++
 				})
 			}
+
 			wg.Wait()
 			if len(errs) > 0 {
 				t.Fatalf("round %d: %d of 16 identical creates failed, first: %v", round, len(errs), errs[0])
 			}
+
 			if len(ids) != 1 {
 				t.Fatalf("round %d: concurrent creates produced %d holds, want 1", round, len(ids))
 			}
+
 			if held := feHeld(t, e, racer.ID); held != 60 {
 				t.Fatalf("round %d: held = %d, want 60", round, held)
 			}
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -261,6 +280,7 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 	if stale.Status != ledger.HoldPending || feHeld(t, e, acc.ID) != 100 {
 		t.Fatalf("a hold created already expired = %+v, held %d", stale, feHeld(t, e, acc.ID))
 	}
+
 	live := feHold(t, e, feHoldAt("live", acc.ID, 50, time.Now().Add(time.Hour)))
 
 	_, err := e.m.CaptureHold(ctx, stale.ID, ledger.CaptureInput{IdempotencyKey: "cap-stale", Destination: merchant.ID, Amount: amt(1)})
@@ -273,10 +293,12 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("ExpireHolds() = %d, %v; want 1", n, err)
 	}
+
 	expired, err := e.m.Hold(ctx, stale.ID)
 	if err != nil || expired.Status != ledger.HoldExpired || expired.ResolvedAt == nil || expired.CapturedAmount != nil {
 		t.Fatalf("expired hold = %+v, %v", expired, err)
 	}
+
 	if feHeld(t, e, acc.ID) != 50 || feHoldStatus(t, e, live.ID) != ledger.HoldPending {
 		t.Fatal("sweep touched the live hold")
 	}
@@ -290,6 +312,7 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 	} {
 		t.Run(name+" after sweep", func(t *testing.T) { wantErr(t, act(), ledger.ErrHoldNotPending) })
 	}
+
 	if n, err := e.m.ExpireHolds(ctx); err != nil || n != 0 {
 		t.Fatalf("second sweep = %d, %v; want 0", n, err)
 	}
@@ -300,6 +323,7 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 		if err != nil || voided.Status != ledger.HoldVoided {
 			t.Fatalf("void = %+v, %v", voided, err)
 		}
+
 		if n, err := e.m.ExpireHolds(ctx); err != nil || n != 0 {
 			t.Fatalf("sweep after void = %d, %v; want 0", n, err)
 		}
@@ -307,6 +331,7 @@ func TestHoldsEdgeExpiry(t *testing.T) {
 	if merchant := e.get(t, merchant.ID); !merchant.Posted.Amount.IsZero() {
 		t.Fatalf("merchant received %s from expired holds", merchant.Posted.Amount)
 	}
+
 	e.verify(t)
 }
 
@@ -321,26 +346,31 @@ func TestHoldsEdgeSweepBatches(t *testing.T) {
 	for i := range holds {
 		holds[i] = feHold(t, e, feHoldAt(fmt.Sprint("batch-", i), acc.ID, 10, base.Add(time.Duration(4-i)*time.Minute)))
 	}
+
 	for i, want := range []int{2, 2, 1, 0} {
 		n, err := e.m.ExpireHolds(ctx)
 		if err != nil || n != want {
 			t.Fatalf("sweep %d = %d, %v; want %d", i, n, err, want)
 		}
+
 		if i == 0 {
 			for j, h := range holds {
 				want := ledger.HoldPending
 				if j >= 3 {
 					want = ledger.HoldExpired
 				}
+
 				if got := feHoldStatus(t, e, h.ID); got != want {
 					t.Fatalf("after first sweep hold %d = %s, want %s (earliest expiry first)", j, got, want)
 				}
 			}
 		}
 	}
+
 	if held := feHeld(t, e, acc.ID); held != 0 {
 		t.Fatalf("held = %d, want 0", held)
 	}
+
 	e.verify(t)
 }
 
@@ -367,31 +397,38 @@ func TestHoldsEdgeConcurrentSweeps(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				if n == 0 {
 					return
 				}
+
 				mu.Lock()
 				expired += n
 				mu.Unlock()
 			}
 		})
 	}
+
 	wg.Wait()
 	if n, err := e.m.ExpireHolds(ctx); err != nil || n != 0 {
 		t.Fatalf("final sweep = %d, %v", n, err)
 	}
+
 	if expired != total {
 		t.Fatalf("expired %d holds across sweepers, want exactly %d", expired, total)
 	}
+
 	for _, acc := range accounts {
 		if got := e.get(t, acc.ID); !got.Held.IsZero() || got.Available.Amount != amt(1_000) {
 			t.Fatalf("account %s held %s available %s", acc.ID, got.Held, got.Available.Amount)
 		}
 	}
+
 	list, err := e.m.ListHolds(ctx, ledger.ListHoldsInput{Status: ledger.HoldExpired, Limit: 1000})
 	if err != nil || len(list) != total {
 		t.Fatalf("expired holds listed = %d, %v", len(list), err)
 	}
+
 	e.verify(t)
 }
 
@@ -423,25 +460,32 @@ func TestHoldsEdgeCapture(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CaptureHold() error = %v, want %v", err, tt.want)
 			}
+
 			after := e.get(t, acc.ID)
 			if tt.want != nil {
 				if feHoldStatus(t, e, h.ID) != ledger.HoldPending || after.Held != amt(400) {
 					t.Fatalf("rejected capture changed the hold: held %s", after.Held)
 				}
+
 				return
 			}
+
 			if got.Status != ledger.HoldCaptured || *got.CapturedAmount != amt(tt.capture) || got.Amount != amt(400) || got.ResolvedAt == nil {
 				t.Fatalf("captured hold = %+v", got)
 			}
+
 			if after.Posted.Amount != amt(tt.wantPosted) || !after.Held.IsZero() {
 				t.Fatalf("customer posted %s held %s, want %d and 0", after.Posted.Amount, after.Held, tt.wantPosted)
 			}
+
 			if after.Available.Amount != amt(tt.wantPosted) {
 				t.Fatalf("available %s, want %d (remainder %d released)", after.Available.Amount, tt.wantPosted, tt.wantReleased)
 			}
+
 			if gained := e.balance(t, merchant.ID) - before; gained != tt.capture {
 				t.Fatalf("merchant gained %d, want %d", gained, tt.capture)
 			}
+
 			txn, err := e.m.Transaction(ctx, *got.CaptureTransactionID)
 			if err != nil || len(txn.Postings) != 2 || txn.Postings[0].AccountID != acc.ID || txn.Postings[0].Side != ledger.Credit {
 				t.Fatalf("capture transaction = %+v, %v", txn, err)
@@ -457,10 +501,12 @@ func TestHoldsEdgeCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		txn, err := e.m.Transaction(ctx, *got.CaptureTransactionID)
 		if err != nil || txn.Postings[0].Side != ledger.Debit || txn.Postings[1].Side != ledger.Credit {
 			t.Fatalf("capture postings = %+v, %v", txn.Postings, err)
 		}
+
 		if e.balance(t, acc.ID) != 30 || e.balance(t, dest.ID) != 70 {
 			t.Fatalf("balances = %d and %d, want 30 and 70", e.balance(t, acc.ID), e.balance(t, dest.ID))
 		}
@@ -474,6 +520,7 @@ func TestHoldsEdgeCapture(t *testing.T) {
 		if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		cases := []struct {
 			name string
 			in   ledger.CaptureInput
@@ -494,14 +541,17 @@ func TestHoldsEdgeCapture(t *testing.T) {
 				if c.name == "unknown hold" {
 					id = uuid.New()
 				}
+
 				_, err := e.m.CaptureHold(ctx, id, c.in)
 				wantErr(t, err, c.want)
 			})
 		}
+
 		if feHoldStatus(t, e, h.ID) != ledger.HoldPending || feHeld(t, e, acc.ID) != 100 || e.balance(t, acc.ID) != 1_000 {
 			t.Fatal("a rejected capture moved money or resolved the hold")
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -517,6 +567,7 @@ func TestHoldsEdgeTerminalStates(t *testing.T) {
 			if _, err := e.m.CaptureHold(ctx, h.ID, ledger.CaptureInput{IdempotencyKey: "tc:" + uuid.NewString(), Destination: merchant.ID, Amount: amt(10)}); err != nil {
 				t.Fatal(err)
 			}
+
 			return h
 		},
 		ledger.HoldVoided: func(t *testing.T, acc ledger.Account) ledger.Hold {
@@ -524,6 +575,7 @@ func TestHoldsEdgeTerminalStates(t *testing.T) {
 			if _, err := e.m.VoidHold(ctx, h.ID); err != nil {
 				t.Fatal(err)
 			}
+
 			return h
 		},
 		ledger.HoldExpired: func(t *testing.T, acc ledger.Account) ledger.Hold {
@@ -531,6 +583,7 @@ func TestHoldsEdgeTerminalStates(t *testing.T) {
 			if n, err := e.m.ExpireHolds(ctx); err != nil || n != 1 {
 				t.Fatalf("ExpireHolds() = %d, %v", n, err)
 			}
+
 			return h
 		},
 	}
@@ -553,21 +606,26 @@ func TestHoldsEdgeTerminalStates(t *testing.T) {
 				if !errors.Is(err, tt.voidErr) {
 					t.Fatalf("VoidHold() error = %v, want %v", err, tt.voidErr)
 				}
+
 				if err == nil && got.Status != tt.state {
 					t.Fatalf("void replay status = %s", got.Status)
 				}
+
 				_, err = e.m.CaptureHold(ctx, h.ID, ledger.CaptureInput{IdempotencyKey: "late:" + uuid.NewString(), Destination: merchant.ID, Amount: amt(1)})
 				wantErr(t, err, tt.captureErr)
 			}
+
 			got := e.get(t, acc.ID)
 			if got.Posted.Amount != amt(tt.wantBalance) || !got.Held.IsZero() || got.Available.Amount != amt(tt.wantBalance) {
 				t.Fatalf("account posted %s held %s available %s", got.Posted.Amount, got.Held, got.Available.Amount)
 			}
+
 			if st := feHoldStatus(t, e, h.ID); st != tt.state {
 				t.Fatalf("hold status = %s, want %s", st, tt.state)
 			}
 		})
 	}
+
 	e.verify(t)
 }
 
@@ -589,23 +647,29 @@ func TestHoldsEdgeConcurrentVoidAndCapture(t *testing.T) {
 		wg.Go(func() {
 			_, captureErr = e.m.CaptureHold(ctx, h.ID, ledger.CaptureInput{IdempotencyKey: fmt.Sprint("vc-cap-", i), Destination: merchant.ID, Amount: amt(100)})
 		})
+
 		wg.Wait()
 		if (voidErr == nil) == (captureErr == nil) {
 			t.Fatalf("round %d: void %v, capture %v; want exactly one winner", i, voidErr, captureErr)
 		}
+
 		if lost := errors.Join(voidErr, captureErr); !errors.Is(lost, ledger.ErrHoldNotPending) {
 			t.Fatalf("round %d: loser error = %v, want ErrHoldNotPending", i, lost)
 		}
+
 		if captureErr == nil {
 			captured += 100
 		}
 	}
+
 	if got := e.get(t, acc.ID); !got.Held.IsZero() || got.Posted.Amount != amt(10_000-captured) {
 		t.Fatalf("customer posted %s held %s, want %d and 0", got.Posted.Amount, got.Held, 10_000-captured)
 	}
+
 	if e.balance(t, merchant.ID) != captured {
 		t.Fatalf("merchant = %d, want %d", e.balance(t, merchant.ID), captured)
 	}
+
 	e.verify(t)
 }
 
@@ -622,16 +686,19 @@ func TestHoldsEdgeCloseAccountWithHolds(t *testing.T) {
 	if err != nil || frozen.Held != amt(25) {
 		t.Fatalf("freeze with a pending hold = %+v, %v", frozen, err)
 	}
+
 	_, err = e.m.CloseAccount(ctx, acc.ID)
 	wantErr(t, err, ledger.ErrAccountNotEmpty)
 
 	if _, err := e.m.VoidHold(ctx, h.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	closed, err := e.m.CloseAccount(ctx, acc.ID)
 	if err != nil || closed.Status != ledger.AccountClosed {
 		t.Fatalf("close after void = %+v, %v", closed, err)
 	}
+
 	_, err = e.m.CreateHold(ctx, feHoldAt("on-closed", acc.ID, 1, time.Now().Add(time.Hour)))
 	wantErr(t, err, ledger.ErrAccountNotOpen)
 	if again, err := e.m.VoidHold(ctx, h.ID); err != nil || again.Status != ledger.HoldVoided {
@@ -646,10 +713,12 @@ func TestHoldsEdgeCloseAccountWithHolds(t *testing.T) {
 		if n, err := e.m.ExpireHolds(ctx); err != nil || n != 1 {
 			t.Fatalf("ExpireHolds() = %d, %v", n, err)
 		}
+
 		if _, err := e.m.CloseAccount(ctx, acc.ID); err != nil {
 			t.Fatal(err)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -666,13 +735,16 @@ func TestHoldsEdgeList(t *testing.T) {
 	for i := range 5 {
 		holds = append(holds, feHold(t, e, feHoldAt(fmt.Sprint("list-", i), acc.ID, 10, later)))
 	}
+
 	expiring := feHold(t, e, feHoldAt("list-expire", other.ID, 10, time.Now().Add(-time.Minute)))
 	if _, err := e.m.ExpireHolds(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.VoidHold(ctx, holds[0].ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.CaptureHold(ctx, holds[1].ID, ledger.CaptureInput{IdempotencyKey: "list-cap", Destination: merchant.ID, Amount: amt(10)}); err != nil {
 		t.Fatal(err)
 	}
@@ -682,6 +754,7 @@ func TestHoldsEdgeList(t *testing.T) {
 		for i, h := range hs {
 			out[i] = h.ID.String()
 		}
+
 		return strings.Join(out, ",")
 	}
 	want := func(hs ...ledger.Hold) string { return ids(hs) }
@@ -717,12 +790,15 @@ func TestHoldsEdgeList(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListHolds() error = %v, want %v", err, tt.err)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if got == nil {
 				got = []ledger.Hold{}
 			}
+
 			if ids(got) != tt.want {
 				t.Fatalf("holds = %s, want %s", ids(got), tt.want)
 			}
@@ -737,12 +813,15 @@ func TestHoldsEdgeList(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			seen = append(seen, page...)
 			if len(page) < 2 {
 				break
 			}
+
 			before = page[len(page)-1].ID
 		}
+
 		if ids(seen) != want(expiring, holds[4], holds[3], holds[2], holds[1], holds[0]) {
 			t.Fatalf("walked %s", ids(seen))
 		}

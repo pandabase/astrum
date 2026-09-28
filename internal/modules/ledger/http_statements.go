@@ -11,12 +11,14 @@ func (h *handler) createStatement(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+
 	st, err := h.svc.createStatement(r.Context(), CreateStatementInput{
 		AccountID:   in.AccountID.UUID(),
 		Description: in.Description,
 		From:        in.EffectiveAtLowerBound,
 		Until:       in.EffectiveAtUpperBound,
 	})
+
 	respond(w, r, http.StatusCreated, st, toStatement, err)
 }
 
@@ -32,10 +34,12 @@ func (h *handler) listStatements(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	account, ok := queryID[accountPrefix](w, r, "account_id")
 	if !ok {
 		return
 	}
+
 	statements, err := h.svc.listStatements(r.Context(), ListStatementsInput{AccountID: account, Before: before, Limit: limit + 1})
 	respondList(w, r, statements, limit, toStatement, func(s Statement) string { return encodeUUIDCursor(s.ID) }, err)
 }

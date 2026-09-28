@@ -132,9 +132,11 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				httpx.Error(w, r, http.StatusRequestEntityTooLarge, httpx.CodeRequestTooLarge, "request body too large")
 				return
 			}
+
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "invalid request body")
 			return
 		}
+
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		hash := requestHash(r, body)
 		if s.Scope != nil {
@@ -150,10 +152,12 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			httpx.Error(w, r, http.StatusInternalServerError, httpx.CodeInternal, "")
 			return
 		}
+
 		if !claimed {
 			s.resolveExisting(w, r, l, key, hash)
 			return
 		}
+
 		l.Debug("key claimed")
 
 		rec := &recorder{ResponseWriter: w, status: http.StatusOK}
@@ -215,6 +219,7 @@ func (s *Service) resolveExisting(w http.ResponseWriter, r *http.Request, l *log
 		if rec.contentType != nil {
 			w.Header().Set("Content-Type", *rec.contentType)
 		}
+
 		w.Header().Set(ReplayedHeader, "true")
 		w.WriteHeader(*rec.respStatus)
 		if _, err := w.Write(rec.body); err != nil {
@@ -234,6 +239,7 @@ func (s *Service) finish(ctx context.Context, r *http.Request, l *log.Logger, ke
 		default:
 			l.Warn("key released after server error", "status", rec.status)
 		}
+
 		return
 	}
 
@@ -247,8 +253,10 @@ func (s *Service) finish(ctx context.Context, r *http.Request, l *log.Logger, ke
 			l.Error("encode replay problem failed", "err", err)
 			return
 		}
+
 		body = append(encoded, '\n')
 	}
+
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE idempotency_keys
 		SET status = 'completed',
@@ -262,10 +270,12 @@ func (s *Service) finish(ctx context.Context, r *http.Request, l *log.Logger, ke
 		l.Error("store response failed", "err", err)
 		return
 	}
+
 	if tag.RowsAffected() == 0 {
 		l.Warn("key ownership lost before response was stored", "status", rec.status)
 		return
 	}
+
 	l.Debug("response stored", "status", rec.status, "bytes", rec.body.Len())
 }
 
@@ -281,6 +291,7 @@ func mutating(method string) bool {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 		return true
 	}
+
 	return false
 }
 
@@ -296,6 +307,7 @@ func (r *recorder) WriteHeader(status int) {
 		r.status = status
 		r.wroteHeader = true
 	}
+
 	r.ResponseWriter.WriteHeader(status)
 }
 

@@ -30,22 +30,28 @@ func (e *env) published(t *testing.T, types ...string) []map[string]any {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		for _, ev := range page {
 			if len(types) > 0 && !slices.Contains(types, ev.Type) {
 				continue
 			}
+
 			var data map[string]any
 			if err := json.Unmarshal(ev.Data, &data); err != nil {
 				t.Fatal(err)
 			}
+
 			data["_type"] = ev.Type
 			out = append(out, data)
 		}
+
 		if len(page) < 100 {
 			break
 		}
+
 		before = page[len(page)-1].ID
 	}
+
 	slices.Reverse(out)
 	return out
 }
@@ -55,6 +61,7 @@ func countTypes(evs []map[string]any) map[string]int {
 	for _, ev := range evs {
 		counts[ev["_type"].(string)]++
 	}
+
 	return counts
 }
 
@@ -69,37 +76,47 @@ func TestLedgerEmitsEvents(t *testing.T) {
 	if _, err := e.m.UpdateTransaction(ctx, p.ID, ledger.UpdateTransactionInput{Description: new("edited")}); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.PostTransaction(ctx, p.ID, ledger.PostPendingInput{}); err != nil {
 		t.Fatal(err)
 	}
+
 	q := e.post(t, pending(transfer("q", a.ID, b.ID, 10)))
 	if _, err := e.m.ArchiveTransaction(ctx, q.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	h, err := e.m.CreateHold(ctx, holdInput("h", a.ID, 50, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.CaptureHold(ctx, h.ID, ledger.CaptureInput{IdempotencyKey: "cap", Destination: b.ID, Amount: amt(20)}); err != nil {
 		t.Fatal(err)
 	}
+
 	v, err := e.m.CreateHold(ctx, holdInput("v", a.ID, 5, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.VoidHold(ctx, v.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.CreateHold(ctx, holdInput("x", a.ID, 5, 20*time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
+
 	time.Sleep(50 * time.Millisecond)
 	if n, err := e.m.ExpireHolds(ctx); err != nil || n != 1 {
 		t.Fatalf("expire = %d, %v", n, err)
 	}
+
 	if _, err := e.m.FreezeAccount(ctx, b.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("wallet")}); err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +125,11 @@ func TestLedgerEmitsEvents(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, b.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("wallet")}); err != nil {
 		t.Fatal(err)
 	}
+
 	results, err := e.m.PostBatch(ctx, []ledger.PostInput{transfer("ok", a.ID, e.open.ID, 1), transfer("broke", a.ID, e.open.ID, 1_000_000)}, true)
 	if err != nil || results[0].Err == nil {
 		t.Fatalf("atomic batch = %+v, %v", results, err)
@@ -139,10 +158,12 @@ func TestLedgerEmitsEvents(t *testing.T) {
 			!strings.HasPrefix(posted["id"].(string), "txn_") {
 			t.Fatalf("transaction.posted = %v", posted)
 		}
+
 		frozen := e.published(t, "account.updated")[0]
 		if frozen["object"] != "account" || frozen["status"] != "frozen" {
 			t.Fatalf("account.updated = %v", frozen)
 		}
+
 		captured := e.published(t, "hold.captured")[0]
 		if captured["status"] != "captured" || captured["captured_amount"] != "20" {
 			t.Fatalf("hold.captured = %v", captured)
@@ -165,6 +186,7 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 	if err != nil || low.Triggered {
 		t.Fatalf("monitor = %+v, %v", low, err)
 	}
+
 	fired := func() int {
 		t.Helper()
 		return len(e.published(t, "balance_monitor.triggered"))
@@ -198,6 +220,7 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 		if got := fired(); got != step.fired {
 			t.Fatalf("%s: %d triggers, want %d", step.name, got, step.fired)
 		}
+
 		m, err := e.m.BalanceMonitor(ctx, low.ID)
 		if err != nil || m.Triggered != step.inside {
 			t.Fatalf("%s: monitor = %+v, %v", step.name, m, err)
@@ -216,10 +239,12 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 		if err != nil || updated.Description != "low float" || updated.Version != 1 {
 			t.Fatalf("update = %+v, %v", updated, err)
 		}
+
 		list, err := e.m.ListBalanceMonitors(ctx, ledger.ListBalanceMonitorsInput{AccountID: a.ID, Limit: 10})
 		if err != nil || len(list) != 1 {
 			t.Fatalf("list = %+v, %v", list, err)
 		}
+
 		for _, in := range []ledger.CreateBalanceMonitorInput{
 			{AccountID: a.ID, Condition: ledger.AlertCondition{Field: "balance", Operator: "lt"}},
 			{AccountID: a.ID, Condition: ledger.AlertCondition{Field: "posted", Operator: "below"}},
@@ -228,19 +253,23 @@ func TestBalanceMonitorCrossings(t *testing.T) {
 			_, err := e.m.CreateBalanceMonitor(ctx, in)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
+
 		_, err = e.m.CreateBalanceMonitor(ctx, ledger.CreateBalanceMonitorInput{
 			AccountID: uuid.New(), Condition: ledger.AlertCondition{Field: "posted", Operator: "lt"},
 		})
+
 		wantErr(t, err, ledger.ErrNotFound)
 		if err := e.m.DeleteBalanceMonitor(ctx, low.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		e.post(t, transfer("after-delete", e.open.ID, a.ID, 500))
 		e.post(t, transfer("after-delete-2", a.ID, b.ID, 550))
 		if got := fired(); got != 3 {
 			t.Fatalf("deleted monitor fired: %d", got)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -277,9 +306,11 @@ func TestWebhookEndToEnd(t *testing.T) {
 		if _, err := svc.Dispatch(context.Background()); err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := svc.Deliver(context.Background()); err != nil {
 			t.Fatal(err)
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatalf("received %d of 2 webhooks", received())
 		}
@@ -295,6 +326,7 @@ func TestWebhookEndToEnd(t *testing.T) {
 	if payment < 0 {
 		t.Fatalf("no payment webhook among %s", bodies)
 	}
+
 	var ev struct {
 		Type string `json:"type"`
 		Data struct {
@@ -305,13 +337,16 @@ func TestWebhookEndToEnd(t *testing.T) {
 	if err := json.Unmarshal(bodies[payment], &ev); err != nil {
 		t.Fatal(err)
 	}
+
 	if ev.Type != "transaction.created" || ev.Data.ID != typeid.Encode("txn", txn.ID) ||
 		len(ev.Data.Entries) != 2 || ev.Data.Entries[0]["amount"] != "25" {
 		t.Fatalf("webhook = %s", bodies[payment])
 	}
+
 	if strings.Contains(string(bodies[payment]), "resulting_balances") {
 		t.Fatal("event payload carries resulting balances")
 	}
+
 	if !events.Verify(ep.Secret, sigs[payment], bodies[payment], time.Now(), time.Minute) {
 		t.Fatal("webhook signature does not verify")
 	}
@@ -327,10 +362,12 @@ func TestHTTPBalanceMonitors(t *testing.T) {
 	if m["object"] != "balance_monitor" || m["triggered"] != true {
 		t.Fatalf("monitor = %v", m)
 	}
+
 	a.must(http.StatusOK, http.MethodGet, "/v1/balance_monitors/"+id, "", "")
 	if n := len(a.list("/v1/balance_monitors?account_id=" + cash)); n != 1 {
 		t.Fatalf("monitors = %d", n)
 	}
+
 	a.must(http.StatusOK, http.MethodPatch, "/v1/balance_monitors/"+id, "", `{"description":"never negative"}`)
 	a.must(http.StatusUnprocessableEntity, http.MethodPost, "/v1/balance_monitors", "", fmt.Sprintf(
 		`{"account_id":%q,"alert_condition":{"field":"balance","operator":"gte","value":"0"}}`, cash))
@@ -338,5 +375,6 @@ func TestHTTPBalanceMonitors(t *testing.T) {
 	if got := a.must(http.StatusOK, http.MethodDelete, "/v1/balance_monitors/"+id, "", ""); got["deleted"] != true {
 		t.Fatalf("delete = %v", got)
 	}
+
 	a.must(http.StatusNotFound, http.MethodGet, "/v1/balance_monitors/"+id, "", "")
 }

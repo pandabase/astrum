@@ -26,10 +26,12 @@ func RunTx(ctx context.Context, pool *pgxpool.Pool, fn func(pgx.Tx) error) error
 		if err == nil || !Retryable(err) {
 			return err
 		}
+
 		if err := sleep(ctx, backoff(attempt)); err != nil {
 			return err
 		}
 	}
+
 	return err
 }
 
@@ -37,10 +39,12 @@ func Retryable(err error) bool {
 	if errors.Is(err, ErrRetry) {
 		return true
 	}
+
 	switch Code(err) {
 	case "40001", "40P01":
 		return true
 	}
+
 	return pgconn.SafeToRetry(err)
 }
 
@@ -48,6 +52,7 @@ func Code(err error) string {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		return pgErr.Code
 	}
+
 	return ""
 }
 
@@ -55,6 +60,7 @@ func Constraint(err error) string {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		return pgErr.ConstraintName
 	}
+
 	return ""
 }
 

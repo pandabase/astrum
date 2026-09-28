@@ -38,9 +38,11 @@ func applyRequests(ctx context.Context, tx pgx.Tx, reqs []*postingRequest, atomi
 		if req.in.ExternalID != "" {
 			externalIDs = append(externalIDs, req.in.ExternalID)
 		}
+
 		for _, p := range req.in.Postings {
 			accountIDs = append(accountIDs, p.AccountID)
 		}
+
 		for id := range req.releases {
 			accountIDs = append(accountIDs, id)
 		}
@@ -73,6 +75,7 @@ func applyRequests(ctx context.Context, tx pgx.Tx, reqs []*postingRequest, atomi
 		if results[i].err != nil && atomic {
 			return results, errAborted
 		}
+
 		if results[i].err == nil && !results[i].replayed {
 			accepted = append(accepted, results[i].txn)
 		}
@@ -86,19 +89,23 @@ func applyRequests(ctx context.Context, tx pgx.Tx, reqs []*postingRequest, atomi
 	if err != nil {
 		return nil, err
 	}
+
 	write := &pgx.Batch{}
 	queueInsertEntries(write, accepted)
 	events.Queue(write, created...)
 	if err := queueWriteAccounts(write, state); err != nil {
 		return nil, err
 	}
+
 	if err := tx.SendBatch(ctx, write).Close(); err != nil {
 		if c := db.Constraint(err); c == constraintTransactionKey || c == constraintExternalID {
 
 			return nil, fmt.Errorf("%w: %w", db.ErrRetry, err)
 		}
+
 		return nil, fmt.Errorf("write batch: %w", err)
 	}
+
 	return results, nil
 }
 
@@ -122,6 +129,7 @@ func resolveRequest(
 		if !txn.matches(req.in) {
 			return postingResult{err: ErrIdempotencyConflict}
 		}
+
 		return postingResult{txn: txn, replayed: true}
 	}
 
@@ -133,8 +141,10 @@ func resolveRequest(
 		case !prior.txn.matches(req.in):
 			return postingResult{err: ErrIdempotencyConflict}
 		}
+
 		return postingResult{txn: prior.txn, replayed: true}
 	}
+
 	firstByKey[key] = i
 
 	var external *externalKey
@@ -150,16 +160,20 @@ func resolveRequest(
 	if req.in.EffectiveAt != nil {
 		effectiveAt = *req.in.EffectiveAt
 	}
+
 	if a, ok := state.accounts[req.in.Postings[0].AccountID]; ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
 		return postingResult{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, a.closedBefore.UTC().Format(time.RFC3339Nano))}
 	}
+
 	ledgerID, postings, err := state.transition(balanceChange{add: req.in.Postings, status: status, releases: req.releases})
 	if err != nil {
 		if !req.in.ArchiveOnLockFailure || !(errors.Is(err, ErrBalanceLock) || errors.Is(err, ErrLockVersion)) {
 			return postingResult{err: err}
 		}
+
 		status, ledgerID, postings = archivedPostings(state, req.in.Postings)
 	}
+
 	if external != nil {
 		taken[*external] = key
 	}
@@ -168,6 +182,7 @@ func resolveRequest(
 	if err != nil {
 		return postingResult{err: fmt.Errorf("ledger: generate id: %w", err)}
 	}
+
 	txn := Transaction{
 		ID:             id,
 		LedgerID:       ledgerID,
@@ -189,10 +204,12 @@ func resolveRequest(
 	case TransactionArchived:
 		txn.ArchivedAt = &now
 	}
+
 	if status != TransactionPosted {
 		request := req.in
 		txn.request = &request
 	}
+
 	return postingResult{txn: txn}
 }
 
@@ -202,6 +219,7 @@ func archivedPostings(state *ledgerState, in []Posting) (TransactionStatus, uuid
 		p.Currency = state.accounts[p.AccountID].currency
 		postings[i] = p
 	}
+
 	return TransactionArchived, state.accounts[in[0].AccountID].ledgerID, postings
 }
 
@@ -218,10 +236,13 @@ func runRequests(ctx context.Context, s *service, reqs []*postingRequest, atomic
 				results[i] = postingResult{err: ErrBatchAborted}
 			}
 		}
+
 		return results, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	return results, nil
 }

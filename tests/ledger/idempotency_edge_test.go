@@ -26,12 +26,14 @@ func TestIdempotencyEdgeReplayedFlag(t *testing.T) {
 	if err != nil || first[0].Err != nil || first[0].Replayed {
 		t.Fatalf("first = %+v, %v", first, err)
 	}
+
 	for _, atomic := range []bool{false, true} {
 		again, err := e.m.PostBatch(ctx, []ledger.PostInput{in}, atomic)
 		if err != nil || again[0].Err != nil || !again[0].Replayed || again[0].Transaction.ID != first[0].Transaction.ID {
 			t.Fatalf("atomic=%v replay = %+v, %v", atomic, again, err)
 		}
 	}
+
 	if got := e.balance(t, b.ID); got != 10 {
 		t.Fatalf("b = %d, want 10", got)
 	}
@@ -51,6 +53,7 @@ func TestIdempotencyEdgeMetadataNumbers(t *testing.T) {
 			if o, ok := override[k]; ok {
 				return o
 			}
+
 			return fields[k]
 		}
 		return jsontext.Value(fmt.Sprintf(`{"n":%s,"big":%s,"f":%s,"neg":%s,"arr":%s,"nested":{"x":%s},"s":%s}`,
@@ -101,11 +104,13 @@ func TestIdempotencyEdgeMetadataNumbers(t *testing.T) {
 				wantErr(t, err, ledger.ErrIdempotencyConflict)
 				return
 			}
+
 			if err != nil || got.ID != original.ID {
 				t.Fatalf("replay = %s, %v; want %s", got.ID, err, original.ID)
 			}
 		})
 	}
+
 	if got := e.balance(t, b.ID); got != 7 {
 		t.Fatalf("b = %d, want 7", got)
 	}
@@ -170,6 +175,7 @@ func TestIdempotencyEdgePayloadFields(t *testing.T) {
 				wantErr(t, err, ledger.ErrIdempotencyConflict)
 				return
 			}
+
 			if err != nil || got.ID != original.ID {
 				t.Fatalf("replay = %s, %v; want %s", got.ID, err, original.ID)
 			}
@@ -196,6 +202,7 @@ func TestIdempotencyEdgePayloadFields(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 11 {
 		t.Fatalf("b = %d, want 11", got)
 	}
+
 	e.verify(t)
 }
 
@@ -212,6 +219,7 @@ func TestIdempotencyEdgeKeyScope(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		x, y := e.accountIn(t, other.ID), e.accountIn(t, other.ID)
 		_, err = e.m.Post(ctx, transfer("global", x.ID, y.ID, 1))
 		wantErr(t, err, ledger.ErrIdempotencyConflict)
@@ -225,6 +233,7 @@ func TestIdempotencyEdgeKeyScope(t *testing.T) {
 		for _, key := range []string{"exact", "Exact", "exact ", " exact", "exact\t", "éxact", "éxact"} {
 			ids[e.post(t, transfer(key, a.ID, b.ID, 1)).ID] = true
 		}
+
 		if len(ids) != 7 {
 			t.Fatalf("distinct transactions = %d, want 7", len(ids))
 		}
@@ -236,15 +245,18 @@ func TestIdempotencyEdgeKeyScope(t *testing.T) {
 		if _, err := e.m.ArchiveTransaction(ctx, txn.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		before := peViews(t, e, a.ID)
 		got, err := e.m.Post(ctx, in)
 		if err != nil || got.ID != txn.ID || got.Status != ledger.TransactionArchived {
 			t.Fatalf("replay = %+v, %v", got, err)
 		}
+
 		if after := peViews(t, e, a.ID); after != before {
 			t.Fatalf("replay reserved funds again: %v -> %v", before, after)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -258,10 +270,12 @@ func TestIdempotencyEdgeRejectionsDoNotConsumeKeys(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	foreign := e.accountIn(t, other.ID)
 	taken := transfer("owner", a.ID, b.ID, 1)
 	taken.ExternalID = "ext-taken"
@@ -296,12 +310,15 @@ func TestIdempotencyEdgeRejectionsDoNotConsumeKeys(t *testing.T) {
 			if peKeyExists(t, e, key) {
 				t.Fatal("rejected post consumed its key")
 			}
+
 			e.post(t, transfer(key, a.ID, b.ID, 1))
 		})
 	}
+
 	if got := e.balance(t, b.ID); got != int64(len(tests))+1 {
 		t.Fatalf("b = %d, want %d", got, len(tests)+1)
 	}
+
 	e.verify(t)
 }
 
@@ -318,9 +335,11 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil || results[0].Err != nil || results[1].Err != nil {
 			t.Fatalf("batch = %+v, %v", results, err)
 		}
+
 		if results[0].Replayed || !results[1].Replayed || results[0].Transaction.ID != results[1].Transaction.ID {
 			t.Fatalf("replay flags = %v %v", results[0].Replayed, results[1].Replayed)
 		}
+
 		if got := e.balance(t, b.ID); got != 3 {
 			t.Fatalf("b = %d, want 3", got)
 		}
@@ -334,6 +353,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrBatchAborted)
 		wantErr(t, results[1].Err, ledger.ErrIdempotencyConflict)
 		if peKeyExists(t, e, "atomic-clash") {
@@ -349,6 +369,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrInsufficientFunds)
 		wantErr(t, results[1].Err, ledger.ErrInsufficientFunds)
 		if peKeyExists(t, e, "first-fails") {
@@ -363,6 +384,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrInvalid)
 		if results[1].Err != nil || results[1].Transaction.IdempotencyKey != "shadow" {
 			t.Fatalf("second = %+v", results[1])
@@ -379,12 +401,15 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if results[0].Err != nil || results[0].Replayed {
 			t.Fatalf("fresh = %+v", results[0])
 		}
+
 		if results[1].Err != nil || !results[1].Replayed || results[1].Transaction.ID != existing.ID {
 			t.Fatalf("existing = %+v", results[1])
 		}
+
 		wantErr(t, results[2].Err, ledger.ErrIdempotencyConflict)
 	})
 
@@ -397,6 +422,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrIdempotencyConflict)
 		if results[1].Err != nil || !results[1].Replayed || results[1].Transaction.ID != existing.ID {
 			t.Fatalf("matching duplicate = %+v, want replay of %s", results[1], existing.ID)
@@ -406,6 +432,7 @@ func TestIdempotencyEdgeBatchKeys(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 7 {
 		t.Fatalf("b = %d, want 7", got)
 	}
+
 	e.verify(t)
 }
 
@@ -445,6 +472,7 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrBatchAborted)
 		wantErr(t, results[1].Err, ledger.ErrExternalIDExists)
 		e.post(t, with("ext-b3", "ext-3", 1))
@@ -455,6 +483,7 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		x, y := e.accountIn(t, other.ID), e.accountIn(t, other.ID)
 		foreign := transfer("ext-foreign", x.ID, y.ID, 1)
 		foreign.ExternalID = "ext-4"
@@ -471,6 +500,7 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 		for i := range contenders {
 			wg.Go(func() { _, errs[i] = e.m.Post(ctx, with(fmt.Sprintf("ext-race-%d", i), "ext-race", 1)) })
 		}
+
 		wg.Wait()
 		won := 0
 		for _, err := range errs {
@@ -481,9 +511,11 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		}
+
 		if won != 1 {
 			t.Fatalf("winners = %d, want 1", won)
 		}
+
 		found, err := e.m.ListTransactions(ctx, ledger.ListTransactionsInput{LedgerID: e.ledger.ID, ExternalID: "ext-race", Limit: 10})
 		if err != nil || len(found) != 1 {
 			t.Fatalf("transactions with ext-race = %d, %v", len(found), err)
@@ -493,6 +525,7 @@ func TestIdempotencyEdgeExternalIDs(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 7 {
 		t.Fatalf("b = %d, want 7", got)
 	}
+
 	e.verify(t)
 }
 
@@ -510,6 +543,7 @@ func TestIdempotencyEdgeConcurrentDifferentBodies(t *testing.T) {
 	for i := range contenders {
 		wg.Go(func() { txns[i], errs[i] = e.m.Post(ctx, transfer("contested", a.ID, b.ID, int64(1+i%3))) })
 	}
+
 	wg.Wait()
 
 	var winner ledger.Transaction
@@ -519,9 +553,11 @@ func TestIdempotencyEdgeConcurrentDifferentBodies(t *testing.T) {
 			break
 		}
 	}
+
 	if winner.ID == uuid.Nil {
 		t.Fatal("no contender succeeded")
 	}
+
 	amount := small(t, winner.Postings[0].Amount)
 	for i, err := range errs {
 		mine := int64(1 + i%3)
@@ -532,8 +568,10 @@ func TestIdempotencyEdgeConcurrentDifferentBodies(t *testing.T) {
 			t.Errorf("contender %d with a losing body got %v", i, err)
 		}
 	}
+
 	if got := e.balance(t, b.ID); got != amount {
 		t.Fatalf("b = %d, want %d", got, amount)
 	}
+
 	e.verify(t)
 }

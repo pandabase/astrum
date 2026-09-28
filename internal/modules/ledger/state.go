@@ -37,10 +37,12 @@ func (a *accountState) available() (money.Amount, error) {
 	if a.normalSide == Credit {
 		in, out, pendingOut = a.postedCredits, a.postedDebits, a.pendingDebits
 	}
+
 	out, err := sumAmounts(out, pendingOut, a.held)
 	if err != nil {
 		return money.Amount{}, err
 	}
+
 	return in.Sub(out)
 }
 
@@ -54,10 +56,12 @@ func (a *accountState) balances() (posted, pending, available Balance, err error
 	if err != nil {
 		return
 	}
+
 	pendingCredits, err := a.postedCredits.Add(a.pendingCredits)
 	if err != nil {
 		return
 	}
+
 	availableDebits, availableCredits := a.postedDebits, a.postedCredits
 	if a.normalSide == Debit {
 		availableCredits, err = pendingCredits.Add(a.held)
@@ -67,12 +71,15 @@ func (a *accountState) balances() (posted, pending, available Balance, err error
 	if err != nil {
 		return
 	}
+
 	if posted, err = a.balance(a.postedDebits, a.postedCredits); err != nil {
 		return
 	}
+
 	if pending, err = a.balance(pendingDebits, pendingCredits); err != nil {
 		return
 	}
+
 	available, err = a.balance(availableDebits, availableCredits)
 	return
 }
@@ -82,6 +89,7 @@ func (a *accountState) balance(debits, credits money.Amount) (Balance, error) {
 	if a.normalSide == Credit {
 		amount, err = credits.Sub(debits)
 	}
+
 	return Balance{Debits: debits, Credits: credits, Amount: amount}, err
 }
 
@@ -93,6 +101,7 @@ func sumAmounts(amounts ...money.Amount) (money.Amount, error) {
 			return money.Amount{}, err
 		}
 	}
+
 	return total, nil
 }
 
@@ -101,20 +110,25 @@ func (a *accountState) checkFunds(before *accountState) error {
 	if err != nil {
 		return err
 	}
+
 	prior, err := before.available()
 	if err != nil {
 		return err
 	}
+
 	if a.allowNegative || after.Cmp(prior) >= 0 {
 		return nil
 	}
+
 	floor, err := after.Add(a.overdraftLimit)
 	if err != nil {
 		return err
 	}
+
 	if floor.Sign() < 0 {
 		return fmt.Errorf("%w: account %s", ErrInsufficientFunds, a.id)
 	}
+
 	return nil
 }
 
@@ -122,6 +136,7 @@ func (a *accountState) checkOpen() error {
 	if a.status != AccountOpen {
 		return fmt.Errorf("%w: account %s is %s", ErrAccountNotOpen, a.id, a.status)
 	}
+
 	return nil
 }
 
@@ -147,9 +162,11 @@ func newLedgerState(accounts []*accountState, monitors []BalanceMonitor) *ledger
 		s.accounts[a.id] = a
 		s.original[a.id] = *a
 	}
+
 	for _, m := range monitors {
 		s.monitors[m.AccountID] = append(s.monitors[m.AccountID], m)
 	}
+
 	return s
 }
 
@@ -163,14 +180,17 @@ func (s *ledgerState) crossed() ([]BalanceMonitor, []Balances, error) {
 		if len(watchers) == 0 {
 			continue
 		}
+
 		before, err := s.original[a.id].views()
 		if err != nil {
 			return nil, nil, err
 		}
+
 		after, err := a.views()
 		if err != nil {
 			return nil, nil, err
 		}
+
 		for _, m := range watchers {
 			if !m.Condition.holds(before) && m.Condition.holds(after) {
 				m.Triggered = true
@@ -178,6 +198,7 @@ func (s *ledgerState) crossed() ([]BalanceMonitor, []Balances, error) {
 			}
 		}
 	}
+
 	return fired, balances, nil
 }
 
@@ -212,33 +233,41 @@ func (s *ledgerState) transition(c balanceChange) (uuid.UUID, []Posting, error) 
 		if err != nil {
 			return uuid.Nil, nil, err
 		}
+
 		if err := a.checkOpen(); err != nil {
 			return uuid.Nil, nil, err
 		}
+
 		if deferredVersionErr == nil && p.LockVersion != nil && *p.LockVersion != s.accounts[a.id].version {
 			deferredVersionErr = fmt.Errorf("%w: entry %d account %s is at version %d, not %d",
 				ErrLockVersion, i, a.id, s.accounts[a.id].version, *p.LockVersion)
 		}
+
 		if !pinned {
 			ledgerID, pinned = a.ledgerID, true
 		} else if a.ledgerID != ledgerID {
 			return uuid.Nil, nil, fmt.Errorf("%w: entry %d account %s is in ledger %s, the transaction in ledger %s",
 				ErrCrossLedger, i, a.id, a.ledgerID, ledgerID)
 		}
+
 		if p.Currency != "" && p.Currency != a.currency {
 			return uuid.Nil, nil, fmt.Errorf("%w: entry %d currency %s does not match account currency %s",
 				ErrInvalid, i, p.Currency, a.currency)
 		}
+
 		p.Currency = a.currency
 
 		if totals[a.currency], err = totals[a.currency].Add(p.signedAmount()); err != nil {
 			return uuid.Nil, nil, err
 		}
+
 		if err := a.record(&p, c.status); err != nil {
 			return uuid.Nil, nil, err
 		}
+
 		postings[i] = p
 	}
+
 	for currency, total := range totals {
 		if !total.IsZero() {
 			return uuid.Nil, nil, fmt.Errorf("%w: %s debits and credits differ by %s", ErrUnbalanced, currency, total)
@@ -250,10 +279,12 @@ func (s *ledgerState) transition(c balanceChange) (uuid.UUID, []Posting, error) 
 		if err != nil {
 			return uuid.Nil, nil, err
 		}
+
 		if a.held, err = release(a.held, amount, id); err != nil {
 			return uuid.Nil, nil, err
 		}
 	}
+
 	if deferredVersionErr != nil {
 		return uuid.Nil, nil, deferredVersionErr
 	}
@@ -265,6 +296,7 @@ func (s *ledgerState) transition(c balanceChange) (uuid.UUID, []Posting, error) 
 	if err := s.commit(staged.changed); err != nil {
 		return uuid.Nil, nil, err
 	}
+
 	return ledgerID, postings, nil
 }
 
@@ -277,10 +309,12 @@ func (st stagedAccounts) account(id uuid.UUID) (*accountState, error) {
 	if a, ok := st.changed[id]; ok {
 		return a, nil
 	}
+
 	a, ok := st.base[id]
 	if !ok {
 		return nil, fmt.Errorf("%w: account %s", ErrNotFound, id)
 	}
+
 	clone := *a
 	st.changed[id] = &clone
 	return &clone, nil
@@ -292,17 +326,21 @@ func (st stagedAccounts) unpend(postings []Posting) error {
 		if err != nil {
 			return err
 		}
+
 		total := &a.pendingDebits
 		if p.Side == Credit {
 			total = &a.pendingCredits
 		}
+
 		if p.Amount.Cmp(*total) > 0 {
 			return fmt.Errorf("ledger: pending %s %s exceeds the %s pending on account %s", p.Side, p.Amount, *total, a.id)
 		}
+
 		if *total, err = total.Sub(p.Amount); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -312,12 +350,15 @@ func (st stagedAccounts) checkResultingLocks(postings []Posting) error {
 		if err != nil {
 			return err
 		}
+
 		result := Balances{Pending: pending, Posted: posted, Available: available}
 		if err := postings[i].checkLocks(i, result); err != nil {
 			return err
 		}
+
 		postings[i].Resulting = &result
 	}
+
 	return nil
 }
 
@@ -333,9 +374,11 @@ func (a *accountState) record(p *Posting, status TransactionStatus) error {
 	default:
 		a.postedCredits, err = a.postedCredits.Add(p.Amount)
 	}
+
 	if err != nil || status == TransactionPending {
 		return err
 	}
+
 	p.balanceAfter, err = a.postedNet()
 	return err
 }
@@ -345,17 +388,21 @@ func (s *ledgerState) reserve(id uuid.UUID, currency money.Currency, amount mone
 	if !ok {
 		return fmt.Errorf("%w: account %s", ErrNotFound, id)
 	}
+
 	if err := a.checkOpen(); err != nil {
 		return err
 	}
+
 	if currency != "" && currency != a.currency {
 		return fmt.Errorf("%w: hold currency %s does not match account currency %s", ErrInvalid, currency, a.currency)
 	}
+
 	clone := *a
 	var err error
 	if clone.held, err = clone.held.Add(amount); err != nil {
 		return err
 	}
+
 	return s.commit(map[uuid.UUID]*accountState{id: &clone})
 }
 
@@ -364,11 +411,13 @@ func (s *ledgerState) release(id uuid.UUID, amount money.Amount) error {
 	if !ok {
 		return fmt.Errorf("%w: account %s", ErrNotFound, id)
 	}
+
 	clone := *a
 	var err error
 	if clone.held, err = release(a.held, amount, id); err != nil {
 		return err
 	}
+
 	return s.commit(map[uuid.UUID]*accountState{id: &clone})
 }
 
@@ -376,6 +425,7 @@ func release(held, amount money.Amount, id uuid.UUID) (money.Amount, error) {
 	if amount.Cmp(held) > 0 {
 		return money.Amount{}, fmt.Errorf("ledger: release of %s exceeds held %s on account %s", amount, held, id)
 	}
+
 	return held.Sub(amount)
 }
 
@@ -385,9 +435,11 @@ func (s *ledgerState) commit(scratch map[uuid.UUID]*accountState) error {
 			return err
 		}
 	}
+
 	for _, a := range scratch {
 		a.version++
 	}
+
 	maps.Copy(s.accounts, scratch)
 	return nil
 }
@@ -399,5 +451,6 @@ func (s *ledgerState) dirty() []*accountState {
 			out = append(out, a)
 		}
 	}
+
 	return out
 }

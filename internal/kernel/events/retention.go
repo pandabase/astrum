@@ -28,30 +28,37 @@ func (s *Service) Prune(ctx context.Context) (int, error) {
 			if err != nil {
 				return err
 			}
+
 			ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
 			if err != nil || len(ids) == 0 {
 				return err
 			}
+
 			if _, err := tx.Exec(ctx, `SET LOCAL astrum.prune_events = 'on'`); err != nil {
 				return err
 			}
+
 			if _, err := tx.Exec(ctx, `DELETE FROM webhook_deliveries WHERE event_id = ANY($1)`, ids); err != nil {
 				return err
 			}
+
 			if _, err := tx.Exec(ctx, `DELETE FROM events WHERE id = ANY($1)`, ids); err != nil {
 				return err
 			}
+
 			n = len(ids)
 			return nil
 		})
 		if err != nil {
 			return total, err
 		}
+
 		total += n
 		if n < s.cfg.PruneBatch {
 			if total > 0 {
 				s.log.Info("events pruned", "count", total, "older_than", s.cfg.Retention)
 			}
+
 			return total, nil
 		}
 	}

@@ -15,10 +15,12 @@ func (h *handler) createTransaction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var in transactionRequest
 	if !decode(w, r, &in) {
 		return
 	}
+
 	txn, err := h.svc.post(r.Context(), in.post(key))
 	respond(w, r, http.StatusCreated, txn, toTransaction, err)
 }
@@ -28,22 +30,27 @@ func (h *handler) listTransactions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	account, ok := queryID[accountPrefix](w, r, "account_id")
 	if !ok {
 		return
 	}
+
 	ledger, ok := queryID[ledgerPrefix](w, r, "ledger_id")
 	if !ok {
 		return
 	}
+
 	metadata, ok := queryMetadata(w, r)
 	if !ok {
 		return
 	}
+
 	effective, ok := queryEffective(w, r)
 	if !ok {
 		return
 	}
+
 	q := r.URL.Query()
 	txns, err := h.svc.listTransactions(r.Context(), ListTransactionsInput{
 		LedgerID:   ledger,
@@ -55,6 +62,7 @@ func (h *handler) listTransactions(w http.ResponseWriter, r *http.Request) {
 		Before:     before,
 		Limit:      limit + 1,
 	})
+
 	respondList(w, r, txns, limit, toTransaction, func(t Transaction) string { return encodeUUIDCursor(t.ID) }, err)
 }
 
@@ -63,10 +71,12 @@ func (h *handler) createBatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var in batchRequest
 	if !decode(w, r, &in) {
 		return
 	}
+
 	atomic := in.Atomic == nil || *in.Atomic
 	entries := make([]PostInput, len(in.Transactions))
 	for i, t := range in.Transactions {
@@ -88,8 +98,10 @@ func (h *handler) createBatch(w http.ResponseWriter, r *http.Request) {
 			if failure == nil || errors.Is(failure, ErrBatchAborted) {
 				failure = res.Err
 			}
+
 			continue
 		}
+
 		txn := toTransaction(*res.Transaction)
 		resp.Results[i].Transaction = &txn
 	}
@@ -101,6 +113,7 @@ func (h *handler) createBatch(w http.ResponseWriter, r *http.Request) {
 	case failure != nil:
 		status = http.StatusMultiStatus
 	}
+
 	httpx.JSON(w, r, status, resp)
 }
 
@@ -117,10 +130,12 @@ func (h *handler) updateTransaction(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
+
 		update := UpdateTransactionInput{Description: in.Description, Metadata: in.Metadata, EffectiveAt: in.EffectiveAt}
 		if in.Entries != nil {
 			update.Postings = fromEntries(in.Entries)
 		}
+
 		txn, err := h.svc.updateTransaction(r.Context(), id, update)
 		respond(w, r, http.StatusOK, txn, toTransaction, err)
 	})
@@ -133,10 +148,12 @@ func (h *handler) postTransaction(w http.ResponseWriter, r *http.Request) {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 			return
 		}
+
 		var post PostPendingInput
 		if in.Entries != nil {
 			post.Postings = fromEntries(in.Entries)
 		}
+
 		txn, err := h.svc.postPending(r.Context(), id, post)
 		respond(w, r, http.StatusOK, txn, toTransaction, err)
 	})
@@ -155,11 +172,13 @@ func (h *handler) reverse(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+
 		var in reverseRequest
 		if err := httpx.DecodeOptional(w, r, &in); err != nil {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 			return
 		}
+
 		txn, err := h.svc.reverse(r.Context(), id, ReverseInput{IdempotencyKey: key, Description: in.Description, Metadata: in.Metadata})
 		respond(w, r, http.StatusCreated, txn, toTransaction, err)
 	})
@@ -170,6 +189,7 @@ func (h *handler) listEntries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	in := ListEntriesInput{After: after, Limit: limit + 1}
 	q := r.URL.Query()
 	in.Status, in.Side = TransactionStatus(q.Get("status")), Side(q.Get("side"))
@@ -188,20 +208,25 @@ func (h *handler) listEntries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	if in.Metadata, ok = queryMetadata(w, r); !ok {
 		return
 	}
+
 	if in.Effective, ok = queryEffective(w, r); !ok {
 		return
 	}
+
 	if raw := q.Get("settled"); raw != "" {
 		settled, err := strconv.ParseBool(raw)
 		if err != nil {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "settled must be true or false")
 			return
 		}
+
 		in.Settled = &settled
 	}
+
 	entries, err := h.svc.listEntries(r.Context(), in)
 	respondList(w, r, entries, limit, toEntry, func(e Entry) string { return encodeInt64Cursor(e.Sequence) }, err)
 }
@@ -212,6 +237,7 @@ func (h *handler) getBalances(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+
 		b, err := h.svc.balancesAt(r.Context(), id, effective)
 		respond(w, r, http.StatusOK, b, func(b Balances) balancesResource {
 			return balancesResource{

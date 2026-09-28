@@ -39,11 +39,13 @@ func TestSettlementsEdgeMatches(t *testing.T) {
 			t.Errorf("%s: matches() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
+
 	unbounded := st
 	unbounded.UpperBound = nil
 	if !unbounded.matches(CreateSettlementInput{SettledAccountID: settled, ContraAccountID: contra, Description: "d"}) {
 		t.Error("unbounded settlement does not match an unbounded request")
 	}
+
 	if unbounded.matches(base) {
 		t.Error("unbounded settlement matches a bounded request")
 	}

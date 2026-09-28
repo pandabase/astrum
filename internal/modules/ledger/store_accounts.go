@@ -36,6 +36,7 @@ func scanAccount(row pgx.Row) (Account, error) {
 	if err != nil {
 		return Account{}, err
 	}
+
 	acc.Metadata = bytes.Clone(metadata)
 	acc.Currency = money.Currency(currency)
 	acc.NormalSide = Side(normalSide)
@@ -45,6 +46,7 @@ func scanAccount(row pgx.Row) (Account, error) {
 	if err != nil {
 		return Account{}, err
 	}
+
 	return acc, nil
 }
 
@@ -64,6 +66,7 @@ func insertAccount(ctx context.Context, q querier, id uuid.UUID, in CreateAccoun
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, false, nil
 	}
+
 	return acc, err == nil, err
 }
 
@@ -89,10 +92,12 @@ func selectAccounts(ctx context.Context, q querier, in ListAccountsInput) ([]Acc
 	if err != nil {
 		return nil, fmt.Errorf("select accounts: %w", err)
 	}
+
 	accounts, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Account, error) { return scanAccount(row) })
 	if err != nil {
 		return nil, fmt.Errorf("select accounts: %w", err)
 	}
+
 	return accounts, nil
 }
 
@@ -125,6 +130,7 @@ func selectAccountByCode(ctx context.Context, q querier, ledgerID uuid.UUID, cod
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
+
 	return acc, err
 }
 
@@ -133,6 +139,7 @@ func queryAccount(ctx context.Context, q querier, where string, arg any) (Accoun
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
+
 	return acc, err
 }
 
@@ -164,6 +171,7 @@ func queueLockAccounts(b *pgx.Batch, ids []uuid.UUID, out *[]*accountState) {
 				*out = append(*out, &locked)
 				return nil
 			})
+
 		return err
 	})
 }
@@ -179,6 +187,7 @@ func lockAccounts(ctx context.Context, tx pgx.Tx, ids []uuid.UUID) (*ledgerState
 	if err := tx.SendBatch(ctx, b).Close(); err != nil {
 		return nil, fmt.Errorf("lock accounts: %w", err)
 	}
+
 	return newLedgerState(accounts, monitors), nil
 }
 
@@ -196,10 +205,12 @@ func queueWriteAccounts(b *pgx.Batch, state *ledgerState) error {
 	if len(dirty) == 0 {
 		return nil
 	}
+
 	triggered, err := monitorEvents(state)
 	if err != nil {
 		return err
 	}
+
 	events.Queue(b, triggered...)
 	var (
 		ids            = make([]uuid.UUID, len(dirty))
@@ -219,6 +230,7 @@ func queueWriteAccounts(b *pgx.Batch, state *ledgerState) error {
 		versions[i] = a.version
 		expected[i] = a.originalVersion
 	}
+
 	b.Queue(`
 		UPDATE ledger_accounts AS a
 		SET posted_debits = d.posted_debits, posted_credits = d.posted_credits, pending_debits = d.pending_debits,
@@ -232,8 +244,10 @@ func queueWriteAccounts(b *pgx.Batch, state *ledgerState) error {
 		if tag.RowsAffected() != int64(len(dirty)) {
 			return fmt.Errorf("%w: account version moved while locked", db.ErrRetry)
 		}
+
 		return nil
 	})
+
 	return nil
 }
 
@@ -242,9 +256,11 @@ func writeAccounts(ctx context.Context, tx pgx.Tx, state *ledgerState) error {
 	if err := queueWriteAccounts(b, state); err != nil {
 		return err
 	}
+
 	if b.Len() == 0 {
 		return nil
 	}
+
 	return tx.SendBatch(ctx, b).Close()
 }
 

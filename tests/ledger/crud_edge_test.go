@@ -52,19 +52,24 @@ func TestCrudEdgeCurrencies(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateCurrency() error = %v, want %v", err, tt.want)
 			}
+
 			if err != nil {
 				if _, err := e.m.Currency(ctx, tt.code); !errors.Is(err, ledger.ErrNotFound) {
 					t.Fatalf("rejected currency is readable: %v", err)
 				}
+
 				return
 			}
+
 			if c.Code != tt.code || c.Exponent != tt.exponent {
 				t.Fatalf("currency = %+v", c)
 			}
+
 			again, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: tt.code, Exponent: tt.exponent})
 			if err != nil || !again.CreatedAt.Equal(c.CreatedAt) {
 				t.Fatalf("replay = %+v, %v", again, err)
 			}
+
 			_, err = e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: tt.code, Exponent: (tt.exponent + 1) % 31})
 			wantErr(t, err, ledger.ErrCurrencyExists)
 		})
@@ -84,21 +89,26 @@ func TestCrudEdgeCurrencies(t *testing.T) {
 			_, err := e.m.ListCurrencies(ctx, "", limit)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
+
 		all, err := e.m.ListCurrencies(ctx, "", 1000)
 		if err != nil || len(all) < 160 || len(all) >= 1000 {
 			t.Fatalf("all currencies = %d, %v", len(all), err)
 		}
+
 		last := all[len(all)-1].Code
 		if tail, err := e.m.ListCurrencies(ctx, last, 10); err != nil || len(tail) != 0 {
 			t.Fatalf("after the last = %+v, %v", tail, err)
 		}
+
 		if one, err := e.m.ListCurrencies(ctx, "", 1); err != nil || len(one) != 1 || one[0].Code != all[0].Code {
 			t.Fatalf("first = %+v, %v", one, err)
 		}
+
 		exact, err := e.m.ListCurrencies(ctx, all[len(all)-4].Code, 3)
 		if err != nil || len(exact) != 3 || exact[2].Code != last {
 			t.Fatalf("exact page = %+v, %v", exact, err)
 		}
+
 		if lower, err := e.m.ListCurrencies(ctx, "zzz", 10); err != nil || len(lower) != 0 {
 			t.Fatalf("after a lowercase cursor = %+v, %v", lower, err)
 		}
@@ -150,6 +160,7 @@ func TestCrudEdgeAccountValidation(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateAccount() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && (acc.Code != in.Code || acc.Version != 0 || acc.Status != ledger.AccountOpen || acc.StatusChangedAt != nil) {
 				t.Fatalf("account = %+v", acc)
 			}
@@ -194,9 +205,11 @@ func TestCrudEdgeDuplicateCodes(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateAccount() error = %v, want %v", err, tt.want)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if in.Code == base.Code {
 				if acc.ID != orig.ID || acc.Name != "n" || acc.Description != "original" || !jsonSame(t, acc.Metadata, `{"v":1}`) {
 					t.Fatalf("replay returned %+v, want the original untouched", acc)
@@ -221,11 +234,13 @@ func TestCrudEdgeDuplicateCodes(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				mu.Lock()
 				ids[acc.ID] = true
 				mu.Unlock()
 			})
 		}
+
 		wg.Wait()
 		if len(ids) != 1 {
 			t.Fatalf("concurrent creates produced %d accounts", len(ids))
@@ -258,14 +273,18 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 			if err != nil || got.Status != step.status || got.Version != step.version {
 				t.Fatalf("%s = status %s version %d, %v; want %s %d", step.name, got.Status, got.Version, err, step.status, step.version)
 			}
+
 			if step.version > 1 && got.StatusChangedAt == nil {
 				t.Fatalf("%s: status_changed_at not set", step.name)
 			}
+
 			if changedAt != nil && step.name == "freeze again" && !got.StatusChangedAt.Equal(*changedAt) {
 				t.Fatalf("no-op freeze moved status_changed_at")
 			}
+
 			changedAt = got.StatusChangedAt
 		}
+
 		if e.balance(t, acc.ID) != 5 {
 			t.Fatal("status changes moved money")
 		}
@@ -298,6 +317,7 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("CloseAccount() error = %v, want %v", err, tt.want)
 				}
+
 				if err == nil && (got.Status != ledger.AccountClosed || got.StatusChangedAt == nil) {
 					t.Fatalf("closed = %+v", got)
 				}
@@ -311,6 +331,7 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		for name, act := range map[string]func(context.Context, uuid.UUID) (ledger.Account, error){
 			"freeze": e.m.FreezeAccount, "unfreeze": e.m.UnfreezeAccount,
 		} {
@@ -319,10 +340,12 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 				t.Fatalf("%s a closed account: %v", name, err)
 			}
 		}
+
 		again, err := e.m.CloseAccount(ctx, acc.ID)
 		if err != nil || again.Version != closed.Version {
 			t.Fatalf("close again = %+v, %v", again, err)
 		}
+
 		updated, err := e.m.UpdateAccount(ctx, acc.ID, ledger.UpdateInput{Description: new("archived")})
 		if err != nil || updated.Description != "archived" || updated.Status != ledger.AccountClosed {
 			t.Fatalf("updating a closed account's details = %+v, %v", updated, err)
@@ -337,6 +360,7 @@ func TestCrudEdgeAccountStatus(t *testing.T) {
 			wantErr(t, err, ledger.ErrNotFound)
 		})
 	}
+
 	e.verify(t)
 }
 
@@ -398,6 +422,7 @@ func TestCrudEdgeLockVersion(t *testing.T) {
 		if got != version+step.delta {
 			t.Fatalf("%s: version %d, want %d", step.name, got, version+step.delta)
 		}
+
 		version = got
 	}
 }
@@ -448,15 +473,19 @@ func TestCrudEdgeMetadataMergePatch(t *testing.T) {
 		if !errors.Is(err, step.err) {
 			t.Fatalf("%s: error = %v, want %v", step.name, err, step.err)
 		}
+
 		if err != nil {
 			if after := e.get(t, acc.ID); after.Version != before.Version || !jsonSame(t, after.Metadata, string(before.Metadata)) {
 				t.Fatalf("%s: rejected patch changed the account", step.name)
 			}
+
 			continue
 		}
+
 		if !jsonSame(t, got.Metadata, step.metadata) {
 			t.Fatalf("%s: metadata = %s, want %s", step.name, got.Metadata, step.metadata)
 		}
+
 		if changed := got.Version != before.Version; changed != step.changed {
 			t.Fatalf("%s: version %d -> %d, want changed=%v", step.name, before.Version, got.Version, step.changed)
 		}
@@ -486,6 +515,7 @@ func TestCrudEdgeLedgers(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("CreateLedger() error = %v, want %v", err, tt.want)
 			}
+
 			if err == nil && (l.Version != 0 || !jsonSame(t, l.Metadata, `{}`)) {
 				t.Fatalf("ledger = %+v", l)
 			}
@@ -496,6 +526,7 @@ func TestCrudEdgeLedgers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, step := range []struct {
 		name     string
 		in       ledger.UpdateInput
@@ -513,11 +544,13 @@ func TestCrudEdgeLedgers(t *testing.T) {
 		if !errors.Is(err, step.err) {
 			t.Fatalf("%s: error = %v, want %v", step.name, err, step.err)
 		}
+
 		if err != nil {
 			if got, err = e.m.Ledger(ctx, l.ID); err != nil {
 				t.Fatal(err)
 			}
 		}
+
 		if got.Version != step.version || !jsonSame(t, got.Metadata, step.metadata) {
 			t.Fatalf("%s: ledger = %+v", step.name, got)
 		}

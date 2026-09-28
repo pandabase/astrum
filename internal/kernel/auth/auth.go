@@ -108,6 +108,7 @@ func (s *Service) Migrations() fs.FS {
 	if err != nil {
 		panic(err)
 	}
+
 	return sub
 }
 
@@ -120,14 +121,17 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Key, string, erro
 	case in.ExpiresAt != nil && !in.ExpiresAt.After(time.Now()):
 		return Key{}, "", fmt.Errorf("%w: expires_at must be in the future", ErrInvalid)
 	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Key{}, "", err
 	}
+
 	secret := make([]byte, secretBytes)
 	if _, err := rand.Read(secret); err != nil {
 		return Key{}, "", err
 	}
+
 	token := tokenPrefix + strings.TrimPrefix(typeid.Encode(idPrefix, id), idPrefix+"_") + "_" +
 		base64.RawURLEncoding.EncodeToString(secret)
 	hash := sha256.Sum256([]byte(token))
@@ -139,6 +143,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Key, string, erro
 	if err != nil {
 		return Key{}, "", fmt.Errorf("auth: create key: %w", err)
 	}
+
 	s.log.Info("api key created", "key_id", k.ID, "name", k.Name, "role", k.Role, "created_by", k.CreatedBy)
 	return k, token, nil
 }
@@ -148,6 +153,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Key, error) {
 	if !ok {
 		return Key{}, ErrUnauthenticated
 	}
+
 	hash := sha256.Sum256([]byte(token))
 	now := time.Now()
 
@@ -160,20 +166,25 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Key, error) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Key{}, ErrUnauthenticated
 		}
+
 		if err != nil {
 			return Key{}, err
 		}
+
 		c = cached{key: k, hash: stored, expires: now.Add(cacheTTL), touched: c.touched}
 		s.mu.Lock()
 		s.cache[id] = c
 		s.mu.Unlock()
 	}
+
 	if subtle.ConstantTimeCompare(c.hash, hash[:]) != 1 || !c.key.active(now) {
 		return Key{}, ErrUnauthenticated
 	}
+
 	if now.Sub(c.touched) > touchEvery {
 		s.touch(id, now)
 	}
+
 	return c.key, nil
 }
 
@@ -197,6 +208,7 @@ func parseToken(token string) (uuid.UUID, bool) {
 	if !ok || len(rest) != 26+1+base64.RawURLEncoding.EncodedLen(secretBytes) || rest[26] != '_' {
 		return uuid.Nil, false
 	}
+
 	id, err := typeid.Parse(idPrefix, idPrefix+"_"+rest[:26])
 	return id, err == nil
 }
@@ -206,6 +218,7 @@ func (s *Service) Key(ctx context.Context, id uuid.UUID) (Key, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Key{}, ErrNotFound
 	}
+
 	return k, err
 }
 
@@ -214,6 +227,7 @@ func (s *Service) List(ctx context.Context, before uuid.UUID, limit int) ([]Key,
 	if before != uuid.Nil {
 		cursor = &before
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+keyColumns+` FROM api_keys
 		WHERE ($1::uuid IS NULL OR id < $1)
@@ -222,6 +236,7 @@ func (s *Service) List(ctx context.Context, before uuid.UUID, limit int) ([]Key,
 	if err != nil {
 		return nil, err
 	}
+
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Key, error) { return scanKey(row) })
 }
 
@@ -238,6 +253,7 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Key, error) {
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, revokeLockID); err != nil {
 			return err
 		}
+
 		var (
 			role    Role
 			revoked bool
@@ -251,6 +267,7 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Key, error) {
 		case revoked:
 			return nil
 		}
+
 		if role == RoleAdmin {
 			var others int
 			if err := tx.QueryRow(ctx, `
@@ -258,16 +275,19 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Key, error) {
 				WHERE role = 'admin' AND id <> $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`, id).Scan(&others); err != nil {
 				return err
 			}
+
 			if others == 0 {
 				return ErrLastAdmin
 			}
 		}
+
 		_, err = tx.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE id = $1`, id)
 		return err
 	})
 	if err != nil {
 		return Key{}, err
 	}
+
 	s.mu.Lock()
 	delete(s.cache, id)
 	s.mu.Unlock()
@@ -275,6 +295,7 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Key, error) {
 	if err == nil {
 		s.log.Info("api key revoked", "key_id", id, "name", k.Name)
 	}
+
 	return k, err
 }
 
@@ -302,6 +323,7 @@ func Scope(r *http.Request) string {
 	if k, ok := FromContext(r.Context()); ok {
 		return k.ID.String()
 	}
+
 	return ""
 }
 
@@ -311,12 +333,14 @@ func (s *Service) Middleware(public []string, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+
 		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 		if !ok || !strings.EqualFold(scheme, "Bearer") {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="astrum"`)
 			httpx.Error(w, r, http.StatusUnauthorized, "unauthorized", "send an API key as Authorization: Bearer sk_...")
 			return
 		}
+
 		k, err := s.Authenticate(r.Context(), strings.TrimSpace(token))
 		if err != nil {
 			if !errors.Is(err, ErrUnauthenticated) {
@@ -324,17 +348,20 @@ func (s *Service) Middleware(public []string, next http.Handler) http.Handler {
 				httpx.Error(w, r, http.StatusServiceUnavailable, httpx.CodeUnavailable, "")
 				return
 			}
+
 			logger.For(r.Context(), s.log).Warn("request rejected", "reason", "invalid key", "path", r.URL.Path)
 			w.Header().Set("WWW-Authenticate", `Bearer realm="astrum", error="invalid_token"`)
 			httpx.Error(w, r, http.StatusUnauthorized, "unauthorized", "the API key is invalid, expired or revoked")
 			return
 		}
+
 		ctx := logger.WithActor(context.WithValue(r.Context(), keyContext{}, k), typeid.Encode(idPrefix, k.ID))
 		if !allowed(k.Role, r) {
 			logger.For(ctx, s.log).Warn("request forbidden", "role", k.Role, "method", r.Method, "path", r.URL.Path)
 			httpx.Error(w, r, http.StatusForbidden, "forbidden", fmt.Sprintf("a %s key cannot %s %s", k.Role, r.Method, r.URL.Path))
 			return
 		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -354,5 +381,6 @@ func allowed(role Role, r *http.Request) bool {
 	case RoleRead:
 		return !adminOnly && (r.Method == http.MethodGet || r.Method == http.MethodHead)
 	}
+
 	return false
 }

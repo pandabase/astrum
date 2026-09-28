@@ -93,6 +93,7 @@ func (c AlertCondition) holds(b Balances) bool {
 	case "posted":
 		amount = b.Posted.Amount
 	}
+
 	cmp := amount.Cmp(c.Value)
 	switch c.Operator {
 	case "gt":

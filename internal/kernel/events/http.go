@@ -100,6 +100,7 @@ func (s *Service) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	evs, err := s.ListEvents(r.Context(), ListEventsInput{Type: r.URL.Query().Get("type"), Before: before, Limit: limit + 1})
 	respondList(w, r, evs, limit, render, func(e Event) uuid.UUID { return e.ID }, err)
 }
@@ -117,16 +118,20 @@ func (s *Service) handleCreateEndpoint(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	create := EndpointInput{Enabled: in.Enabled}
 	if in.URL != nil {
 		create.URL = *in.URL
 	}
+
 	if in.Description != nil {
 		create.Description = *in.Description
 	}
+
 	if in.EventTypes != nil {
 		create.EventTypes = *in.EventTypes
 	}
+
 	e, err := s.CreateEndpoint(r.Context(), create)
 	w.Header().Set("Cache-Control", "no-store")
 	respond(w, r, http.StatusCreated, e, toEndpoint, err)
@@ -137,6 +142,7 @@ func (s *Service) handleListEndpoints(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	eps, err := s.ListEndpoints(r.Context(), before, limit+1)
 	respondList(w, r, eps, limit, toEndpoint, func(e Endpoint) uuid.UUID { return e.ID }, err)
 }
@@ -155,6 +161,7 @@ func (s *Service) handleUpdateEndpoint(w http.ResponseWriter, r *http.Request) {
 			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 			return
 		}
+
 		e, err := s.UpdateEndpoint(r.Context(), id, EndpointUpdate(in))
 		respond(w, r, http.StatusOK, e, toEndpoint, err)
 	})
@@ -174,13 +181,16 @@ func (s *Service) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	in := ListDeliveriesInput{Status: r.URL.Query().Get("status"), Before: before, Limit: limit + 1}
 	if in.EndpointID, ok = queryID[endpointPrefix](w, r, "endpoint_id"); !ok {
 		return
 	}
+
 	if in.EventID, ok = queryID[eventPrefix](w, r, "event_id"); !ok {
 		return
 	}
+
 	ds, err := s.ListDeliveries(r.Context(), in)
 	respondList(w, r, ds, limit, toDelivery, func(d Delivery) uuid.UUID { return d.ID }, err)
 }
@@ -205,6 +215,7 @@ func withID[P typeid.Prefix](w http.ResponseWriter, r *http.Request, fn func(uui
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return
 	}
+
 	fn(id.UUID())
 }
 
@@ -213,11 +224,13 @@ func queryID[P typeid.Prefix](w http.ResponseWriter, r *http.Request, name strin
 	if raw == "" {
 		return uuid.Nil, true
 	}
+
 	var id typeid.ID[P]
 	if err := id.UnmarshalText([]byte(raw)); err != nil {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, name+": "+err.Error())
 		return uuid.Nil, false
 	}
+
 	return id.UUID(), true
 }
 
@@ -227,16 +240,19 @@ func page(w http.ResponseWriter, r *http.Request) (int, uuid.UUID, bool) {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, err.Error())
 		return 0, uuid.Nil, false
 	}
+
 	raw := r.URL.Query().Get("cursor")
 	if raw == "" {
 		return limit, uuid.Nil, true
 	}
+
 	b, err := base64.RawURLEncoding.DecodeString(raw)
 	id, idErr := uuid.FromBytes(b)
 	if err != nil || idErr != nil {
 		httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "cursor is invalid")
 		return 0, uuid.Nil, false
 	}
+
 	return limit, id, true
 }
 
@@ -245,6 +261,7 @@ func respond[T, R any](w http.ResponseWriter, r *http.Request, status int, v T, 
 		writeError(w, r, err)
 		return
 	}
+
 	httpx.JSON(w, r, status, render(v))
 }
 
@@ -253,14 +270,17 @@ func respondList[T, R any](w http.ResponseWriter, r *http.Request, items []T, li
 		writeError(w, r, err)
 		return
 	}
+
 	list := httpx.NewList(items, limit, func(item T) string {
 		key := id(item)
 		return base64.RawURLEncoding.EncodeToString(key[:])
 	})
+
 	out := make([]R, len(list.Data))
 	for i, item := range list.Data {
 		out[i] = render(item)
 	}
+
 	httpx.JSON(w, r, http.StatusOK, httpx.List[R]{Object: list.Object, Data: out, HasMore: list.HasMore, NextCursor: list.NextCursor})
 }
 

@@ -65,6 +65,7 @@ func TestPendingLifecycle(t *testing.T) {
 		if err != nil || again.ID != txn.ID {
 			t.Fatalf("replay = %+v, %v", again, err)
 		}
+
 		changed := create
 		changed.Status = ledger.TransactionPosted
 		_, err = e.m.Post(ctx, changed)
@@ -80,9 +81,11 @@ func TestPendingLifecycle(t *testing.T) {
 		if err != nil || updated.Version != 2 || updated.Postings[0].Amount != amt(250) || updated.Description != "smaller invoice" {
 			t.Fatalf("updated = %+v, %v", updated, err)
 		}
+
 		if !jsonSame(t, updated.Metadata, `{"note":"revised"}`) {
 			t.Fatalf("metadata = %s", updated.Metadata)
 		}
+
 		wantBalance(t, "a available", e.get(t, a.ID).Available, 1_000, 250, 750)
 
 		same, err := e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: new("smaller invoice")})
@@ -99,17 +102,20 @@ func TestPendingLifecycle(t *testing.T) {
 		if err != nil || posted.Status != ledger.TransactionPosted || posted.Version != 3 || posted.PostedAt == nil {
 			t.Fatalf("posted = %+v, %v", posted, err)
 		}
+
 		acc := e.get(t, a.ID)
 		wantBalance(t, "a posted", acc.Posted, 1_000, 250, 750)
 		if acc.Pending != acc.Posted || acc.Available != acc.Posted {
 			t.Fatalf("a still has pending money: %+v", acc)
 		}
+
 		wantBalance(t, "b available", e.get(t, b.ID).Available, 250, 0, 250)
 
 		again, err := e.m.PostTransaction(ctx, txn.ID, ledger.PostPendingInput{})
 		if err != nil || again.Version != 3 {
 			t.Fatalf("second post = %+v, %v", again, err)
 		}
+
 		_, err = e.m.ArchiveTransaction(ctx, txn.ID)
 		wantErr(t, err, ledger.ErrNotPending)
 		_, err = e.m.UpdateTransaction(ctx, txn.ID, ledger.UpdateTransactionInput{Description: new("x")})
@@ -119,11 +125,13 @@ func TestPendingLifecycle(t *testing.T) {
 		if err != nil || replay.ID != txn.ID || replay.Status != ledger.TransactionPosted {
 			t.Fatalf("original create replayed after posting = %+v, %v", replay, err)
 		}
+
 		lines, err := e.m.AccountEntries(ctx, b.ID, 0, 10)
 		if err != nil || len(lines) != 1 || lines[0].TransactionID != txn.ID || lines[0].BalanceAfter != amt(250) {
 			t.Fatalf("b statement = %+v, %v", lines, err)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -157,6 +165,7 @@ func TestPartialPost(t *testing.T) {
 	if err != nil || posted.Status != ledger.TransactionPosted || posted.Postings[0].Amount != amt(200) {
 		t.Fatalf("partial post = %+v, %v", posted, err)
 	}
+
 	acc := e.get(t, a.ID)
 	wantBalance(t, "a posted", acc.Posted, 1_000, 200, 800)
 	wantBalance(t, "a available", acc.Available, 1_000, 200, 800)
@@ -166,6 +175,7 @@ func TestPartialPost(t *testing.T) {
 	if err != nil || again.Version != posted.Version {
 		t.Fatalf("retried partial post = %+v, %v", again, err)
 	}
+
 	_, err = e.m.PostTransaction(ctx, txn.ID, ledger.PostPendingInput{Postings: transfer("", a.ID, b.ID, 300).Postings})
 	wantErr(t, err, ledger.ErrNotPending)
 	e.verify(t)
@@ -186,12 +196,14 @@ func TestArchive(t *testing.T) {
 	if err != nil || archived.Status != ledger.TransactionArchived || archived.ArchivedAt == nil || len(archived.Postings) != 2 {
 		t.Fatalf("archived = %+v, %v", archived, err)
 	}
+
 	wantBalance(t, "a available", e.get(t, a.ID).Available, 100, 0, 100)
 	wantBalance(t, "b pending", e.get(t, b.ID).Pending, 0, 0, 0)
 
 	if again, err := e.m.ArchiveTransaction(ctx, txn.ID); err != nil || again.Version != archived.Version {
 		t.Fatalf("second archive = %+v, %v", again, err)
 	}
+
 	_, err = e.m.PostTransaction(ctx, txn.ID, ledger.PostPendingInput{})
 	wantErr(t, err, ledger.ErrNotPending)
 	_, err = e.m.ArchiveTransaction(ctx, uuid.New())
@@ -201,6 +213,7 @@ func TestArchive(t *testing.T) {
 	if err != nil || len(txns) != 1 || txns[0].ID != txn.ID {
 		t.Fatalf("archived list = %+v, %v", txns, err)
 	}
+
 	e.verify(t)
 }
 
@@ -231,6 +244,7 @@ func TestExternalIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	x := e.accountIn(t, other.ID)
 	y := e.accountIn(t, other.ID)
 	in := transfer("other-ledger", x.ID, y.ID, 1)
@@ -241,6 +255,7 @@ func TestExternalIDs(t *testing.T) {
 	if err != nil || len(found) != 1 || found[0].ID != first.ID {
 		t.Fatalf("lookup by external id = %+v, %v", found, err)
 	}
+
 	e.verify(t)
 }
 
@@ -259,6 +274,7 @@ func TestPendingOnFrozenAndClosedAccounts(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, a.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	_, err = e.m.Post(ctx, pending(transfer("new", a.ID, b.ID, 1)))
 	wantErr(t, err, ledger.ErrAccountNotOpen)
 	_, err = e.m.PostTransaction(ctx, toPost.ID, ledger.PostPendingInput{})
@@ -266,6 +282,7 @@ func TestPendingOnFrozenAndClosedAccounts(t *testing.T) {
 	if _, err := e.m.ArchiveTransaction(ctx, toArchive.ID); err != nil {
 		t.Fatalf("archive on a frozen account: %v", err)
 	}
+
 	e.verify(t)
 }
 
@@ -299,10 +316,12 @@ func TestConcurrentPostAndArchive(t *testing.T) {
 			t.Fatalf("race %d: post err %v, archive err %v", i, postErr, archErr)
 		}
 	}
+
 	acc := e.get(t, a.ID)
 	if acc.Pending != acc.Posted {
 		t.Fatalf("pending money left behind: %+v", acc)
 	}
+
 	e.verify(t)
 }
 
@@ -357,6 +376,7 @@ func TestLifecycleSchemaInvariants(t *testing.T) {
 			}
 		})
 	}
+
 	e.verify(t)
 }
 
@@ -367,6 +387,7 @@ func TestWidePendingAmounts(t *testing.T) {
 	if _, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 18}); err != nil {
 		t.Fatal(err)
 	}
+
 	treasury := e.account(t, "ETH", ledger.Credit, unrestricted)
 	wallet := e.account(t, "ETH", ledger.Debit)
 	big := money.MustParseAmount("40000000000000000000000000000")
@@ -377,13 +398,16 @@ func TestWidePendingAmounts(t *testing.T) {
 	if got := e.get(t, wallet.ID).Available.Amount; !got.IsZero() {
 		t.Fatalf("available = %s, want 0", got)
 	}
+
 	half := money.MustParseAmount("20000000000000000000000000000")
 	if _, err := e.m.PostTransaction(ctx, txn.ID, ledger.PostPendingInput{Postings: transferAmount("", wallet.ID, out.ID, half).Postings}); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := e.get(t, wallet.ID).Available.Amount; got != half {
 		t.Fatalf("available after partial post = %s, want %s", got, half)
 	}
+
 	e.verify(t)
 }
 
@@ -404,6 +428,7 @@ func TestHTTPLifecycle(t *testing.T) {
 	if txn["status"] != "pending" || txn["external_id"] != "auth-1" || !effective.Equal(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)) || txn["posted_at"] != nil {
 		t.Fatalf("pending = %v", txn)
 	}
+
 	acc := a.must(http.StatusOK, http.MethodGet, "/v1/accounts/"+cash, "", "")
 	if balanceAmount(acc, "available") != "600" || balanceAmount(acc, "posted") != "1000" || balanceAmount(acc, "pending") != "600" {
 		t.Fatalf("cash balances = %v", acc["balances"])
@@ -413,6 +438,7 @@ func TestHTTPLifecycle(t *testing.T) {
 	if patched["version"] != float64(2) || patched["description"] != "card auth" {
 		t.Fatalf("patched = %v", patched)
 	}
+
 	if n := len(a.list("/v1/transactions?status=pending")); n != 1 {
 		t.Fatalf("pending transactions = %d, want 1", n)
 	}
@@ -423,10 +449,12 @@ func TestHTTPLifecycle(t *testing.T) {
 	if posted["status"] != "posted" || posted["posted_at"] == nil {
 		t.Fatalf("posted = %v", posted)
 	}
+
 	acc = a.must(http.StatusOK, http.MethodGet, "/v1/accounts/"+cash, "", "")
 	if balanceAmount(acc, "available") != "850" || balanceAmount(acc, "posted") != "850" {
 		t.Fatalf("cash after partial post = %v", acc["balances"])
 	}
+
 	a.must(http.StatusOK, http.MethodPost, "/v1/transactions/"+id+"/post", "", "")
 
 	other := a.must(http.StatusCreated, http.MethodPost, "/v1/transactions", "auth-2",

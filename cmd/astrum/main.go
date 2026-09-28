@@ -40,6 +40,7 @@ func main() {
 			err = run(ctx, cfg)
 		}
 	}
+
 	if err != nil {
 		log.Error("astrum exited", "err", err)
 		os.Exit(1)
@@ -51,6 +52,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+
 	log.SetDefault(base)
 	l := base.WithPrefix("kernel")
 
@@ -60,6 +62,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+
 	abandoned := false
 	defer func() {
 		if !abandoned {
@@ -71,9 +74,11 @@ func run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+
 	if err := k.migrate(ctx); err != nil {
 		return err
 	}
+
 	if err := k.preflight(ctx, l); err != nil {
 		return err
 	}
@@ -86,6 +91,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+
 	serveErr := serve(ctx, cfg.HTTPAddr, handler, l)
 
 	l.Info("shutting down: draining modules")
@@ -107,9 +113,11 @@ func connect(ctx context.Context, cfg config.Config, l *log.Logger) (*pgxpool.Po
 	if err != nil {
 		return nil, err
 	}
+
 	if cfg.AllowUnsafeDurability {
 		l.Warn("durability checks disabled: acknowledged transactions may be lost on power failure")
 	}
+
 	l.Info("database connected", "max_conns", cfg.DBMaxConns)
 	return pool, nil
 }
@@ -145,6 +153,7 @@ func serve(ctx context.Context, addr string, handler http.Handler, l *log.Logger
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		l.Error("http shutdown incomplete", "err", err)
 	}
+
 	return serveErr
 }
 
@@ -170,6 +179,7 @@ func health(pool *pgxpool.Pool) http.HandlerFunc {
 			httpx.Error(w, r, http.StatusServiceUnavailable, httpx.CodeUnavailable, "database unavailable")
 			return
 		}
+
 		httpx.JSON(w, r, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }

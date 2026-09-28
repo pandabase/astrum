@@ -34,23 +34,28 @@ func edgeSite(t *testing.T) (http.Handler, *[]string) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
+
 		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("top secret"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	var seen []string
 	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Method+" "+r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{"api":true}`)
 	})
+
 	h, err := web.Handler(dir, api)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return h, &seen
 }
 
@@ -113,31 +118,40 @@ func TestWebEdgeRouting(t *testing.T) {
 			if w.Code != tt.status {
 				t.Fatalf("status = %d %q, want %d", w.Code, w.Body.String(), tt.status)
 			}
+
 			if tt.body != "" && strings.TrimSpace(w.Body.String()) != tt.body {
 				t.Fatalf("body = %q, want %q", w.Body.String(), tt.body)
 			}
+
 			if tt.method == http.MethodHead && w.Body.Len() != 0 {
 				t.Fatalf("HEAD body = %q", w.Body.String())
 			}
+
 			if strings.Contains(w.Body.String(), "top secret") {
 				t.Fatal("served a file outside the web directory")
 			}
+
 			if got := w.Header().Get("Cache-Control"); got != tt.cache {
 				t.Fatalf("Cache-Control = %q, want %q", got, tt.cache)
 			}
+
 			if tt.ctype != "" && w.Header().Get("Content-Type") != tt.ctype {
 				t.Fatalf("Content-Type = %q, want %q", w.Header().Get("Content-Type"), tt.ctype)
 			}
+
 			if (len(*seen) > before) != tt.api {
 				t.Fatalf("api called = %v, want %v", len(*seen) > before, tt.api)
 			}
+
 			secure := w.Header().Get("X-Content-Type-Options") == "nosniff" && w.Header().Get("X-Frame-Options") == "DENY" && w.Header().Get("Referrer-Policy") == "no-referrer"
 			if secure != tt.secure {
 				t.Fatalf("security headers = %v, want %v (%v)", secure, tt.secure, w.Header())
 			}
+
 			if tt.status == 405 && w.Header().Get("Allow") != "GET, HEAD" {
 				t.Fatalf("Allow = %q", w.Header().Get("Allow"))
 			}
+
 			if tt.status == http.StatusMovedPermanently && w.Header().Get("Location") != "./" {
 				t.Fatalf("Location = %q", w.Header().Get("Location"))
 			}
@@ -153,10 +167,12 @@ func TestWebEdgeConditionalAndRange(t *testing.T) {
 	if modified == "" {
 		t.Fatal("shell has no Last-Modified")
 	}
+
 	cond := edgeServe(h, http.MethodGet, "/other/route", http.Header{"If-Modified-Since": {modified}})
 	if cond.Code != http.StatusNotModified || cond.Body.Len() != 0 || cond.Header().Get("Cache-Control") != "no-cache" {
 		t.Fatalf("conditional shell = %d %q %q", cond.Code, cond.Body.String(), cond.Header().Get("Cache-Control"))
 	}
+
 	stale := edgeServe(h, http.MethodGet, "/", http.Header{"If-Modified-Since": {time.Unix(0, 0).UTC().Format(http.TimeFormat)}})
 	if stale.Code != 200 || stale.Body.String() != edgeShell {
 		t.Fatalf("stale conditional = %d", stale.Code)
@@ -166,6 +182,7 @@ func TestWebEdgeConditionalAndRange(t *testing.T) {
 	if asset.Code != http.StatusPartialContent || asset.Body.String() != "console" || asset.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" {
 		t.Fatalf("range = %d %q", asset.Code, asset.Body.String())
 	}
+
 	bad := edgeServe(h, http.MethodGet, "/assets/app-3f9a1c.js", http.Header{"Range": {"bytes=500-600"}})
 	if bad.Code != http.StatusRequestedRangeNotSatisfiable {
 		t.Fatalf("unsatisfiable range = %d", bad.Code)
@@ -177,10 +194,12 @@ func TestWebEdgeConstruction(t *testing.T) {
 	if _, err := web.Handler(filepath.Join(t.TempDir(), "missing"), api); err == nil || !strings.Contains(err.Error(), "has no index.html") {
 		t.Fatalf("missing dir error = %v", err)
 	}
+
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "index.htm"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := web.Handler(dir, api); err == nil {
 		t.Fatal("a directory without index.html was accepted")
 	}
@@ -192,13 +211,16 @@ func TestWebEdgeShellRemovedAfterStart(t *testing.T) {
 	if err := os.WriteFile(index, []byte(edgeShell), 0o644); err != nil {
 		t.Fatal(err)
 	}
+
 	h, err := web.Handler(dir, http.NotFoundHandler())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.Remove(index); err != nil {
 		t.Fatal(err)
 	}
+
 	w := edgeServe(h, http.MethodGet, "/", nil)
 	if w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "shell") {
 		t.Fatalf("missing shell = %d %q", w.Code, w.Body.String())

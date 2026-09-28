@@ -29,6 +29,7 @@ func TestRateLimitPerKey(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return token
 	}
 	call := func(path, token string) *http.Response {
@@ -36,10 +37,12 @@ func TestRateLimitPerKey(t *testing.T) {
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
+
 		resp, err := srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		t.Cleanup(func() { resp.Body.Close() })
 		return resp
 	}
@@ -50,6 +53,7 @@ func TestRateLimitPerKey(t *testing.T) {
 			t.Fatalf("request %d within the burst = %d", i, resp.StatusCode)
 		}
 	}
+
 	resp := call("/v1/things", busy)
 	var problem struct {
 		Status int    `json:"status"`
@@ -58,17 +62,21 @@ func TestRateLimitPerKey(t *testing.T) {
 	if err := json.UnmarshalRead(resp.Body, &problem); err != nil {
 		t.Fatal(err)
 	}
+
 	if resp.StatusCode != http.StatusTooManyRequests || problem.Code != "rate_limited" || resp.Header.Get("Retry-After") != "1" {
 		t.Fatalf("limited request = %d %+v retry-after %q", resp.StatusCode, problem, resp.Header.Get("Retry-After"))
 	}
+
 	if resp := call("/v1/things", calm); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("another key was limited: %d", resp.StatusCode)
 	}
+
 	for range 3 {
 		if resp := call("/healthz", ""); resp.StatusCode != http.StatusOK {
 			t.Fatalf("public path was limited: %d", resp.StatusCode)
 		}
 	}
+
 	if resp := call("/v1/things", "sk_invalid"); resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("invalid key = %d, want 401", resp.StatusCode)
 	}

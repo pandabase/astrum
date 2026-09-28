@@ -66,12 +66,15 @@ func (c *Config) normalize() error {
 	if c.Currency == "" {
 		c.Currency = "USD"
 	}
+
 	if c.BatchSize == 0 {
 		c.BatchSize = 100
 	}
+
 	if c.Seed == 0 {
 		c.Seed = uint64(time.Now().UnixNano())
 	}
+
 	switch {
 	case c.URL == "":
 		return errors.New("bench: url is required")
@@ -88,9 +91,11 @@ func (c *Config) normalize() error {
 	case c.Rate < 0:
 		return errors.New("bench: rate cannot be negative")
 	}
+
 	if _, ok := scenarios[c.Scenario]; !ok {
 		return fmt.Errorf("bench: unknown scenario %q; choose one of %s", c.Scenario, strings.Join(Scenarios(), ", "))
 	}
+
 	return nil
 }
 
@@ -105,6 +110,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	if err := cfg.normalize(); err != nil {
 		return Report{}, err
 	}
+
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{
@@ -112,13 +118,16 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 			Transport: &http.Transport{MaxIdleConns: cfg.Concurrency * 2, MaxIdleConnsPerHost: cfg.Concurrency * 2, IdleConnTimeout: time.Minute},
 		}
 	}
+
 	r := &run{cfg: cfg, client: &client{http: httpClient, base: cfg.URL, key: cfg.Key}}
 	if err := r.checkKey(ctx); err != nil {
 		return Report{}, err
 	}
+
 	if err := r.setup(ctx); err != nil {
 		return Report{}, err
 	}
+
 	step, err := scenarioStep(r)
 	if err != nil {
 		return Report{}, err
@@ -144,17 +153,21 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	if cfg.Scenario == "batch" {
 		report.BatchSize = cfg.BatchSize
 	}
+
 	if seconds := elapsed.Seconds(); seconds > 0 {
 		report.OperationsPerSecond = float64(report.Succeeded) / seconds
 		report.TransactionsPerSecond = float64(report.Transactions) / seconds
 	}
+
 	if cfg.Verify {
 		var integrity Integrity
 		if err := r.client.do(ctx, "GET", "/v1/integrity", nil, false, &integrity); err != nil {
 			return report, fmt.Errorf("bench: integrity check: %w", err)
 		}
+
 		report.Integrity = &integrity
 	}
+
 	return report, ctx.Err()
 }
 
@@ -166,11 +179,14 @@ func (r *run) checkKey(ctx context.Context) error {
 		if apiErr, ok := errors.AsType[*apiError](err); ok && apiErr.Status == http.StatusUnauthorized {
 			return errors.New("bench: the API key was rejected; check -key or ASTRUM_KEY")
 		}
+
 		return fmt.Errorf("bench: reach %s: %w", r.cfg.URL, err)
 	}
+
 	if me.Role == "read" {
 		return errors.New("bench: a read key cannot create the benchmark ledger; use a write or admin key")
 	}
+
 	return nil
 }
 
@@ -181,6 +197,7 @@ func (r *run) setup(ctx context.Context) error {
 	if err := r.client.do(ctx, "POST", "/v1/ledgers", body, true, &ledger); err != nil {
 		return fmt.Errorf("bench: create ledger: %w", err)
 	}
+
 	r.ledgerID = ledger.ID
 	r.accounts = make([]string, r.cfg.Accounts)
 
@@ -197,6 +214,7 @@ func (r *run) setup(ctx context.Context) error {
 				if i >= len(r.accounts) {
 					return
 				}
+
 				var account resource
 				body := map[string]any{
 					"ledger_id":      r.ledgerID,
@@ -209,10 +227,12 @@ func (r *run) setup(ctx context.Context) error {
 					once.Do(func() { firstErr = fmt.Errorf("bench: create account %d: %w", i, err) })
 					return
 				}
+
 				r.accounts[i] = account.ID
 			}
 		})
 	}
+
 	wg.Wait()
 	return firstErr
 }
@@ -224,6 +244,7 @@ func (r *run) drive(ctx context.Context, step step) (*recorder, time.Duration) {
 		runCtx, cancel = context.WithTimeout(ctx, r.cfg.Duration)
 		defer cancel()
 	}
+
 	rec := newRecorder()
 	start := time.Now()
 	schedule := r.schedule(runCtx, start)
@@ -241,6 +262,7 @@ func (r *run) drive(ctx context.Context, step step) (*recorder, time.Duration) {
 				if r.cfg.Operations > 0 && claimed.Add(1) > r.cfg.Operations {
 					return
 				}
+
 				scheduled := time.Now()
 				if schedule != nil {
 					select {
@@ -249,17 +271,21 @@ func (r *run) drive(ctx context.Context, step step) (*recorder, time.Duration) {
 						return
 					}
 				}
+
 				if runCtx.Err() != nil {
 					return
 				}
+
 				transactions, err := step(runCtx, rng)
 				if err != nil && runCtx.Err() != nil {
 					return
 				}
+
 				rec.record(s, time.Since(scheduled), transactions, err)
 			}
 		})
 	}
+
 	wg.Wait()
 	return rec, time.Since(start)
 }
@@ -268,6 +294,7 @@ func (r *run) schedule(ctx context.Context, start time.Time) <-chan time.Time {
 	if r.cfg.Rate <= 0 {
 		return nil
 	}
+
 	interval := time.Duration(float64(time.Second) / r.cfg.Rate)
 	out := make(chan time.Time, r.cfg.Concurrency)
 	go func() {
@@ -279,6 +306,7 @@ func (r *run) schedule(ctx context.Context, start time.Time) <-chan time.Time {
 					return
 				}
 			}
+
 			select {
 			case out <- next:
 			case <-ctx.Done():
@@ -293,6 +321,7 @@ func (r *run) progress(rec *recorder, start time.Time) func() {
 	if r.cfg.Progress == nil {
 		return func() {}
 	}
+
 	done := make(chan struct{})
 	finished := make(chan struct{})
 	go func() {
@@ -312,6 +341,7 @@ func (r *run) progress(rec *recorder, start time.Time) func() {
 					Failed:     rec.failed.Load(),
 					PerSecond:  float64(ops-last) / now.Sub(lastAt).Seconds(),
 				})
+
 				last, lastAt = ops, now
 			}
 		}

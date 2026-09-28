@@ -37,6 +37,7 @@ func newFake(t *testing.T, configure func(*fakeServer)) *fakeServer {
 	if configure != nil {
 		configure(f)
 	}
+
 	var accounts atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -58,11 +59,13 @@ func newFake(t *testing.T, configure func(*fakeServer)) *fakeServer {
 			if f.onTxn != nil {
 				f.onTxn(n)
 			}
+
 			if f.failTxns {
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				io.WriteString(w, `{"code":"insufficient_funds","detail":"no"}`)
 				return
 			}
+
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintf(w, `{"id":"txn_%d"}`, n)
 		}
@@ -99,9 +102,11 @@ func TestEdgeHelp(t *testing.T) {
 			if !errors.Is(err, flag.ErrHelp) {
 				t.Fatalf("run(%s) = %v, want flag.ErrHelp", arg, err)
 			}
+
 			if stdout != "" {
 				t.Fatalf("help wrote to stdout: %q", stdout)
 			}
+
 			for _, want := range []string{
 				"Load-tests a running Astrum server",
 				"usage: astrum-bench [flags]",
@@ -157,12 +162,15 @@ func TestEdgeFlagErrors(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("run(%v) = %v, want %q", tt.args, err, tt.want)
 			}
+
 			if errors.Is(err, flag.ErrHelp) {
 				t.Fatalf("run(%v) = ErrHelp", tt.args)
 			}
+
 			if stdout != "" {
 				t.Fatalf("stdout = %q, want nothing on error", stdout)
 			}
+
 			if strings.Contains(err.Error(), "flag") && !strings.Contains(stderr, "usage: astrum-bench") {
 				t.Fatalf("flag error printed no usage:\n%s", stderr)
 			}
@@ -200,11 +208,13 @@ func TestEdgeValidation(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("run(%v) = %v, want %q", tt.args, err, tt.want)
 			}
+
 			if stdout != "" {
 				t.Fatalf("stdout = %q, want no report", stdout)
 			}
 		})
 	}
+
 	if n := f.txns.Load(); n != 0 {
 		t.Fatalf("invalid configurations sent %d operations", n)
 	}
@@ -217,6 +227,7 @@ func TestEdgeZeroBatchUsesDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.Contains(stdout, `"batch_size": 100,`) || !strings.Contains(stdout, `"transactions": 100,`) {
 		t.Fatalf("report = %s", stdout)
 	}
@@ -245,10 +256,12 @@ func TestEdgeEnvFallbacks(t *testing.T) {
 			if _, stderr, err := runArgs(t, context.Background(), args...); err != nil {
 				t.Fatalf("run(%v) = %v\n%s", args, err, stderr)
 			}
+
 			seen := f.authHeaders()[before:]
 			if len(seen) == 0 {
 				t.Fatal("no requests reached the server")
 			}
+
 			for _, h := range seen {
 				if h != tt.wantKey {
 					t.Fatalf("Authorization = %q, want %q", h, tt.wantKey)
@@ -276,6 +289,7 @@ func TestEdgeEnvOr(t *testing.T) {
 			}
 		})
 	}
+
 	t.Run("unset", func(t *testing.T) {
 		t.Setenv(key, "x")
 		os.Unsetenv(key)
@@ -292,9 +306,11 @@ func TestEdgeJSONOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run = %v\n%s", err, stderr)
 	}
+
 	if !strings.HasPrefix(stdout, "{\n  \"scenario\": \"transfer\",\n") || !strings.HasSuffix(stdout, "}\n") || strings.HasSuffix(stdout, "}\n\n") {
 		t.Fatalf("stdout is not a single indented JSON document:\n%s", stdout)
 	}
+
 	if strings.Contains(stderr, "{") {
 		t.Fatalf("JSON leaked to stderr:\n%s", stderr)
 	}
@@ -308,50 +324,62 @@ func TestEdgeJSONOutput(t *testing.T) {
 	if tok, err := dec.ReadToken(); err != nil || tok.Kind() != '{' {
 		t.Fatalf("first token = %v, %v", tok, err)
 	}
+
 	for dec.PeekKind() != '}' {
 		tok, err := dec.ReadToken()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		name := tok.String()
 		top = append(top, name)
 		if name == "latency_ns" {
 			if _, err := dec.ReadToken(); err != nil {
 				t.Fatal(err)
 			}
+
 			for dec.PeekKind() != '}' {
 				k, err := dec.ReadToken()
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				key := k.String()
 				v, err := dec.ReadValue()
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				latency = append(latency, key)
 				if v.Kind() != '0' || bytes.ContainsAny(v, ".eE-") {
 					t.Fatalf("latency %s = %s, want a non-negative integer of nanoseconds", key, v)
 				}
 			}
+
 			if _, err := dec.ReadToken(); err != nil {
 				t.Fatal(err)
 			}
+
 			continue
 		}
+
 		v, err := dec.ReadValue()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		values[name] = v.Clone()
 	}
+
 	wantTop := []string{"scenario", "ledger_id", "concurrency", "accounts", "rate", "seed", "elapsed_ns", "operations", "succeeded", "failed", "transactions", "operations_per_second", "transactions_per_second", "errors", "latency_ns", "integrity"}
 	if strings.Join(top, ",") != strings.Join(wantTop, ",") {
 		t.Fatalf("keys = %v\nwant   %v", top, wantTop)
 	}
+
 	if strings.Join(latency, ",") != "mean,p50,p90,p99,p999,max" {
 		t.Fatalf("latency keys = %v", latency)
 	}
+
 	checks := map[string]string{
 		"seed":        "42",
 		"operations":  "5",
@@ -368,9 +396,11 @@ func TestEdgeJSONOutput(t *testing.T) {
 			t.Errorf("%s = %s, want %s", k, got, want)
 		}
 	}
+
 	if e := values["elapsed_ns"]; e.Kind() != '0' || bytes.ContainsAny(e, ".eE-") || string(e) == "0" {
 		t.Errorf("elapsed_ns = %s, want positive integer nanoseconds", e)
 	}
+
 	if !strings.Contains(string(values["integrity"]), `"ok": true`) {
 		t.Errorf("integrity = %s", values["integrity"])
 	}
@@ -383,6 +413,7 @@ func TestEdgeJSONErrorsSorted(t *testing.T) {
 	if err == nil || err.Error() != "3 of 3 operations failed" {
 		t.Fatalf("run = %v", err)
 	}
+
 	if !strings.Contains(stdout, "\"errors\": {\n    \"insufficient_funds\": 3\n  },") {
 		t.Fatalf("report = %s", stdout)
 	}
@@ -395,11 +426,13 @@ func TestEdgeTextOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{"scenario    transfer\n", "ledger      ldg_bench\n", "32 workers, 2 accounts, seed 9", "4 ok, 0 failed"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("stdout lacks %q:\n%s", want, stdout)
 		}
 	}
+
 	if strings.HasPrefix(stdout, "{") || !strings.Contains(stderr, "starting") || !strings.Contains(stderr, "bench") {
 		t.Fatalf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -415,9 +448,11 @@ func TestEdgeQuietAndProgress(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if got := strings.Contains(stderr, "progress"); got == quiet {
 				t.Fatalf("quiet=%v progress logged=%v:\n%s", quiet, got, stderr)
 			}
+
 			if !strings.Contains(stderr, "starting") {
 				t.Fatalf("stderr lacks the start line:\n%s", stderr)
 			}
@@ -450,6 +485,7 @@ func TestEdgeExitOutcomes(t *testing.T) {
 			if tt.verify {
 				args = append(args, "-verify")
 			}
+
 			stdout, _, err := runArgs(t, context.Background(), args...)
 			switch {
 			case tt.want == "" && err != nil:
@@ -457,12 +493,15 @@ func TestEdgeExitOutcomes(t *testing.T) {
 			case tt.want != "" && (err == nil || !strings.Contains(err.Error(), tt.want)):
 				t.Fatalf("run = %v, want %q", err, tt.want)
 			}
+
 			if tt.report == "" {
 				if stdout != "" {
 					t.Fatalf("stdout = %q, want no report when the run errored", stdout)
 				}
+
 				return
 			}
+
 			if !strings.Contains(stdout, tt.report) {
 				t.Fatalf("stdout lacks %q:\n%s", tt.report, stdout)
 			}
@@ -505,13 +544,16 @@ func TestEdgeInterruptedMidRun(t *testing.T) {
 			}
 		}
 	})
+
 	stdout, stderr, err := runArgs(t, ctx, "-url", f.url, "-key", "k", "-operations", "1000", "-concurrency", "1", "-accounts", "2", "-json", "-quiet")
 	if err != nil {
 		t.Fatalf("run = %v, want the partial report to count as success", err)
 	}
+
 	if !strings.Contains(stderr, "interrupted; reporting what completed") {
 		t.Fatalf("stderr lacks the interruption warning:\n%s", stderr)
 	}
+
 	if !strings.Contains(stdout, `"ledger_id": "ldg_bench"`) || strings.Contains(stdout, `"operations": 0,`) || strings.Contains(stdout, `"operations": 1000,`) {
 		t.Fatalf("partial report = %s", stdout)
 	}
@@ -526,6 +568,7 @@ func TestEdgeInterruptedDuringSetup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run = %v", err)
 	}
+
 	if !strings.Contains(stderr, "interrupted") || !strings.Contains(stdout, `"ledger_id": ""`) || !strings.Contains(stdout, `"scenario": ""`) {
 		t.Fatalf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -555,6 +598,7 @@ func TestEdgeMainProcess(t *testing.T) {
 	if !ok {
 		t.Skip("helper process")
 	}
+
 	os.Args = append([]string{"astrum-bench"}, strings.Split(raw, "\x1f")...)
 	main()
 	os.Exit(0)
@@ -564,6 +608,7 @@ func TestEdgeMainExitCodes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("spawns processes")
 	}
+
 	f := newFake(t, nil)
 	failing := newFake(t, func(f *fakeServer) { f.failTxns = true })
 	tests := []struct {
@@ -591,6 +636,7 @@ func TestEdgeMainExitCodes(t *testing.T) {
 			} else if err != nil {
 				t.Fatal(err)
 			}
+
 			if code != tt.code || !strings.Contains(stderr.String(), tt.stderr) {
 				t.Fatalf("exit %d, want %d; stderr:\n%s", code, tt.code, stderr.String())
 			}

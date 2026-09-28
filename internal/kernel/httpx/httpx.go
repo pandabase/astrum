@@ -57,12 +57,15 @@ func decode(w http.ResponseWriter, r *http.Request, v any, optional bool, limit 
 	if err != nil {
 		return fmt.Errorf("invalid request body: %w", err)
 	}
+
 	if optional && len(bytes.TrimSpace(body)) == 0 {
 		return nil
 	}
+
 	if err := json.Unmarshal(body, v, json.RejectUnknownMembers(true)); err != nil {
 		return fmt.Errorf("invalid request body: %w", err)
 	}
+
 	return nil
 }
 
@@ -101,6 +104,7 @@ func write(w http.ResponseWriter, r *http.Request, status int, contentType strin
 		status, contentType = http.StatusInternalServerError, "application/problem+json"
 		body, _ = encode(NewProblem(r, status, CodeInternal, ""))
 	}
+
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
 	if _, err := w.Write(append(body, '\n')); err != nil {
@@ -120,16 +124,19 @@ func cleanRequest(r *http.Request) bool {
 	if !cleanText(r.URL.Path) {
 		return false
 	}
+
 	for name, values := range r.URL.Query() {
 		if !cleanText(name) {
 			return false
 		}
+
 		for _, v := range values {
 			if !cleanText(v) {
 				return false
 			}
 		}
 	}
+
 	return true
 }
 
@@ -147,9 +154,11 @@ func NewList[T any](items []T, limit int, cursor func(T) string) List[T] {
 		next := cursor(list.Data[limit-1])
 		list.NextCursor = &next
 	}
+
 	if list.Data == nil {
 		list.Data = []T{}
 	}
+
 	return list
 }
 
@@ -158,10 +167,12 @@ func PageLimit(r *http.Request) (int, error) {
 	if raw == "" {
 		return DefaultPageLimit, nil
 	}
+
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 1 || n > MaxPageLimit {
 		return 0, fmt.Errorf("limit must be an integer from 1 to %d", MaxPageLimit)
 	}
+
 	return n, nil
 }
 
@@ -200,6 +211,7 @@ func Logging(base *log.Logger, next http.Handler) http.Handler {
 					Error(rec, req, http.StatusInternalServerError, CodeInternal, "")
 				}
 			}
+
 			level := log.InfoLevel
 			switch {
 			case rec.status >= 500:
@@ -207,6 +219,7 @@ func Logging(base *log.Logger, next http.Handler) http.Handler {
 			case rec.status >= 400:
 				level = log.WarnLevel
 			}
+
 			reqLogger.Log(level, "request",
 				"method", r.Method,
 				"path", r.URL.Path,
@@ -221,6 +234,7 @@ func Logging(base *log.Logger, next http.Handler) http.Handler {
 			Error(rec, req, http.StatusBadRequest, CodeInvalidRequest, "request path and query must be valid UTF-8 without NUL bytes")
 			return
 		}
+
 		next.ServeHTTP(rec, req)
 	})
 }
@@ -229,5 +243,6 @@ func requestID(upstream string) string {
 	if id, err := uuid.Parse(upstream); err == nil && id.Version() == 4 && len(upstream) == 36 {
 		return id.String()
 	}
+
 	return uuid.NewString()
 }

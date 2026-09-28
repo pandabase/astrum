@@ -74,8 +74,10 @@ func problemFor(err error) (int, string, string) {
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		status, code = http.StatusGatewayTimeout, "timeout"
 	}
+
 	if status == http.StatusInternalServerError {
 		return status, code, ""
 	}
+
 	return status, code, err.Error()
 }

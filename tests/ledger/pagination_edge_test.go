@@ -17,6 +17,7 @@ func feFilters(n int) map[string]string {
 	for i := range n {
 		m[fmt.Sprint("k", i)] = "v"
 	}
+
 	return m
 }
 
@@ -30,8 +31,10 @@ func TestPaginationEdgeLedgers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		ledgers = append(ledgers, l)
 	}
+
 	all := "pl-2,pl-1,pl-0,test"
 
 	join := func(ls []ledger.Ledger) string {
@@ -39,6 +42,7 @@ func TestPaginationEdgeLedgers(t *testing.T) {
 		for i, l := range ls {
 			out[i] = l.Name
 		}
+
 		return strings.Join(out, ",")
 	}
 	tests := []struct {
@@ -68,6 +72,7 @@ func TestPaginationEdgeLedgers(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListLedgers() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && join(got) != tt.want {
 				t.Fatalf("ledgers = %s, want %s", join(got), tt.want)
 			}
@@ -83,6 +88,7 @@ func TestPaginationEdgeAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	mk := func(code string, currency money.Currency, ledgerID uuid.UUID) ledger.Account {
 		t.Helper()
 		in := feAccountInput(e, code)
@@ -91,6 +97,7 @@ func TestPaginationEdgeAccounts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return acc
 	}
 	a := mk("pa-a", "USD", e.ledger.ID)
@@ -100,9 +107,11 @@ func TestPaginationEdgeAccounts(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, b.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.CloseAccount(ctx, c.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	cat := e.addAccount(t, e.category(t, "pa", ledger.Debit), a)
 
 	codes := func(accs []ledger.Account) string {
@@ -110,6 +119,7 @@ func TestPaginationEdgeAccounts(t *testing.T) {
 		for i, acc := range accs {
 			out[i] = acc.Code
 		}
+
 		return strings.Join(out, ",")
 	}
 	mine := ledger.ListAccountsInput{LedgerID: e.ledger.ID}
@@ -151,6 +161,7 @@ func TestPaginationEdgeAccounts(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListAccounts() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && codes(got) != tt.want {
 				t.Fatalf("accounts = %s, want %s", codes(got), tt.want)
 			}

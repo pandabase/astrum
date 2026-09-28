@@ -40,8 +40,10 @@ func TestEdgeLevels(t *testing.T) {
 				if err == nil || !strings.HasPrefix(err.Error(), "logger: ") || !errors.Is(err, log.ErrInvalidLevel) || l != nil {
 					t.Fatalf("New(%q) = %v, %v", tt.in, l, err)
 				}
+
 				return
 			}
+
 			if err != nil || l.GetLevel() != tt.want {
 				t.Fatalf("New(%q) level = %v, %v", tt.in, l.GetLevel(), err)
 			}
@@ -57,6 +59,7 @@ func TestEdgeFormats(t *testing.T) {
 			}
 		})
 	}
+
 	t.Run("level checked before format", func(t *testing.T) {
 		if _, err := logger.New(&bytes.Buffer{}, "loud", "xml"); err == nil || !errors.Is(err, log.ErrInvalidLevel) {
 			t.Fatalf("New() = %v", err)
@@ -70,23 +73,28 @@ func TestEdgeJSONLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	before := time.Now().Add(-time.Second)
 	l.Debug("hello", "n", 3, "s", "quoted \"text\"")
 	var entry map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
 		t.Fatalf("line %q: %v", buf.String(), err)
 	}
+
 	if entry["msg"] != "hello" || entry["level"] != "debug" || entry["n"] != float64(3) || entry["s"] != `quoted "text"` {
 		t.Fatalf("entry = %v", entry)
 	}
+
 	ts, ok := entry["time"].(string)
 	if !ok {
 		t.Fatalf("time = %v", entry["time"])
 	}
+
 	parsed, err := time.Parse(time.RFC3339Nano, ts)
 	if err != nil || parsed.Before(before) || parsed.After(time.Now().Add(time.Second)) {
 		t.Fatalf("time %q = %v, %v", ts, parsed, err)
 	}
+
 	if strings.Count(buf.String(), "\n") != 1 {
 		t.Fatalf("expected exactly one line: %q", buf.String())
 	}
@@ -98,18 +106,21 @@ func TestEdgeLogfmtAndText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	logger.For(logger.WithRequestID(context.Background(), "req 1"), l).Info("hi", "k", "v")
 	for _, want := range []string{"level=info", "msg=hi", `request_id="req 1"`, "k=v", "time="} {
 		if !strings.Contains(lf.String(), want) {
 			t.Fatalf("logfmt lacks %q: %q", want, lf.String())
 		}
 	}
+
 	for _, format := range []string{"", "text"} {
 		var tx bytes.Buffer
 		l, err := logger.New(&tx, "info", format)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		logger.For(logger.WithRequestID(context.Background(), "req-2"), l).Info("hi")
 		if !strings.Contains(tx.String(), "INFO") || !strings.Contains(tx.String(), "hi") || !strings.Contains(tx.String(), "request_id=req-2") {
 			t.Fatalf("text %q = %q", format, tx.String())
@@ -123,12 +134,14 @@ func TestEdgeContextValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	decode := func() map[string]any {
 		t.Helper()
 		var entry map[string]any
 		if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
 			t.Fatalf("line %q: %v", buf.String(), err)
 		}
+
 		buf.Reset()
 		return entry
 	}
@@ -162,10 +175,12 @@ func TestEdgeContextValues(t *testing.T) {
 			if entry["request_id"] != tt.requestID || entry["actor"] != tt.actor {
 				t.Fatalf("entry = %v, want request_id=%v actor=%v", entry, tt.requestID, tt.actor)
 			}
+
 			want := ""
 			if s, ok := tt.requestID.(string); ok {
 				want = s
 			}
+
 			if got := logger.RequestID(tt.ctx); got != want {
 				t.Fatalf("RequestID() = %q, want %q", got, want)
 			}
@@ -179,14 +194,17 @@ func TestEdgeForDoesNotMutateBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	derived := logger.For(logger.WithActor(logger.WithRequestID(context.Background(), "r"), "a"), base)
 	if derived == base {
 		t.Fatal("For() returned the base logger despite adding fields")
 	}
+
 	base.Info("plain")
 	if strings.Contains(buf.String(), "request_id") || strings.Contains(buf.String(), "actor") {
 		t.Fatalf("base logger gained fields: %q", buf.String())
 	}
+
 	if logger.For(context.Background(), base) != base {
 		t.Fatal("For() without values should return the base logger")
 	}
@@ -198,6 +216,7 @@ func TestEdgeForConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	done := make(chan struct{})
 	for i := range 16 {
 		go func() {
@@ -208,13 +227,16 @@ func TestEdgeForConcurrent(t *testing.T) {
 			}
 		}()
 	}
+
 	for range 16 {
 		<-done
 	}
+
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) != 320 {
 		t.Fatalf("lines = %d, want 320", len(lines))
 	}
+
 	for _, line := range lines {
 		var entry map[string]any
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {

@@ -18,9 +18,11 @@ func peBatch(t testing.TB, e *env, ins []ledger.PostInput, atomic bool) []ledger
 	if err != nil {
 		t.Fatalf("PostBatch() error = %v", err)
 	}
+
 	if len(results) != len(ins) {
 		t.Fatalf("results = %d, want %d", len(results), len(ins))
 	}
+
 	return results
 }
 
@@ -31,10 +33,12 @@ func peLockAccountsTable(t testing.TB, e *env) func() {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := tx.Exec(ctx, `LOCK TABLE ledger_accounts IN EXCLUSIVE MODE`); err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
 	}
+
 	var once sync.Once
 	release := func() { once.Do(func() { _ = tx.Rollback(ctx) }) }
 	t.Cleanup(release)
@@ -48,6 +52,7 @@ func peAccountWaiters(t testing.TB, e *env) int {
 		`SELECT count(DISTINCT pid) FROM pg_locks WHERE locktype = 'relation' AND relation = 'ledger_accounts'::regclass AND NOT granted`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
+
 	return n
 }
 
@@ -59,9 +64,11 @@ func peAwaitWaiters(t testing.TB, e *env, want int) {
 		if got == want {
 			return
 		}
+
 		if got > want || time.Now().After(deadline) {
 			t.Fatalf("transactions waiting on accounts = %d, want %d", got, want)
 		}
+
 		time.Sleep(5 * time.Millisecond)
 	}
 }
@@ -77,6 +84,7 @@ func TestBatchEdgeSizes(t *testing.T) {
 		for i := range ins {
 			ins[i] = transfer(fmt.Sprintf("%s-%d", prefix, i), a.ID, b.ID, 1)
 		}
+
 		return ins
 	}
 
@@ -114,6 +122,7 @@ func TestBatchEdgeSizes(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 1002 {
 		t.Fatalf("b = %d, want 1002", got)
 	}
+
 	e.verify(t)
 }
 
@@ -152,6 +161,7 @@ func TestBatchEdgeValidationAndAlignment(t *testing.T) {
 			if want == nil && results[i].Transaction.IdempotencyKey != ins[i].IdempotencyKey {
 				t.Fatalf("result %d is %s", i, results[i].Transaction.IdempotencyKey)
 			}
+
 			if want != nil && (results[i].Transaction != nil || results[i].Error == "") {
 				t.Fatalf("result %d = %+v", i, results[i])
 			}
@@ -171,6 +181,7 @@ func TestBatchEdgeValidationAndAlignment(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 3 {
 		t.Fatalf("b = %d, want 3", got)
 	}
+
 	e.verify(t)
 }
 
@@ -188,14 +199,17 @@ func TestBatchEdgeAtomicAbort(t *testing.T) {
 				if i == failAt {
 					amount = 1_000
 				}
+
 				ins[i] = transfer(fmt.Sprintf("abort-%d-%d", failAt, i), a.ID, b.ID, amount)
 			}
+
 			results := peBatch(t, e, ins, true)
 			for i, r := range results {
 				want := ledger.ErrBatchAborted
 				if i == failAt {
 					want = ledger.ErrInsufficientFunds
 				}
+
 				wantErr(t, r.Err, want)
 				if peKeyExists(t, e, ins[i].IdempotencyKey) {
 					t.Fatalf("aborted entry %d was written", i)
@@ -224,6 +238,7 @@ func TestBatchEdgeAtomicAbort(t *testing.T) {
 	if got := e.balance(t, b.ID); got != 3 {
 		t.Fatalf("b = %d, want 3", got)
 	}
+
 	e.verify(t)
 }
 
@@ -245,6 +260,7 @@ func TestBatchEdgeCancellation(t *testing.T) {
 			}
 		})
 	}
+
 	if got := e.balance(t, b.ID); got != 0 {
 		t.Fatalf("b = %d, want 0", got)
 	}
@@ -276,6 +292,7 @@ func TestBatchEdgeConcurrencyCap(t *testing.T) {
 					_, errs[i] = e.m.PostBatch(context.Background(), []ledger.PostInput{transfer(fmt.Sprintf("cap-%d", i), a.ID, b.ID, 1)}, i%2 == 0)
 				})
 			}
+
 			peAwaitWaiters(t, e, tt.want)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -293,12 +310,15 @@ func TestBatchEdgeConcurrencyCap(t *testing.T) {
 					t.Fatalf("queued batch %d: %v", i, err)
 				}
 			}
+
 			if peKeyExists(t, e, "cap-late") {
 				t.Fatal("batch that timed out waiting for a slot was written")
 			}
+
 			if got := e.balance(t, b.ID); got != int64(queued) {
 				t.Fatalf("b = %d, want %d", got, queued)
 			}
+
 			e.verify(t)
 		})
 	}
@@ -318,6 +338,7 @@ func TestBatchEdgeCancelWhileWaitingForSlot(t *testing.T) {
 	wg.Go(func() {
 		_, holderErr = e.m.PostBatch(context.Background(), []ledger.PostInput{transfer("slot-holder", a.ID, b.ID, 5)}, true)
 	})
+
 	peAwaitWaiters(t, e, 1)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -336,6 +357,7 @@ func TestBatchEdgeCancelWhileWaitingForSlot(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("cancelled batch kept waiting for a slot")
 	}
+
 	if got := peAccountWaiters(t, e); got != 1 {
 		t.Fatalf("waiters = %d, want only the slot holder", got)
 	}
@@ -345,15 +367,18 @@ func TestBatchEdgeCancelWhileWaitingForSlot(t *testing.T) {
 	if holderErr != nil {
 		t.Fatal(holderErr)
 	}
+
 	for _, key := range []string{"slot-waiter-1", "slot-waiter-2"} {
 		if peKeyExists(t, e, key) {
 			t.Fatalf("%s was written by a cancelled batch", key)
 		}
 	}
+
 	peBatch(t, e, []ledger.PostInput{transfer("slot-waiter-1", a.ID, b.ID, 1)}, true)
 	if got := e.balance(t, b.ID); got != 6 {
 		t.Fatalf("b = %d, want 6", got)
 	}
+
 	e.verify(t)
 }
 
@@ -377,6 +402,7 @@ func TestBatchEdgeSlotReleasedAfterPanic(t *testing.T) {
 	if errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal("batch slot leaked by a panicking batch; later batches block forever")
 	}
+
 	if err != nil || results[0].Err != nil {
 		t.Fatalf("after panic = %+v, %v", results, err)
 	}
@@ -395,8 +421,10 @@ func TestBatchEdgeNonAtomicIsolatesWriteTimeFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PostBatch() error = %v, want per-entry results", err)
 	}
+
 	if results[0].Err != nil {
 		t.Fatalf("good entry = %+v", results[0])
 	}
+
 	wantErr(t, results[1].Err, ledger.ErrInvalid)
 }

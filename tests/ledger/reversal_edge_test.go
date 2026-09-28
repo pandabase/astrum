@@ -20,6 +20,7 @@ func peReverse(t testing.TB, e *env, id uuid.UUID, key string) ledger.Transactio
 	if err != nil {
 		t.Fatalf("Reverse(%s) error = %v", key, err)
 	}
+
 	return txn
 }
 
@@ -38,6 +39,7 @@ func TestReversalEdgeChains(t *testing.T) {
 			t.Fatalf("reversal leg %d = %+v, original %+v", i, p, o)
 		}
 	}
+
 	if e.balance(t, b.ID) != 0 {
 		t.Fatal("reversal did not restore b")
 	}
@@ -46,6 +48,7 @@ func TestReversalEdgeChains(t *testing.T) {
 	if second.ReversesID == nil || *second.ReversesID != first.ID {
 		t.Fatalf("reversal of reversal reverses %v, want %s", second.ReversesID, first.ID)
 	}
+
 	if e.balance(t, a.ID) != 700 || e.balance(t, b.ID) != 300 {
 		t.Fatal("reversal of a reversal did not reapply the original")
 	}
@@ -59,6 +62,7 @@ func TestReversalEdgeChains(t *testing.T) {
 		_, err := e.m.Reverse(ctx, id, ledger.ReverseInput{IdempotencyKey: key})
 		wantErr(t, err, ledger.ErrAlreadyReversed)
 	}
+
 	e.verify(t)
 }
 
@@ -118,6 +122,7 @@ func TestReversalEdgeIdempotency(t *testing.T) {
 	if e.balance(t, b.ID) != 50 {
 		t.Fatalf("b = %d, want 50", e.balance(t, b.ID))
 	}
+
 	e.verify(t)
 }
 
@@ -133,6 +138,7 @@ func TestReversalEdgeNonPosted(t *testing.T) {
 	if _, err := e.m.ArchiveTransaction(ctx, archived.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	lockArchived := locked(transfer("lock-archived", a.ID, b.ID, 10), a.ID, availableAtLeast(10_000))
 	lockArchived.ArchiveOnLockFailure = true
 	auto := e.post(t, lockArchived)
@@ -151,14 +157,17 @@ func TestReversalEdgeNonPosted(t *testing.T) {
 		if _, err := e.m.PostTransaction(ctx, open.ID, ledger.PostPendingInput{Postings: transfer("", a.ID, b.ID, 4).Postings}); err != nil {
 			t.Fatal(err)
 		}
+
 		rev := peReverse(t, e, open.ID, "rev-partial")
 		if rev.Postings[0].Amount != amt(4) {
 			t.Fatalf("reversal amount = %s, want 4", rev.Postings[0].Amount)
 		}
+
 		if got := peViews(t, e, a.ID); got != [3]money.Amount{amt(1_000), amt(1_000), amt(1_000)} {
 			t.Fatalf("a views = %v", got)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -179,6 +188,7 @@ func TestReversalEdgeAccountsAndCurrencies(t *testing.T) {
 		if _, err := e.m.FreezeAccount(ctx, eurB.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := e.m.Reverse(ctx, multi.ID, ledger.ReverseInput{IdempotencyKey: "rev-multi"})
 		wantErr(t, err, ledger.ErrAccountNotOpen)
 		if _, err := e.m.UnfreezeAccount(ctx, eurB.ID); err != nil {
@@ -191,12 +201,14 @@ func TestReversalEdgeAccountsAndCurrencies(t *testing.T) {
 		if len(rev.Postings) != 5 {
 			t.Fatalf("legs = %d", len(rev.Postings))
 		}
+
 		for id, want := range map[uuid.UUID]int64{usdA.ID: 100, usdB.ID: 0, eurB.ID: 0, eurIssuer.ID: 0} {
 			if got := e.balance(t, id); got != want {
 				t.Errorf("account %s = %d, want %d", id, got, want)
 			}
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -220,9 +232,11 @@ func TestReversalEdgeConcurrent(t *testing.T) {
 					if sameKey {
 						key = fmt.Sprintf("race-rev-%v", sameKey)
 					}
+
 					txns[i], errs[i] = e.m.Reverse(ctx, original.ID, ledger.ReverseInput{IdempotencyKey: key})
 				})
 			}
+
 			wg.Wait()
 			ids := map[uuid.UUID]bool{}
 			for i, err := range errs {
@@ -233,13 +247,16 @@ func TestReversalEdgeConcurrent(t *testing.T) {
 					t.Fatalf("racer %d: %v", i, err)
 				}
 			}
+
 			if len(ids) != 1 {
 				t.Fatalf("distinct reversals = %d, want 1", len(ids))
 			}
+
 			if got := e.balance(t, b.ID); got != 0 {
 				t.Fatalf("b = %d, want 0", got)
 			}
 		})
 	}
+
 	e.verify(t)
 }

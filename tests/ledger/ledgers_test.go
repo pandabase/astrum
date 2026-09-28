@@ -29,6 +29,7 @@ func TestLedgers(t *testing.T) {
 	if err != nil || l.Name != "Payments" || l.Version != 0 {
 		t.Fatalf("CreateLedger = %+v, %v", l, err)
 	}
+
 	if got, err := e.m.Ledger(ctx, l.ID); err != nil || got.Description != "card acquiring" {
 		t.Fatalf("Ledger = %+v, %v", got, err)
 	}
@@ -41,6 +42,7 @@ func TestLedgers(t *testing.T) {
 		if err != nil || got.Name != "Payments EU" || got.Description != "card acquiring" || got.Version != 1 {
 			t.Fatalf("UpdateLedger = %+v, %v", got, err)
 		}
+
 		want := `{"limits":{"daily":"200","monthly":"1000"},"tier":"gold"}`
 		if !jsonSame(t, got.Metadata, want) {
 			t.Fatalf("metadata = %s, want %s", got.Metadata, want)
@@ -73,6 +75,7 @@ func TestLedgers(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+
 		var names []string
 		var before uuid.UUID
 		for {
@@ -80,14 +83,18 @@ func TestLedgers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			for _, l := range page {
 				names = append(names, l.Name)
 			}
+
 			if len(page) < 2 {
 				break
 			}
+
 			before = page[len(page)-1].ID
 		}
+
 		if got := strings.Join(names, ","); got != "extra 2,extra 1,extra 0,Payments EU,test" {
 			t.Fatalf("ledgers = %s", got)
 		}
@@ -102,6 +109,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	create := func(ledgerID uuid.UUID, code string) ledger.Account {
 		t.Helper()
 		acc, err := e.m.CreateAccount(ctx, ledger.CreateAccountInput{
@@ -110,6 +118,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return acc
 	}
 	cash := create(e.ledger.ID, "cash")
@@ -117,6 +126,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 	if cash.ID == otherCash.ID || otherCash.LedgerID != other.ID {
 		t.Fatalf("same code in two ledgers = %s and %s", cash.ID, otherCash.ID)
 	}
+
 	if again := create(e.ledger.ID, "cash"); again.ID != cash.ID {
 		t.Fatalf("replay created %s, want %s", again.ID, cash.ID)
 	}
@@ -135,6 +145,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		_, err = e.m.CaptureHold(ctx, hold.ID, ledger.CaptureInput{IdempotencyKey: "c", Destination: otherCash.ID, Amount: amt(50)})
 		wantErr(t, err, ledger.ErrCrossLedger)
 		if h, _ := e.m.Hold(ctx, hold.ID); h.Status != ledger.HoldPending {
@@ -149,14 +160,17 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		if err != nil || len(accounts) != 2 {
 			t.Fatalf("accounts in other = %d, %v", len(accounts), err)
 		}
+
 		byCode, err := e.m.ListAccounts(ctx, ledger.ListAccountsInput{Code: "cash", Limit: 10})
 		if err != nil || len(byCode) != 2 {
 			t.Fatalf("accounts coded cash = %d, %v", len(byCode), err)
 		}
+
 		exact, err := e.m.ListAccounts(ctx, ledger.ListAccountsInput{LedgerID: other.ID, Code: "cash", Limit: 10})
 		if err != nil || len(exact) != 1 || exact[0].ID != otherCash.ID {
 			t.Fatalf("other/cash = %+v, %v", exact, err)
 		}
+
 		txns, err := e.m.ListTransactions(ctx, ledger.ListTransactionsInput{LedgerID: other.ID, Limit: 10})
 		if err != nil || len(txns) != 1 || txns[0].IdempotencyKey != "in-other" {
 			t.Fatalf("transactions in other = %+v, %v", txns, err)
@@ -172,9 +186,11 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 		if err != nil || acc.Name != "Cash cash" || acc.Description != "till" || acc.Version != before.Version+1 {
 			t.Fatalf("UpdateAccount = %+v, %v", acc, err)
 		}
+
 		if !jsonSame(t, acc.Metadata, `{"branch":"soho"}`) || acc.Posted.Amount != before.Posted.Amount {
 			t.Fatalf("after update = %+v", acc)
 		}
+
 		_, err = e.m.UpdateAccount(ctx, cash.ID, ledger.UpdateInput{Metadata: jsontext.Value(`[]`)})
 		wantErr(t, err, ledger.ErrInvalid)
 		_, err = e.m.UpdateAccount(ctx, uuid.New(), ledger.UpdateInput{Name: new("x")})
@@ -209,6 +225,7 @@ func TestAccountsBelongToOneLedger(t *testing.T) {
 			})
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -221,13 +238,16 @@ func TestHTTPLedgers(t *testing.T) {
 	if l["object"] != "ledger" || l["name"] != "Wallets" {
 		t.Fatalf("ledger = %v", l)
 	}
+
 	patched := a.must(http.StatusOK, http.MethodPatch, "/v1/ledgers/"+id, "", `{"description":"user wallets","metadata":{"env":null,"team":"core"}}`)
 	if patched["description"] != "user wallets" || fmt.Sprint(patched["metadata"]) != "map[team:core]" || patched["version"] != float64(1) {
 		t.Fatalf("patched = %v", patched)
 	}
+
 	if got := a.must(http.StatusOK, http.MethodGet, "/v1/ledgers/"+id, "", ""); got["description"] != "user wallets" {
 		t.Fatalf("get = %v", got)
 	}
+
 	if n := len(a.list("/v1/ledgers?limit=1")); n != 3 {
 		t.Fatalf("listed %d ledgers, want the setup, API and Wallets ledgers", n)
 	}
@@ -238,16 +258,19 @@ func TestHTTPLedgers(t *testing.T) {
 	if acct["ledger_id"] != id || acct["name"] != "Cash" || fmt.Sprint(acct["metadata"]) != "map[]" {
 		t.Fatalf("account = %v", acct)
 	}
+
 	updated := a.must(http.StatusOK, http.MethodPatch, "/v1/accounts/"+acctID, "", `{"name":"Main cash","metadata":{"gl":"1000"}}`)
 	if updated["name"] != "Main cash" || fmt.Sprint(updated["metadata"]) != "map[gl:1000]" {
 		t.Fatalf("updated = %v", updated)
 	}
+
 	mine := a.account("cash", "debit", `,"allow_negative":true`)
 
 	found := a.list("/v1/accounts?ledger_id=" + id + "&code=cash")
 	if len(found) != 1 || found[0]["id"] != acctID {
 		t.Fatalf("lookup by ledger and code = %v", found)
 	}
+
 	if n := len(a.list("/v1/accounts?code=cash")); n != 2 {
 		t.Fatalf("accounts coded cash = %d, want 2", n)
 	}
@@ -283,8 +306,10 @@ func jsonSame(t *testing.T, got jsontext.Value, want string) bool {
 	if err := json.Unmarshal(got, &g); err != nil {
 		t.Fatalf("decode %s: %v", got, err)
 	}
+
 	if err := json.Unmarshal([]byte(want), &w); err != nil {
 		t.Fatal(err)
 	}
+
 	return fmt.Sprint(g) == fmt.Sprint(w)
 }

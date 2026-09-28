@@ -53,6 +53,7 @@ func scanTransactions(rows pgx.Rows) ([]Transaction, error) {
 			if balanceAfter != nil {
 				posting.balanceAfter = *balanceAfter
 			}
+
 			i, ok := index[txn.ID]
 			if !ok {
 				i = len(out)
@@ -63,6 +64,7 @@ func scanTransactions(rows pgx.Rows) ([]Transaction, error) {
 				if externalID != nil {
 					t.ExternalID = *externalID
 				}
+
 				t.Metadata = bytes.Clone(metadata)
 				t.Postings = nil
 				t.request = nil
@@ -72,11 +74,14 @@ func scanTransactions(rows pgx.Rows) ([]Transaction, error) {
 						return fmt.Errorf("decode pending request of %s: %w", t.ID, err)
 					}
 				}
+
 				out = append(out, t)
 			}
+
 			out[i].Postings = append(out[i].Postings, posting)
 			return nil
 		})
+
 	return out, err
 }
 
@@ -105,13 +110,16 @@ func selectTransactions(ctx context.Context, q querier, in ListTransactionsInput
 	if err != nil {
 		return nil, fmt.Errorf("select transactions: %w", err)
 	}
+
 	txns, err := scanTransactions(rows)
 	if err != nil {
 		return nil, fmt.Errorf("select transactions: %w", err)
 	}
+
 	if txns == nil {
 		txns = []Transaction{}
 	}
+
 	return txns, nil
 }
 
@@ -125,9 +133,11 @@ func lockTransaction(ctx context.Context, q querier, id uuid.UUID) (Transaction,
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Transaction{}, ErrNotFound
 	}
+
 	if err != nil {
 		return Transaction{}, err
 	}
+
 	return selectTransaction(ctx, q, id)
 }
 
@@ -136,13 +146,16 @@ func selectOneTransaction(ctx context.Context, q querier, where string, arg any)
 	if err != nil {
 		return Transaction{}, fmt.Errorf("select transaction: %w", err)
 	}
+
 	txns, err := scanTransactions(rows)
 	if err != nil {
 		return Transaction{}, fmt.Errorf("select transaction: %w", err)
 	}
+
 	if len(txns) == 0 {
 		return Transaction{}, ErrNotFound
 	}
+
 	return txns[0], nil
 }
 
@@ -153,6 +166,7 @@ func queueSelectTransactionsByKey(b *pgx.Batch, keys []string, out map[string]Tr
 			for _, t := range txns {
 				out[t.IdempotencyKey] = t
 			}
+
 			return err
 		})
 }
@@ -161,6 +175,7 @@ func queueSelectExternalIDs(b *pgx.Batch, ids []string, out map[externalKey]stri
 	if len(ids) == 0 {
 		return
 	}
+
 	b.Queue(`SELECT ledger_id, external_id, idempotency_key FROM ledger_transactions WHERE external_id = ANY($1)`, ids).
 		Query(func(rows pgx.Rows) error {
 			var (
@@ -171,6 +186,7 @@ func queueSelectExternalIDs(b *pgx.Batch, ids []string, out map[externalKey]stri
 				out[k] = key
 				return nil
 			})
+
 			return err
 		})
 }
@@ -185,6 +201,7 @@ func selectReversal(ctx context.Context, q querier, id uuid.UUID) (Transaction, 
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return Transaction{}, fmt.Errorf("select reversal: %w", err)
 	}
+
 	return txn, err
 }
 
@@ -214,15 +231,18 @@ func queueInsertEntries(b *pgx.Batch, txns []Transaction) {
 		if t.ReversesID != nil {
 			reverses[i] = uuid.NullUUID{UUID: *t.ReversesID, Valid: true}
 		}
+
 		effectiveAts[i] = t.EffectiveAt
 		if t.request != nil {
 			raw, _ := json.Marshal(t.request)
 			requests[i] = new(string(raw))
 		}
+
 		target := &pending
 		if t.Status == TransactionPosted {
 			target = &posted
 		}
+
 		target.add(t.ID, t.Postings)
 	}
 
@@ -241,6 +261,7 @@ func queueInsertEntries(b *pgx.Batch, txns []Transaction) {
 	if len(posted.txns) > 0 {
 		queueInsertPostings(b, posted)
 	}
+
 	if len(pending.txns) > 0 {
 		queueInsertPendingEntries(b, pending, 1)
 	}

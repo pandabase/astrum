@@ -31,18 +31,22 @@ func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in Update
 		if err != nil {
 			return Transaction{}, nil, err
 		}
+
 		if in.EffectiveAt != nil {
 			next.EffectiveAt = in.EffectiveAt.Truncate(time.Microsecond)
 		}
+
 		entriesChanged := in.Postings != nil && !sameContent(PostInput{Postings: current.Postings}, PostInput{Postings: in.Postings})
 		changed = entriesChanged || next.Description != current.Description ||
 			!jsonEqual(next.Metadata, current.Metadata) || !next.EffectiveAt.Equal(current.EffectiveAt)
 		if !changed {
 			return current, nil, nil
 		}
+
 		if !entriesChanged {
 			return next, &balanceChange{}, nil
 		}
+
 		next.Postings = in.Postings
 		next.entriesVersion = current.Version + 1
 		return next, &balanceChange{ledgerID: current.LedgerID, unpend: current.Postings, add: in.Postings, status: TransactionPending}, nil
@@ -50,6 +54,7 @@ func (s *service) updateTransaction(ctx context.Context, id uuid.UUID, in Update
 	if err != nil {
 		return Transaction{}, op.fail(err)
 	}
+
 	op.info("transaction updated", "changed", changed, "version", txn.Version)
 	return txn, nil
 }
@@ -68,8 +73,10 @@ func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingI
 			if err := checkPartial(current.Postings, in.Postings); err != nil {
 				return Transaction{}, nil, err
 			}
+
 			posted = in.Postings
 		}
+
 		next := current
 		next.Status = TransactionPosted
 		next.Postings = posted
@@ -81,6 +88,7 @@ func (s *service) postPending(ctx context.Context, id uuid.UUID, in PostPendingI
 	if err != nil {
 		return Transaction{}, op.fail(err)
 	}
+
 	op.info("transaction posted", "version", txn.Version, "entries", len(txn.Postings))
 	return txn, nil
 }
@@ -97,6 +105,7 @@ func (s *service) archiveTransaction(ctx context.Context, id uuid.UUID) (Transac
 	if err != nil {
 		return Transaction{}, op.fail(err)
 	}
+
 	op.info("transaction archived", "version", txn.Version)
 	return txn, nil
 }
@@ -113,11 +122,13 @@ func (s *service) changePending(
 		if err != nil {
 			return err
 		}
+
 		if current.Status != TransactionPending {
 			if done != nil && done(current) {
 				*out = current
 				return nil
 			}
+
 			return fmt.Errorf("%w: transaction %s is %s", ErrNotPending, id, current.Status)
 		}
 
@@ -125,6 +136,7 @@ func (s *service) changePending(
 		if err != nil {
 			return err
 		}
+
 		if c == nil {
 			*out = current
 			return nil
@@ -137,16 +149,20 @@ func (s *service) changePending(
 			for _, p := range c.unpend {
 				ids = append(ids, p.AccountID)
 			}
+
 			for _, p := range c.add {
 				ids = append(ids, p.AccountID)
 			}
+
 			state, err := lockAccounts(ctx, tx, ids)
 			if err != nil {
 				return err
 			}
+
 			if _, next.Postings, err = state.transition(*c); err != nil {
 				return err
 			}
+
 			if err := queueWriteAccounts(b, state); err != nil {
 				return err
 			}
@@ -161,9 +177,11 @@ func (s *service) changePending(
 		case next.entriesVersion == next.Version:
 			queueInsertPendingEntries(b, entries, next.Version)
 		}
+
 		if err := tx.SendBatch(ctx, b).Close(); err != nil {
 			return err
 		}
+
 		if *out, err = selectTransaction(ctx, tx, id); err != nil {
 			return err
 		}
@@ -173,6 +191,7 @@ func (s *service) changePending(
 				out.Postings[i].Resulting = next.Postings[i].Resulting
 			}
 		}
+
 		eventType := map[TransactionStatus]string{
 			TransactionPending:  eventTransactionUpdated,
 			TransactionPosted:   eventTransactionPosted,
@@ -182,6 +201,7 @@ func (s *service) changePending(
 		if err != nil {
 			return err
 		}
+
 		return events.Insert(ctx, tx, evs...)
 	})
 }
@@ -198,23 +218,29 @@ func checkPartial(pending, posted []Posting) error {
 		if err != nil {
 			return err
 		}
+
 		limits[k] = total
 	}
+
 	for i, p := range posted {
 		k := slot{p.AccountID, p.Side}
 		limit, ok := limits[k]
 		if !ok {
 			return fmt.Errorf("%w: entry %d %s on account %s was not pending", ErrInvalid, i, p.Side, p.AccountID)
 		}
+
 		remaining, err := limit.Sub(p.Amount)
 		if err != nil {
 			return err
 		}
+
 		if remaining.Sign() < 0 {
 			return fmt.Errorf("%w: entry %d posts more than the %s pending on account %s", ErrInvalid, i, limit, p.AccountID)
 		}
+
 		limits[k] = remaining
 	}
+
 	return nil
 }
 

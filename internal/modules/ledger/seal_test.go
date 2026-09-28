@@ -53,6 +53,7 @@ func TestEntryHashV3(t *testing.T) {
 	if want == hex.EncodeToString(entryHash(base)) {
 		t.Fatal("v3 hashed like v1")
 	}
+
 	later := base.CreatedAt.Add(time.Second)
 	for name, mutate := range map[string]func(*Transaction){
 		"ledger":       func(t *Transaction) { t.LedgerID = uuid.New() },

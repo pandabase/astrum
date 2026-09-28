@@ -34,6 +34,7 @@ func TestSettlement(t *testing.T) {
 	if err != nil || first.Amount != amt(120) || first.EntryCount != 3 || first.TransactionID == nil {
 		t.Fatalf("settlement = %+v, %v", first, err)
 	}
+
 	wantBalance(t, "acme after payout", e.get(t, acme.ID).Posted, 30+120, 150, 0)
 
 	wantBalance(t, "payouts", e.get(t, payouts.ID).Posted, 0, 120, -120)
@@ -45,11 +46,13 @@ func TestSettlement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return got
 	}
 	if got := entries(ledger.ListEntriesInput{SettlementID: first.ID}); len(got) != 4 || *got[0].SettlementID != first.ID {
 		t.Fatalf("settled entries = %+v", got)
 	}
+
 	if got := entries(ledger.ListEntriesInput{AccountID: acme.ID, Settled: new(false)}); len(got) != 0 {
 		t.Fatalf("unsettled after payout = %+v", got)
 	}
@@ -59,6 +62,7 @@ func TestSettlement(t *testing.T) {
 		if got := entries(ledger.ListEntriesInput{AccountID: acme.ID, Settled: new(false)}); len(got) != 1 {
 			t.Fatalf("unsettled = %+v", got)
 		}
+
 		second, err := e.m.CreateSettlement(ctx, settle("payout-2", acme.ID, payouts.ID))
 		if err != nil || second.Amount != amt(40) || second.EntryCount != 1 {
 			t.Fatalf("second = %+v, %v", second, err)
@@ -78,6 +82,7 @@ func TestSettlement(t *testing.T) {
 		if err != nil || owed.Amount != amt(-70) {
 			t.Fatalf("owed = %+v, %v", owed, err)
 		}
+
 		if got := e.get(t, acme.ID).Posted.Amount; !got.IsZero() {
 			t.Fatalf("acme = %s after recovering the chargeback", got)
 		}
@@ -92,6 +97,7 @@ func TestSettlement(t *testing.T) {
 		if err != nil || bounded.Amount != amt(11) || bounded.EntryCount != 1 {
 			t.Fatalf("bounded = %+v, %v", bounded, err)
 		}
+
 		if got := entries(ledger.ListEntriesInput{AccountID: acme.ID, Settled: new(false)}); len(got) != 1 || got[0].Amount != amt(22) {
 			t.Fatalf("left unsettled = %+v", got)
 		}
@@ -102,6 +108,7 @@ func TestSettlement(t *testing.T) {
 		if err != nil || again.ID != first.ID {
 			t.Fatalf("replay = %+v, %v", again, err)
 		}
+
 		_, err = e.m.CreateSettlement(ctx, settle("payout-1", acme.ID, cash.ID))
 		wantErr(t, err, ledger.ErrIdempotencyConflict)
 		_, err = e.m.CreateSettlement(ctx, settle("self", acme.ID, acme.ID))
@@ -137,6 +144,7 @@ func TestSettlement(t *testing.T) {
 			})
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -149,6 +157,7 @@ func TestConcurrentSettlements(t *testing.T) {
 	for i := range 20 {
 		e.post(t, transfer(fmt.Sprint("sale-", i), acme.ID, payouts.ID, 5))
 	}
+
 	var (
 		wg      sync.WaitGroup
 		mu      sync.Mutex
@@ -161,15 +170,18 @@ func TestConcurrentSettlements(t *testing.T) {
 				t.Error(err)
 				return
 			}
+
 			mu.Lock()
 			defer mu.Unlock()
 			settled, _ = settled.Add(st.Amount)
 		})
 	}
+
 	wg.Wait()
 	if settled != amt(100) {
 		t.Fatalf("settlements moved %s in total, want exactly 100", settled)
 	}
+
 	e.verify(t)
 }
 
@@ -187,18 +199,22 @@ func TestHTTPSettlements(t *testing.T) {
 	if st["object"] != "settlement" || st["amount"] != "90" || st["entry_count"] != float64(1) {
 		t.Fatalf("settlement = %v", st)
 	}
+
 	requirePrefix(t, st["transaction_id"], "txn")
 	a.must(http.StatusOK, http.MethodGet, "/v1/settlements/"+id, "", "")
 	if n := len(a.list("/v1/settlements?account_id=" + vendor)); n != 1 {
 		t.Fatalf("settlements = %d", n)
 	}
+
 	settledEntries := a.list("/v1/entries?settlement_id=" + id)
 	if len(settledEntries) != 2 || settledEntries[0]["settlement_id"] != id {
 		t.Fatalf("settled entries = %v", settledEntries)
 	}
+
 	if n := len(a.list("/v1/entries?settled=false&account_id=" + vendor)); n != 0 {
 		t.Fatalf("unsettled vendor entries = %d", n)
 	}
+
 	a.must(http.StatusBadRequest, http.MethodPost, "/v1/settlements", "", body)
 	a.must(http.StatusBadRequest, http.MethodGet, "/v1/entries?settled=maybe", "", "")
 	a.must(http.StatusUnprocessableEntity, http.MethodPost, "/v1/settlements", "self",

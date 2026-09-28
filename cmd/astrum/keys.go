@@ -24,14 +24,17 @@ func runKeys(ctx context.Context, cfg config.Config, args []string, out io.Write
 	if len(args) == 0 {
 		return errors.New(keysUsage)
 	}
+
 	base, err := logger.New(os.Stderr, "warn", cfg.LogFormat)
 	if err != nil {
 		return err
 	}
+
 	pool, err := db.Connect(ctx, cfg.DatabaseURL, db.Options{MaxConns: 2, AllowUnsafeDurability: cfg.AllowUnsafeDurability})
 	if err != nil {
 		return err
 	}
+
 	defer pool.Close()
 	authn := auth.New(pool, base)
 	if err := db.Migrate(ctx, pool, base, authn.Name(), authn.Migrations()); err != nil {
@@ -47,21 +50,26 @@ func runKeys(ctx context.Context, cfg config.Config, args []string, out io.Write
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
+
 		if fs.NArg() > 0 {
 			return fmt.Errorf("keys create: unexpected argument %q", fs.Arg(0))
 		}
+
 		if *expires < 0 {
 			return errors.New("keys create: -expires must not be negative")
 		}
+
 		in := auth.CreateInput{Name: *name, Role: auth.Role(*role)}
 		if *expires > 0 {
 			at := time.Now().Add(*expires)
 			in.ExpiresAt = &at
 		}
+
 		k, token, err := authn.Create(ctx, in)
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprintf(out, "created %s key %s (%s)\n%s\nStore it now: it cannot be shown again.\n",
 			k.Role, typeid.Encode("key", k.ID), k.Name, token)
 		return nil
@@ -71,19 +79,24 @@ func runKeys(ctx context.Context, cfg config.Config, args []string, out io.Write
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
+
 		if fs.NArg() > 0 {
 			return fmt.Errorf("keys revoke: unexpected argument %q", fs.Arg(0))
 		}
+
 		id, err := typeid.Parse("key", *raw)
 		if err != nil {
 			return err
 		}
+
 		k, err := authn.Revoke(ctx, id)
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprintf(out, "revoked %s (%s)\n", typeid.Encode("key", k.ID), k.Name)
 		return nil
 	}
+
 	return errors.New(keysUsage)
 }

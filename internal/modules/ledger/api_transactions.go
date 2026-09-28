@@ -30,6 +30,7 @@ func toEntries(postings []Posting) []entryLine {
 			ResultingBalances: p.Resulting,
 		}
 	}
+
 	return out
 }
 
@@ -47,6 +48,7 @@ func fromEntries(entries []entryLine) []Posting {
 			LockVersion:      e.LockVersion,
 		}
 	}
+
 	return out
 }
 

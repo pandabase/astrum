@@ -18,6 +18,7 @@ func TestHandler(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
+
 		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -60,12 +61,15 @@ func TestHandler(t *testing.T) {
 			if rec.Code != tt.status {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.status)
 			}
+
 			if tt.body != "" && strings.TrimSpace(rec.Body.String()) != tt.body {
 				t.Fatalf("body = %q, want %q", rec.Body.String(), tt.body)
 			}
+
 			if strings.Contains(rec.Body.String(), "secret") {
 				t.Fatalf("body leaked a file outside dir: %q", rec.Body.String())
 			}
+
 			if got := rec.Header().Get("Cache-Control"); got != tt.cache {
 				t.Fatalf("Cache-Control = %q, want %q", got, tt.cache)
 			}

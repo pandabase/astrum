@@ -33,6 +33,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, dispatchLockID).Scan(&locked); err != nil || !locked {
 			return err
 		}
+
 		var (
 			lastXID *string
 			lastID  *uuid.UUID
@@ -40,6 +41,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 		if err := tx.QueryRow(ctx, `SELECT last_xid::text, last_id FROM event_dispatch_cursor FOR UPDATE`).Scan(&lastXID, &lastID); err != nil {
 			return err
 		}
+
 		rows, err := tx.Query(ctx, `
 			SELECT id, type, created_xid::text
 			FROM events
@@ -50,6 +52,7 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 		if err != nil {
 			return err
 		}
+
 		type pending struct {
 			id  uuid.UUID
 			typ string
@@ -68,19 +71,23 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 		if err != nil {
 			return err
 		}
+
 		var ids, endpointIDs, eventIDs []uuid.UUID
 		for _, ev := range batch {
 			for _, ep := range endpoints {
 				if !subscribed(ep.EventTypes, ev.typ) {
 					continue
 				}
+
 				id, err := uuid.NewV7()
 				if err != nil {
 					return err
 				}
+
 				ids, endpointIDs, eventIDs = append(ids, id), append(endpointIDs, ep.ID), append(eventIDs, ev.id)
 			}
 		}
+
 		if len(ids) > 0 {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO webhook_deliveries (id, endpoint_id, event_id)
@@ -89,16 +96,19 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 				return err
 			}
 		}
+
 		last := batch[len(batch)-1]
 		if _, err := tx.Exec(ctx, `UPDATE event_dispatch_cursor SET last_xid = $1::xid8, last_id = $2`, last.xid, last.id); err != nil {
 			return err
 		}
+
 		n = len(batch)
 		return nil
 	})
 	if err == nil && n > 0 {
 		s.log.Debug("events dispatched", "count", n)
 	}
+
 	return n, err
 }
 
@@ -107,6 +117,7 @@ func enabledEndpoints(ctx context.Context, q pgx.Tx) ([]Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Endpoint, error) { return scanEndpoint(row) })
 }
 
@@ -114,14 +125,17 @@ func subscribed(types []string, eventType string) bool {
 	if len(types) == 0 {
 		return true
 	}
+
 	for _, t := range types {
 		if prefix, ok := strings.CutSuffix(t, "*"); ok && strings.HasPrefix(eventType, prefix) {
 			return true
 		}
+
 		if t == eventType {
 			return true
 		}
 	}
+
 	return false
 }
 

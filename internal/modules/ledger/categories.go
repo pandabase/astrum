@@ -20,10 +20,12 @@ func (s *service) createCategory(ctx context.Context, in CreateCategoryInput) (C
 	if err := validateCategory(in); err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	c, err := scanCategory(s.pool.QueryRow(ctx, `
 		INSERT INTO ledger_categories (id, ledger_id, currency, normal_side, name, description, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7::text::jsonb)
@@ -33,6 +35,7 @@ func (s *service) createCategory(ctx context.Context, in CreateCategoryInput) (C
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	op.info("category created", "category_id", c.ID)
 	return c, nil
 }
@@ -43,18 +46,21 @@ func (s *service) category(ctx context.Context, id uuid.UUID, r EffectiveRange) 
 	if err := validateRange(r); err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	var c Category
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		var err error
 		if c, err = queryCategory(ctx, tx, id); err != nil {
 			return err
 		}
+
 		c.Balances, err = rollUp(ctx, tx, c, r)
 		return err
 	})
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	return c, nil
 }
 
@@ -64,9 +70,11 @@ func (s *service) listCategories(ctx context.Context, in ListCategoriesInput) ([
 	if in.Limit < 1 || in.Limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	if err := validateMetadataFilter(in.Metadata); err != nil {
 		return nil, op.fail(err)
 	}
+
 	var categories []Category
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
@@ -84,19 +92,23 @@ func (s *service) listCategories(ctx context.Context, in ListCategoriesInput) ([
 		if err != nil {
 			return err
 		}
+
 		if categories, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Category, error) { return scanCategory(row) }); err != nil {
 			return err
 		}
+
 		for i := range categories {
 			if categories[i].Balances, err = rollUp(ctx, tx, categories[i], EffectiveRange{}); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return categories, nil
 }
 
@@ -109,10 +121,12 @@ func (s *service) updateCategory(ctx context.Context, id uuid.UUID, in UpdateInp
 		if err != nil {
 			return err
 		}
+
 		name, description, metadata, err := applyUpdate(current.Name, current.Description, current.Metadata, in, true)
 		if err != nil {
 			return err
 		}
+
 		c = current
 		if !sameDetails(current.Name, current.Description, current.Metadata, name, description, metadata) {
 			c, err = scanCategory(tx.QueryRow(ctx, `
@@ -124,12 +138,14 @@ func (s *service) updateCategory(ctx context.Context, id uuid.UUID, in UpdateInp
 				return err
 			}
 		}
+
 		c.Balances, err = rollUp(ctx, tx, c, EffectiveRange{})
 		return err
 	})
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	op.info("category updated", "version", c.Version)
 	return c, nil
 }
@@ -144,6 +160,7 @@ func (s *service) deleteCategory(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return op.fail(err)
 	}
+
 	op.info("category deleted")
 	return nil
 }
@@ -158,14 +175,17 @@ func (s *service) setMember(ctx context.Context, categoryID, accountID uuid.UUID
 			_, err := tx.Exec(ctx, `DELETE FROM ledger_category_accounts WHERE category_id = $1 AND account_id = $2`, categoryID, accountID)
 			return err
 		}
+
 		acc, err := selectAccount(ctx, tx, accountID)
 		if err != nil {
 			return err
 		}
+
 		if acc.LedgerID != current.LedgerID || acc.Currency != current.Currency {
 			return fmt.Errorf("%w: account %s is %s in ledger %s, category is %s in ledger %s",
 				ErrCategoryMismatch, acc.ID, acc.Currency, acc.LedgerID, current.Currency, current.LedgerID)
 		}
+
 		_, err = tx.Exec(ctx, `
 			INSERT INTO ledger_category_accounts (category_id, account_id, ledger_id, currency)
 			VALUES ($1, $2, $3, $4)
@@ -175,6 +195,7 @@ func (s *service) setMember(ctx context.Context, categoryID, accountID uuid.UUID
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	op.info("category membership set")
 	return s.category(ctx, c.ID, EffectiveRange{})
 }
@@ -187,13 +208,16 @@ func (s *service) setChild(ctx context.Context, parentID, childID uuid.UUID, nes
 			_, err := tx.Exec(ctx, `DELETE FROM ledger_category_edges WHERE parent_id = $1 AND child_id = $2`, parentID, childID)
 			return err
 		}
+
 		child, err := queryCategory(ctx, tx, childID)
 		if err != nil {
 			return err
 		}
+
 		if child.LedgerID != parent.LedgerID || child.Currency != parent.Currency {
 			return fmt.Errorf("%w: category %s is %s in ledger %s", ErrCategoryMismatch, child.ID, child.Currency, child.LedgerID)
 		}
+
 		var cycle bool
 		var above, below int
 		err = tx.QueryRow(ctx, `
@@ -218,6 +242,7 @@ func (s *service) setChild(ctx context.Context, parentID, childID uuid.UUID, nes
 		case above+below > maxCategoryDepth:
 			return fmt.Errorf("%w: nesting would make a chain of %d categories", ErrCategoryDepth, above+below)
 		}
+
 		_, err = tx.Exec(ctx, `
 			INSERT INTO ledger_category_edges (parent_id, child_id, ledger_id, currency)
 			VALUES ($1, $2, $3, $4)
@@ -227,6 +252,7 @@ func (s *service) setChild(ctx context.Context, parentID, childID uuid.UUID, nes
 	if err != nil {
 		return Category{}, op.fail(err)
 	}
+
 	op.info("category nesting set")
 	return s.category(ctx, parentID, EffectiveRange{})
 }
@@ -237,6 +263,7 @@ func (s *service) changeGraph(ctx context.Context, categoryID uuid.UUID, change 
 		if err != nil {
 			return err
 		}
+
 		if _, err := tx.Exec(ctx, `SELECT 1 FROM ledger_ledgers WHERE id = $1 FOR NO KEY UPDATE`, c.LedgerID); err != nil {
 			return err
 		}
@@ -244,6 +271,7 @@ func (s *service) changeGraph(ctx context.Context, categoryID uuid.UUID, change 
 		if c, err = queryCategory(ctx, tx, categoryID); err != nil {
 			return err
 		}
+
 		return change(tx, c)
 	})
 }
@@ -260,6 +288,7 @@ func scanCategory(row pgx.Row) (Category, error) {
 	if err != nil {
 		return Category{}, err
 	}
+
 	c.Currency, c.NormalSide, c.Metadata = money.Currency(currency), Side(normalSide), bytes.Clone(metadata)
 	return c, nil
 }
@@ -277,6 +306,7 @@ func findCategory(row pgx.Row) (Category, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Category{}, ErrNotFound
 	}
+
 	return c, err
 }
 
@@ -323,6 +353,7 @@ func rollUp(ctx context.Context, q querier, c Category, r EffectiveRange) (Balan
 			GROUP BY a.normal_side`
 		args = []any{c.ID, r.From, r.Until}
 	}
+
 	rows, err := q.Query(ctx, query, args...)
 	if err != nil {
 		return Balances{}, fmt.Errorf("roll up category: %w", err)
@@ -339,14 +370,17 @@ func rollUp(ctx context.Context, q querier, c Category, r EffectiveRange) (Balan
 		if err != nil {
 			return err
 		}
+
 		for i, b := range []Balance{posted, pending, available} {
 			if sums[i][0], err = sums[i][0].Add(b.Debits); err != nil {
 				return err
 			}
+
 			if sums[i][1], err = sums[i][1].Add(b.Credits); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -358,9 +392,11 @@ func rollUp(ctx context.Context, q querier, c Category, r EffectiveRange) (Balan
 	if b.Posted, err = view.balance(sums[0][0], sums[0][1]); err != nil {
 		return Balances{}, err
 	}
+
 	if b.Pending, err = view.balance(sums[1][0], sums[1][1]); err != nil {
 		return Balances{}, err
 	}
+
 	b.Available, err = view.balance(sums[2][0], sums[2][1])
 	return b, err
 }
@@ -369,6 +405,7 @@ func validateCategory(in CreateCategoryInput) error {
 	if err := validateDetails(in.Name, in.Description, in.Metadata, true); err != nil {
 		return err
 	}
+
 	switch {
 	case in.LedgerID == uuid.Nil:
 		return fmt.Errorf("%w: ledger_id is required", ErrInvalid)
@@ -377,5 +414,6 @@ func validateCategory(in CreateCategoryInput) error {
 	case !in.NormalSide.valid():
 		return fmt.Errorf("%w: normal_side must be debit or credit", ErrInvalid)
 	}
+
 	return nil
 }

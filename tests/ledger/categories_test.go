@@ -22,6 +22,7 @@ func (e *env) category(t *testing.T, name string, side ledger.Side) ledger.Categ
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return c
 }
 
@@ -33,6 +34,7 @@ func (e *env) addAccount(t *testing.T, c ledger.Category, accounts ...ledger.Acc
 			t.Fatal(err)
 		}
 	}
+
 	return c
 }
 
@@ -42,6 +44,7 @@ func (e *env) nest(t *testing.T, parent, child ledger.Category) ledger.Category 
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return c
 }
 
@@ -87,6 +90,7 @@ func TestCategoryRollUp(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "vendors by day 2", got.Balances.Posted, 0, 100, 100)
 	})
 
@@ -95,15 +99,18 @@ func TestCategoryRollUp(t *testing.T) {
 		if again.Balances != vendors.Balances {
 			t.Fatalf("re-adding acme changed balances: %+v", again.Balances)
 		}
+
 		removed, err := e.m.RemoveCategoryAccount(ctx, vendors.ID, globex.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantBalance(t, "without globex", removed.Balances.Posted, 0, 100, 100)
 		if _, err := e.m.RemoveCategoryAccount(ctx, vendors.ID, globex.ID); err != nil {
 			t.Fatalf("second removal: %v", err)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -130,9 +137,11 @@ func TestCategoryGraphRules(t *testing.T) {
 		for i := range chain {
 			chain[i] = e.category(t, fmt.Sprint("level ", i), ledger.Debit)
 		}
+
 		for i := 1; i < 7; i++ {
 			e.nest(t, chain[i-1], chain[i])
 		}
+
 		_, err := e.m.NestCategory(ctx, chain[6].ID, chain[7].ID)
 		wantErr(t, err, ledger.ErrCategoryDepth)
 		_, err = e.m.NestCategory(ctx, chain[7].ID, chain[0].ID)
@@ -147,12 +156,14 @@ func TestCategoryGraphRules(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		_, err = e.m.AddCategoryAccount(ctx, usd.ID, e.accountIn(t, other.ID).ID)
 		wantErr(t, err, ledger.ErrCategoryMismatch)
 		eur, err := e.m.CreateCategory(ctx, ledger.CreateCategoryInput{LedgerID: e.ledger.ID, Currency: "EUR", NormalSide: ledger.Debit, Name: "eur"})
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		_, err = e.m.NestCategory(ctx, usd.ID, eur.ID)
 		wantErr(t, err, ledger.ErrCategoryMismatch)
 		_, err = e.m.AddCategoryAccount(ctx, usd.ID, uuid.New())
@@ -193,6 +204,7 @@ func TestCategoryQueries(t *testing.T) {
 	if err != nil || len(accounts) != 2 {
 		t.Fatalf("accounts in root tree = %d, %v", len(accounts), err)
 	}
+
 	for name, tt := range map[string]struct {
 		in   ledger.ListCategoriesInput
 		want uuid.UUID
@@ -214,14 +226,17 @@ func TestCategoryQueries(t *testing.T) {
 	if err := e.m.DeleteCategory(ctx, child.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	_, err = e.m.Category(ctx, child.ID, ledger.EffectiveRange{})
 	wantErr(t, err, ledger.ErrNotFound)
 	if accounts, _ := e.m.ListAccounts(ctx, ledger.ListAccountsInput{CategoryID: root.ID, Limit: 10}); len(accounts) != 1 {
 		t.Fatalf("root after deleting child has %d accounts", len(accounts))
 	}
+
 	if acc := e.get(t, b.ID); acc.ID != b.ID {
 		t.Fatal("deleting a category touched its account")
 	}
+
 	err = e.m.DeleteCategory(ctx, child.ID)
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -243,6 +258,7 @@ func TestConcurrentOppositeNesting(t *testing.T) {
 		if (errA == nil) == (errB == nil) {
 			t.Fatalf("round %d: a→b %v, b→a %v; want exactly one", i, errA, errB)
 		}
+
 		if lost := errors.Join(errA, errB); !errors.Is(lost, ledger.ErrCategoryCycle) {
 			t.Fatalf("loser error = %v, want ErrCategoryCycle", lost)
 		}
@@ -265,14 +281,17 @@ func TestHTTPCategories(t *testing.T) {
 	if got["object"] != "account_category" || got["balances"].(map[string]any)["posted"].(map[string]any)["amount"] != "250" {
 		t.Fatalf("vendors = %v", got)
 	}
+
 	a.must(http.StatusOK, http.MethodPut, "/v1/account_categories/"+liabilities+"/categories/"+vendors, "", "")
 	got = a.must(http.StatusOK, http.MethodGet, "/v1/account_categories/"+liabilities, "", "")
 	if got["balances"].(map[string]any)["posted"].(map[string]any)["amount"] != "250" {
 		t.Fatalf("liabilities = %v", got)
 	}
+
 	if n := len(a.list("/v1/accounts?category_id=" + liabilities)); n != 1 {
 		t.Fatalf("accounts under liabilities = %d", n)
 	}
+
 	if n := len(a.list("/v1/account_categories?parent_id=" + liabilities)); n != 1 {
 		t.Fatalf("children = %d", n)
 	}
@@ -301,5 +320,6 @@ func TestHTTPCategories(t *testing.T) {
 	if gone["deleted"] != true || gone["id"] != vendors {
 		t.Fatalf("delete = %v", gone)
 	}
+
 	a.must(http.StatusNotFound, http.MethodGet, "/v1/account_categories/"+vendors, "", "")
 }

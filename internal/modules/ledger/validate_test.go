@@ -43,6 +43,7 @@ func TestValidateAccount(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("validateAccount() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if err != nil && !errors.Is(err, ErrInvalid) {
 				t.Fatalf("error = %v, want ErrInvalid", err)
 			}
@@ -97,6 +98,7 @@ func TestValidatePost(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("validatePost() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if err != nil && !errors.Is(err, ErrInvalid) {
 				t.Fatalf("error = %v, want ErrInvalid", err)
 			}

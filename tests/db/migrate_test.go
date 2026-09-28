@@ -32,6 +32,7 @@ func TestMigrate(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM widgets`).Scan(&widgets); err != nil {
 		t.Fatal(err)
 	}
+
 	if widgets != 1 {
 		t.Fatalf("seed applied %d times, want exactly once", widgets)
 	}
@@ -41,13 +42,16 @@ func TestMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for rows.Next() {
 		var v string
 		if err := rows.Scan(&v); err != nil {
 			t.Fatal(err)
 		}
+
 		versions = append(versions, v)
 	}
+
 	if len(versions) != 2 || versions[0] != "0001_init" || versions[1] != "0002_seed" {
 		t.Fatalf("recorded versions = %v", versions)
 	}
@@ -69,6 +73,7 @@ func TestMigrateFailureRollsBack(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT to_regclass('half') IS NOT NULL`).Scan(&exists); err != nil {
 		t.Fatal(err)
 	}
+
 	if exists {
 		t.Fatal("partial migration was not rolled back")
 	}
@@ -77,6 +82,7 @@ func TestMigrateFailureRollsBack(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations WHERE module = 'broken'`).Scan(&recorded); err != nil {
 		t.Fatal(err)
 	}
+
 	if recorded != 0 {
 		t.Fatal("failed migration was recorded as applied")
 	}
@@ -101,6 +107,7 @@ func TestMigrateModulesAreIndependent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
+
 	if count != 2 {
 		t.Fatalf("schema_migrations rows = %d, want 2", count)
 	}
@@ -115,6 +122,7 @@ func TestMigrateRejectsModifiedMigration(t *testing.T) {
 	if err := db.Migrate(ctx, pool, testdb.Logger(), "gadgets", original); err != nil {
 		t.Fatal(err)
 	}
+
 	edited := fstest.MapFS{"0001_init.sql": {Data: []byte(`CREATE TABLE gadgets (name text, price bigint)`)}}
 	err := db.Migrate(ctx, pool, testdb.Logger(), "gadgets", edited)
 	if err == nil || !strings.Contains(err.Error(), "was modified") {

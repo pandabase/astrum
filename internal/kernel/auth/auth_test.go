@@ -29,6 +29,7 @@ func create(t *testing.T, s *Service, name string, role Role) (Key, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return k, token
 }
 
@@ -38,6 +39,7 @@ func TestParseToken(t *testing.T) {
 	if _, ok := parseToken(valid); !ok {
 		t.Fatalf("parseToken(%s) failed", valid)
 	}
+
 	for _, bad := range []string{
 		"",
 		"sk_",
@@ -72,6 +74,7 @@ func TestAuthenticate(t *testing.T) {
 		if strings.HasSuffix(token, "A") {
 			last = "B"
 		}
+
 		_, err := s.Authenticate(ctx, token[:len(token)-1]+last)
 		wantUnauthenticated(t, err)
 	})
@@ -87,6 +90,7 @@ func TestAuthenticate(t *testing.T) {
 		if _, err := s.Revoke(ctx, k.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := s.Authenticate(ctx, token)
 		wantUnauthenticated(t, err)
 		again, err := s.Revoke(ctx, k.ID)
@@ -101,9 +105,11 @@ func TestAuthenticate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := s.Authenticate(ctx, token); err != nil {
 			t.Fatal(err)
 		}
+
 		time.Sleep(time.Until(soon) + 50*time.Millisecond)
 		_, err = s.Authenticate(ctx, token)
 		wantUnauthenticated(t, err)
@@ -114,11 +120,13 @@ func TestAuthenticate(t *testing.T) {
 		if _, err := s.Authenticate(ctx, token); err != nil {
 			t.Fatal(err)
 		}
+
 		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
 			got, _ := s.Key(ctx, k.ID)
 			if got.LastUsedAt != nil {
 				break
 			}
+
 			if time.Now().After(deadline) {
 				t.Fatal("last_used_at never recorded")
 			}
@@ -172,6 +180,7 @@ func TestMiddleware(t *testing.T) {
 		k, _ := FromContext(r.Context())
 		httpx.JSON(w, r, http.StatusOK, map[string]string{"role": string(k.Role), "scope": Scope(r)})
 	})
+
 	mux.HandleFunc("POST /v1/things", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusCreated) })
 	srv := httptest.NewServer(httpx.Logging(testdb.Logger(), s.Middleware([]string{"/healthz"}, mux)))
 	t.Cleanup(srv.Close)
@@ -186,10 +195,12 @@ func TestMiddleware(t *testing.T) {
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
+
 		resp, err := srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		defer resp.Body.Close()
 		var out map[string]any
 		_ = json.UnmarshalRead(resp.Body, &out)
@@ -219,9 +230,11 @@ func TestMiddleware(t *testing.T) {
 			if status != tt.status {
 				t.Fatalf("%s %s = %d %v, want %d", tt.method, tt.path, status, body, tt.status)
 			}
+
 			if status == 401 && (body["code"] != "unauthorized" || !strings.HasPrefix(header.Get("WWW-Authenticate"), "Bearer")) {
 				t.Fatalf("401 = %v, %v", body, header)
 			}
+
 			if status == 403 && body["code"] != "forbidden" {
 				t.Fatalf("403 = %v", body)
 			}
@@ -248,23 +261,29 @@ func TestMiddleware(t *testing.T) {
 			created["created_by"] == nil {
 			t.Fatalf("create = %d %v", status, created)
 		}
+
 		id, secret := created["id"].(string), created["secret"].(string)
 		if status, _, _ := call(http.MethodPost, "/v1/things", secret, ""); status != 201 {
 			t.Fatalf("new key write = %d", status)
 		}
+
 		status, got, _ := call(http.MethodGet, "/v1/api_keys/"+id, admin, "")
 		if status != 200 || got["secret"] != nil || !strings.HasPrefix(got["hint"].(string), "…") {
 			t.Fatalf("get = %d %v", status, got)
 		}
+
 		if status, _, _ := call(http.MethodPost, "/v1/api_keys/"+id+"/revoke", admin, ""); status != 200 {
 			t.Fatalf("revoke = %d", status)
 		}
+
 		if status, _, _ := call(http.MethodPost, "/v1/things", secret, ""); status != 401 {
 			t.Fatalf("revoked key = %d", status)
 		}
+
 		if status, _, _ := call(http.MethodPost, "/v1/api_keys", admin, `{"name":"x","role":"root"}`); status != 422 {
 			t.Fatalf("bad role = %d", status)
 		}
+
 		if status, _, _ := call(http.MethodGet, "/v1/api_keys/key_01h455vb4pex5vsknk084sn02q", admin, ""); status != 404 {
 			t.Fatalf("missing key = %d", status)
 		}

@@ -40,6 +40,7 @@ func TestIdempotencyEdgeNumberEquality(t *testing.T) {
 			if got := jsonEqual(a, b); got != tt.want {
 				t.Fatalf("jsonEqual = %v, want %v", got, tt.want)
 			}
+
 			if got := jsonEqual(b, a); got != tt.want {
 				t.Fatalf("jsonEqual reversed = %v, want %v", got, tt.want)
 			}

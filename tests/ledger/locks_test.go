@@ -26,6 +26,7 @@ func locked(in ledger.PostInput, account uuid.UUID, set func(*ledger.Posting)) l
 			set(&postings[i])
 		}
 	}
+
 	in.Postings = postings
 	return in
 }
@@ -49,6 +50,7 @@ func TestBalanceConditions(t *testing.T) {
 		if got == nil || got.Posted.Amount != amt(40) || got.Available.Amount != amt(40) {
 			t.Fatalf("resulting = %+v", got)
 		}
+
 		if b := txn.Postings[0].Resulting; b == nil || b.Posted.Amount != amt(60) {
 			t.Fatalf("receiver resulting = %+v", b)
 		}
@@ -74,6 +76,7 @@ func TestBalanceConditions(t *testing.T) {
 			wantErr(t, err, tt.want)
 		})
 	}
+
 	if got := e.get(t, a.ID).Posted.Amount; got != amt(40) {
 		t.Fatalf("a = %s after rejected locks, want 40", got)
 	}
@@ -96,9 +99,11 @@ func TestBalanceConditions(t *testing.T) {
 		in := locked(pending(transfer("hold-all", a.ID, b.ID, 20)), a.ID, func(p *ledger.Posting) {
 			p.PendingBalance = &ledger.BalanceCondition{GTE: bound(1)}
 		})
+
 		_, err := e.m.Post(ctx, in)
 		wantErr(t, err, ledger.ErrBalanceLock)
 	})
+
 	e.verify(t)
 }
 
@@ -123,9 +128,11 @@ func TestLockVersion(t *testing.T) {
 	if err != nil || results[0].Err != nil || !errors.Is(results[1].Err, ledger.ErrLockVersion) {
 		t.Fatalf("batch = %+v, %v", results, err)
 	}
+
 	if _, err := e.m.UpdateAccount(ctx, a.ID, ledger.UpdateInput{Name: new("renamed")}); err != nil {
 		t.Fatal(err)
 	}
+
 	_, err = e.m.Post(ctx, locked(transfer("after-rename", a.ID, b.ID, 1), a.ID, at(current+1)))
 	wantErr(t, err, ledger.ErrLockVersion)
 	e.verify(t)
@@ -141,17 +148,21 @@ func TestArchiveOnLockFailure(t *testing.T) {
 	in := locked(transfer("audit", a.ID, b.ID, 50), a.ID, func(p *ledger.Posting) {
 		p.PostedBalance = &ledger.BalanceCondition{GTE: bound(60)}
 	})
+
 	in.ArchiveOnLockFailure = true
 	txn, err := e.m.Post(ctx, in)
 	if err != nil || txn.Status != ledger.TransactionArchived || txn.ArchivedAt == nil || len(txn.Postings) != 2 {
 		t.Fatalf("archived = %+v, %v", txn, err)
 	}
+
 	if got := e.get(t, a.ID); got.Posted.Amount != amt(100) || got.Available.Amount != amt(100) {
 		t.Fatalf("a = %+v after archived lock failure", got)
 	}
+
 	if again, err := e.m.Post(ctx, in); err != nil || again.ID != txn.ID {
 		t.Fatalf("replay = %+v, %v", again, err)
 	}
+
 	stored, err := e.m.Transaction(ctx, txn.ID)
 	if err != nil || stored.Status != ledger.TransactionArchived || stored.Postings[0].Currency != "USD" {
 		t.Fatalf("stored = %+v, %v", stored, err)
@@ -202,13 +213,16 @@ func TestConcurrentLocksHold(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 	if posted.Load() != 14 || refused.Load() != 26 {
 		t.Fatalf("posted %d, refused %d; want 14 and 26", posted.Load(), refused.Load())
 	}
+
 	if got := e.get(t, a.ID).Posted.Amount; got != amt(2) {
 		t.Fatalf("a = %s, want 2", got)
 	}
+
 	e.verify(t)
 }
 
@@ -231,6 +245,7 @@ func TestHTTPBalanceLocks(t *testing.T) {
 	if resulting["available"].(map[string]any)["amount"] != "70" {
 		t.Fatalf("resulting = %v", resulting)
 	}
+
 	if got := a.must(http.StatusOK, http.MethodGet, "/v1/transactions/"+txn["id"].(string), "", "")["entries"].([]any)[1]; got.(map[string]any)["resulting_balances"] != nil {
 		t.Fatalf("read returned resulting balances: %v", got)
 	}

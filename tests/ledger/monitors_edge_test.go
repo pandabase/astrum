@@ -22,6 +22,7 @@ func feMonitor(t *testing.T, e *env, account uuid.UUID, field, op string, value 
 	if err != nil {
 		t.Fatalf("CreateBalanceMonitor(%s %s %d) error = %v", field, op, value, err)
 	}
+
 	return m
 }
 
@@ -34,6 +35,7 @@ func feFired(t *testing.T, e *env, id uuid.UUID) int {
 			n++
 		}
 	}
+
 	return n
 }
 
@@ -45,6 +47,7 @@ func TestMonitorsEdgeThresholds(t *testing.T) {
 	if _, err := e.m.CreateHold(ctx, feHoldAt("mt-hold", acc.ID, 30, time.Now().Add(time.Hour))); err != nil {
 		t.Fatal(err)
 	}
+
 	e.post(t, pending(transfer("mt-pending", e.open.ID, acc.ID, 50)))
 
 	tests := []struct {
@@ -78,10 +81,12 @@ func TestMonitorsEdgeThresholds(t *testing.T) {
 			if m.Triggered != tt.want {
 				t.Fatalf("created Triggered = %v, want %v", m.Triggered, tt.want)
 			}
+
 			got, err := e.m.BalanceMonitor(ctx, m.ID)
 			if err != nil || got.Triggered != tt.want || got.Condition != m.Condition {
 				t.Fatalf("BalanceMonitor() = %+v, %v", got, err)
 			}
+
 			if feFired(t, e, m.ID) != 0 {
 				t.Fatal("creating a monitor inside its condition fired an event")
 			}
@@ -121,18 +126,22 @@ func TestMonitorsEdgeCrossingAtThreshold(t *testing.T) {
 		if bal := e.balance(t, acc.ID); bal != step.wantPostedBal {
 			t.Fatalf("%s: balance %d, want %d", step.name, bal, step.wantPostedBal)
 		}
+
 		if got := feFired(t, e, m.ID); got != step.lte {
 			t.Fatalf("%s: lte fired %d, want %d", step.name, got, step.lte)
 		}
+
 		if got := feFired(t, e, strict.ID); got != step.lt {
 			t.Fatalf("%s: lt fired %d, want %d", step.name, got, step.lt)
 		}
+
 		for id, want := range map[uuid.UUID]bool{m.ID: step.lteIn, strict.ID: step.ltIn} {
 			if got, err := e.m.BalanceMonitor(ctx, id); err != nil || got.Triggered != want {
 				t.Fatalf("%s: monitor %s = %+v, %v; want triggered %v", step.name, id, got, err, want)
 			}
 		}
 	}
+
 	e.verify(t)
 }
 
@@ -151,16 +160,20 @@ func TestMonitorsEdgeHoldReleases(t *testing.T) {
 	if feFired(t, e, full.ID) != 0 {
 		t.Fatal("leaving the condition fired")
 	}
+
 	if _, err := e.m.VoidHold(ctx, h1.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := feFired(t, e, full.ID); got != 1 {
 		t.Fatalf("void fired %d, want 1", got)
 	}
+
 	feHold(t, e, feHoldAt("mh-2", acc.ID, 10, time.Now().Add(-time.Minute)))
 	if n, err := e.m.ExpireHolds(ctx); err != nil || n != 1 {
 		t.Fatalf("ExpireHolds() = %d, %v", n, err)
 	}
+
 	if got := feFired(t, e, full.ID); got != 2 {
 		t.Fatalf("expiry fired %d, want 2", got)
 	}
@@ -170,15 +183,19 @@ func TestMonitorsEdgeHoldReleases(t *testing.T) {
 	if feFired(t, e, low.ID) != 0 {
 		t.Fatal("a hold changed the posted balance monitor")
 	}
+
 	if _, err := e.m.CaptureHold(ctx, h3.ID, ledger.CaptureInput{IdempotencyKey: "mh-cap", Destination: merchant.ID, Amount: amt(1)}); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := feFired(t, e, low.ID); got != 1 {
 		t.Fatalf("capture fired %d, want 1", got)
 	}
+
 	if got := feFired(t, e, full.ID); got != 2 {
 		t.Fatalf("capture below 100 fired the gte monitor: %d", got)
 	}
+
 	e.verify(t)
 }
 
@@ -198,6 +215,7 @@ func TestMonitorsEdgeMany(t *testing.T) {
 			t.Fatalf("monitor %s fired %d, want %d", id, got, want)
 		}
 	}
+
 	e.post(t, transfer("many-2", a.ID, b.ID, 1))
 	for id, want := range map[uuid.UUID]int{onA1.ID: 1, onA2.ID: 1, onB.ID: 1} {
 		if got := feFired(t, e, id); got != want {
@@ -214,10 +232,12 @@ func TestMonitorsEdgeAccountStatus(t *testing.T) {
 	if _, err := e.m.CloseAccount(ctx, closed.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	onClosed := feMonitor(t, e, closed.ID, "posted", "eq", 0)
 	if !onClosed.Triggered {
 		t.Fatalf("monitor on a closed empty account = %+v", onClosed)
 	}
+
 	list, err := e.m.ListBalanceMonitors(ctx, ledger.ListBalanceMonitorsInput{AccountID: closed.ID, Limit: 10})
 	if err != nil || len(list) != 1 || !list[0].Triggered {
 		t.Fatalf("list = %+v, %v", list, err)
@@ -229,15 +249,19 @@ func TestMonitorsEdgeAccountStatus(t *testing.T) {
 	if feFired(t, e, onFrozen.ID) != 1 {
 		t.Fatal("hold did not fire")
 	}
+
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.VoidHold(ctx, h.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if got, err := e.m.BalanceMonitor(ctx, onFrozen.ID); err != nil || got.Triggered {
 		t.Fatalf("after void on a frozen account = %+v, %v", got, err)
 	}
+
 	_, err = e.m.CreateHold(ctx, feHoldAt("mf-rejected", frozen.ID, 5, time.Now().Add(time.Hour)))
 	wantErr(t, err, ledger.ErrAccountNotOpen)
 	if got := feFired(t, e, onFrozen.ID); got != 1 {
@@ -277,6 +301,7 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	steps := []struct {
 		name     string
 		in       ledger.UpdateInput
@@ -299,11 +324,13 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 		if !errors.Is(err, step.err) {
 			t.Fatalf("%s: error = %v, want %v", step.name, err, step.err)
 		}
+
 		if err != nil {
 			if got, err = e.m.BalanceMonitor(ctx, m.ID); err != nil {
 				t.Fatal(err)
 			}
 		}
+
 		if got.Version != step.version || got.Description != step.desc || !jsonSame(t, got.Metadata, step.metadata) || !got.Triggered {
 			t.Fatalf("%s: monitor = %+v", step.name, got)
 		}
@@ -312,6 +339,7 @@ func TestMonitorsEdgeValidationAndUpdate(t *testing.T) {
 	if err := e.m.DeleteBalanceMonitor(ctx, m.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	for name, act := range map[string]func() error{
 		"delete twice": func() error { return e.m.DeleteBalanceMonitor(ctx, m.ID) },
 		"get":          func() error { _, err := e.m.BalanceMonitor(ctx, m.ID); return err },
@@ -334,6 +362,7 @@ func TestMonitorsEdgeList(t *testing.T) {
 	for i := range 3 {
 		ms = append(ms, feMonitor(t, e, a.ID, "posted", "gt", int64(i)))
 	}
+
 	mb := feMonitor(t, e, b.ID, "posted", "gt", 100)
 
 	ids := func(list []ledger.BalanceMonitor) string {
@@ -341,6 +370,7 @@ func TestMonitorsEdgeList(t *testing.T) {
 		for i, m := range list {
 			out[i] = m.ID.String()
 		}
+
 		return strings.Join(out, ",")
 	}
 	want := func(list ...ledger.BalanceMonitor) string { return ids(list) }
@@ -367,11 +397,13 @@ func TestMonitorsEdgeList(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListBalanceMonitors() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && ids(got) != tt.want {
 				t.Fatalf("monitors = %s, want %s", ids(got), tt.want)
 			}
 		})
 	}
+
 	list, _ := e.m.ListBalanceMonitors(ctx, ledger.ListBalanceMonitorsInput{AccountID: a.ID, Limit: 10})
 	for _, m := range list {
 		if !m.Triggered {

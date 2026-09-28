@@ -48,6 +48,7 @@ func TestEdgeParseRejects(t *testing.T) {
 			if !errors.Is(err, typeid.ErrInvalid) || !strings.Contains(err.Error(), tt.msg) {
 				t.Fatalf("Parse(%q) = %v, want ErrInvalid mentioning %q", tt.in, err, tt.msg)
 			}
+
 			if id != uuid.Nil {
 				t.Fatalf("Parse(%q) returned %s on error", tt.in, id)
 			}
@@ -62,10 +63,12 @@ func TestEdgeFirstCharBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Parse(%q) = %v", s, err)
 		}
+
 		if got := typeid.Encode("x", id); got != s {
 			t.Fatalf("Encode(Parse(%q)) = %q", s, got)
 		}
 	}
+
 	max, err := typeid.Parse("x", "x_7"+strings.Repeat("z", 25))
 	if err != nil || max != uuid.Max {
 		t.Fatalf("max = %s, %v", max, err)
@@ -81,6 +84,7 @@ func TestEdgeEveryBitRoundTrips(t *testing.T) {
 		if len(s) != 28 || seen[s] {
 			t.Fatalf("bit %d encoded as %q (duplicate=%v)", bit, s, seen[s])
 		}
+
 		seen[s] = true
 		got, err := typeid.Parse("b", s)
 		if err != nil || got != id {
@@ -124,15 +128,18 @@ func TestEdgePrefixes(t *testing.T) {
 			if s != tt.want {
 				t.Fatalf("Encode(%q) = %q, want %q", tt.prefix, s, tt.want)
 			}
+
 			got, err := typeid.Parse(tt.prefix, s)
 			if err != nil || got != id {
 				t.Fatalf("Parse(%q, %q) = %s, %v", tt.prefix, s, got, err)
 			}
 		})
 	}
+
 	if _, err := typeid.Parse("a", "a_b_"+edgeValid); !errors.Is(err, typeid.ErrInvalid) {
 		t.Fatalf("underscore prefix accepted by shorter prefix: %v", err)
 	}
+
 	if _, err := typeid.Parse("a_b", "a_"+edgeValid); !errors.Is(err, typeid.ErrInvalid) {
 		t.Fatalf("shorter prefix accepted by underscore prefix: %v", err)
 	}
@@ -147,6 +154,7 @@ func TestEdgeIDText(t *testing.T) {
 	if zero.String() != "key_00000000000000000000000000" || zero.UUID() != uuid.Nil {
 		t.Fatalf("zero ID = %s", zero)
 	}
+
 	txt, err := zero.MarshalText()
 	if err != nil || string(txt) != zero.String() {
 		t.Fatalf("MarshalText() = %q, %v", txt, err)
@@ -158,6 +166,7 @@ func TestEdgeIDText(t *testing.T) {
 		if err := id.UnmarshalText([]byte(bad)); !errors.Is(err, typeid.ErrInvalid) {
 			t.Fatalf("UnmarshalText(%q) = %v", bad, err)
 		}
+
 		if id != before {
 			t.Fatalf("UnmarshalText(%q) modified the ID on error", bad)
 		}
@@ -172,20 +181,25 @@ func TestEdgeIDText(t *testing.T) {
 			t.Fatalf("Unmarshal(%s) accepted", raw)
 		}
 	}
+
 	if err := json.Unmarshal([]byte(`{"id":"key_`+edgeValid+`","ptr":"key_`+edgeValid+`"}`), &v); err != nil {
 		t.Fatal(err)
 	}
+
 	if v.ID.String() != "key_"+edgeValid || v.Ptr == nil || *v.Ptr != v.ID {
 		t.Fatalf("decoded = %s %v", v.ID, v.Ptr)
 	}
+
 	raw, err := json.Marshal(v)
 	if err != nil || string(raw) != `{"id":"key_`+edgeValid+`","ptr":"key_`+edgeValid+`"}` {
 		t.Fatalf("Marshal() = %s, %v", raw, err)
 	}
+
 	v.Ptr = nil
 	if raw, err = json.Marshal(v); err != nil || string(raw) != `{"id":"key_`+edgeValid+`","ptr":null}` {
 		t.Fatalf("Marshal(nil ptr) = %s, %v", raw, err)
 	}
+
 	m := map[typeid.ID[edgeKeyPrefix]]int{id: 1}
 	if raw, err = json.Marshal(m); err != nil || string(raw) != `{"key_`+edgeValid+`":1}` {
 		t.Fatalf("Marshal(map) = %s, %v", raw, err)

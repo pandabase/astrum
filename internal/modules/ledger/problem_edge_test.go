@@ -64,9 +64,11 @@ func TestProblemForEdge(t *testing.T) {
 				if status != tt.status || code != tt.code {
 					t.Fatalf("%s: problemFor = %d %s, want %d %s", name, status, code, tt.status, tt.code)
 				}
+
 				if tt.status == 500 && detail != "" {
 					t.Fatalf("%s: 500 leaks detail %q", name, detail)
 				}
+
 				if tt.status != 500 && detail != err.Error() {
 					t.Fatalf("%s: detail = %q, want %q", name, detail, err.Error())
 				}
@@ -75,6 +77,7 @@ func TestProblemForEdge(t *testing.T) {
 		if prev, dup := codes[tt.code]; dup && tt.status != 500 && tt.status != 504 {
 			t.Errorf("code %s used by both %v and %v", tt.code, prev, tt.err)
 		}
+
 		codes[tt.code] = tt.err
 	}
 
@@ -105,6 +108,7 @@ func TestWriteErrorEdge(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
+
 	if w.Code != 422 || p.Code != "validation_error" || p.Detail != "ledger: invalid input: code is required" || p.Type != "urn:astrum:error:validation_error" {
 		t.Fatalf("problem = %d %+v", w.Code, p)
 	}
@@ -117,14 +121,17 @@ func TestCursorCodecsEdge(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if got, ok := int64Cursor(b); !ok || got != v {
 			t.Fatalf("int64 cursor round trip %d = %d %v", v, got, ok)
 		}
 	}
+
 	for _, n := range []int{0, 7, 9, 16} {
 		if _, ok := int64Cursor(make([]byte, n)); ok {
 			t.Fatalf("int64Cursor accepted %d bytes", n)
 		}
+
 		if _, ok := uuidCursor(make([]byte, n)); ok && n != 16 {
 			t.Fatalf("uuidCursor accepted %d bytes", n)
 		}
@@ -141,5 +148,6 @@ func decodeEdgeCursor(s string) ([]byte, error) {
 	if !ok {
 		return nil, errors.New("cursor rejected")
 	}
+
 	return out, nil
 }

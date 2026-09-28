@@ -68,27 +68,34 @@ func TestHoldsEdgeReserveRelease(t *testing.T) {
 			if (err == nil) != tt.ok {
 				t.Fatalf("reserve() = %v, want ok=%v", err, tt.ok)
 			}
+
 			if !tt.ok {
 				if s.accounts[id].held != amt(0) || s.accounts[id].version != 0 {
 					t.Fatalf("rejected reserve changed state: %+v", s.accounts[id])
 				}
+
 				return
 			}
+
 			if s.accounts[id].held != amt(tt.reserve) || s.accounts[id].version != 1 {
 				t.Fatalf("after reserve = %+v", s.accounts[id])
 			}
+
 			if err := s.release(id, amt(tt.reserve+1)); err == nil {
 				t.Fatal("released more than held")
 			}
+
 			if err := s.release(id, amt(tt.reserve)); err != nil || s.accounts[id].held != amt(0) {
 				t.Fatalf("release() = %v, held %s", err, s.accounts[id].held)
 			}
 		})
 	}
+
 	s := newLedgerState(nil, nil)
 	if err := s.reserve(id, "", amt(1)); err == nil {
 		t.Fatal("reserve on an unknown account succeeded")
 	}
+
 	if err := s.release(id, amt(1)); err == nil {
 		t.Fatal("release on an unknown account succeeded")
 	}

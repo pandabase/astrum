@@ -11,10 +11,12 @@ func (h *handler) createHold(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var in holdRequest
 	if !decode(w, r, &in) {
 		return
 	}
+
 	hold, err := h.svc.createHold(r.Context(), CreateHoldInput{
 		IdempotencyKey: key,
 		AccountID:      in.AccountID.UUID(),
@@ -23,6 +25,7 @@ func (h *handler) createHold(w http.ResponseWriter, r *http.Request) {
 		Description:    in.Description,
 		ExpiresAt:      in.ExpiresAt,
 	})
+
 	respond(w, r, http.StatusCreated, hold, toHold, err)
 }
 
@@ -31,16 +34,19 @@ func (h *handler) listHolds(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	account, ok := queryID[accountPrefix](w, r, "account_id")
 	if !ok {
 		return
 	}
+
 	holds, err := h.svc.listHolds(r.Context(), ListHoldsInput{
 		AccountID: account,
 		Status:    HoldStatus(r.URL.Query().Get("status")),
 		Before:    before,
 		Limit:     limit + 1,
 	})
+
 	respondList(w, r, holds, limit, toHold, func(h Hold) string { return encodeUUIDCursor(h.ID) }, err)
 }
 
@@ -57,10 +63,12 @@ func (h *handler) captureHold(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+
 		var in captureRequest
 		if !decode(w, r, &in) {
 			return
 		}
+
 		hold, err := h.svc.captureHold(r.Context(), id, CaptureInput{
 			IdempotencyKey: key,
 			Destination:    in.DestinationAccountID.UUID(),
@@ -68,6 +76,7 @@ func (h *handler) captureHold(w http.ResponseWriter, r *http.Request) {
 			Description:    in.Description,
 			Metadata:       in.Metadata,
 		})
+
 		respond(w, r, http.StatusOK, hold, toHold, err)
 	})
 }
@@ -84,10 +93,12 @@ func (h *handler) createSchedule(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var in scheduleRequest
 	if !decode(w, r, &in) {
 		return
 	}
+
 	st, err := h.svc.schedule(r.Context(), ScheduleInput{PostInput: in.post(key), ExecuteAt: in.ExecuteAt})
 	respond(w, r, http.StatusCreated, st, toSchedule, err)
 }
@@ -97,11 +108,13 @@ func (h *handler) listSchedules(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	schedules, err := h.svc.listSchedules(r.Context(), ListSchedulesInput{
 		Status: ScheduleStatus(r.URL.Query().Get("status")),
 		Before: before,
 		Limit:  limit + 1,
 	})
+
 	respondList(w, r, schedules, limit, toSchedule, func(st ScheduledTransaction) string { return encodeUUIDCursor(st.ID) }, err)
 }
 

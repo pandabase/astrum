@@ -15,9 +15,11 @@ func TestBackoffEdgeBounds(t *testing.T) {
 			d := backoff(attempt)
 			lo, hi = min(lo, d), max(hi, d)
 		}
+
 		if lo < ceiling/2 || hi > ceiling {
 			t.Fatalf("attempt %d: backoff range [%s, %s], want within [%s, %s]", attempt, lo, hi, ceiling/2, ceiling)
 		}
+
 		if lo == hi {
 			t.Fatalf("attempt %d: backoff has no jitter (%s)", attempt, lo)
 		}
@@ -30,14 +32,17 @@ func TestBackoffEdgeGrowsAndCaps(t *testing.T) {
 		if got := min(baseBackoff<<attempt, maxBackoff); got != w {
 			t.Fatalf("ceiling(%d) = %s, want %s", attempt, got, w)
 		}
+
 		if d := backoff(attempt); d > w || d < w/2 {
 			t.Fatalf("backoff(%d) = %s, want within [%s, %s]", attempt, d, w/2, w)
 		}
 	}
+
 	var total time.Duration
 	for attempt := range maxAttempts - 1 {
 		total += min(baseBackoff<<attempt, maxBackoff)
 	}
+
 	if total > time.Second {
 		t.Fatalf("worst-case retry sleep = %s", total)
 	}
@@ -49,11 +54,13 @@ func TestSleepEdge(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
 	t.Run("negative duration", func(t *testing.T) {
 		if err := sleep(context.Background(), -time.Second); err != nil {
 			t.Fatal(err)
 		}
 	})
+
 	t.Run("canceled before", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -61,10 +68,12 @@ func TestSleepEdge(t *testing.T) {
 		if err := sleep(ctx, time.Hour); !errors.Is(err, context.Canceled) {
 			t.Fatalf("sleep = %v", err)
 		}
+
 		if time.Since(start) > time.Second {
 			t.Fatal("sleep ignored cancellation")
 		}
 	})
+
 	t.Run("deadline during", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		defer cancel()
@@ -72,6 +81,7 @@ func TestSleepEdge(t *testing.T) {
 			t.Fatalf("sleep = %v", err)
 		}
 	})
+
 	t.Run("completes", func(t *testing.T) {
 		start := time.Now()
 		if err := sleep(context.Background(), 5*time.Millisecond); err != nil || time.Since(start) < 5*time.Millisecond {

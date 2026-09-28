@@ -48,6 +48,7 @@ func TestLevelFiltering(t *testing.T) {
 	if strings.Contains(out, "hidden") {
 		t.Errorf("info message logged at warn level: %q", out)
 	}
+
 	if !strings.Contains(out, "shown") {
 		t.Errorf("warn message missing: %q", out)
 	}
@@ -67,6 +68,7 @@ func TestForAddsRequestID(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
 		t.Fatalf("decode log line %q: %v", buf.String(), err)
 	}
+
 	if entry["request_id"] != "req-123" {
 		t.Fatalf("request_id = %v, want req-123", entry["request_id"])
 	}
@@ -84,6 +86,7 @@ func TestForWithoutRequestID(t *testing.T) {
 	if strings.Contains(buf.String(), "request_id") {
 		t.Fatalf("unexpected request_id in %q", buf.String())
 	}
+
 	if logger.RequestID(context.Background()) != "" {
 		t.Fatal("RequestID() on empty context should be empty")
 	}

@@ -62,15 +62,18 @@ func (e *edgeEnv) call(method, path, body string) edgeResp {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	resp, err := e.srv.Client().Do(req)
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	out := edgeResp{status: resp.StatusCode, raw: raw}
 	_ = json.Unmarshal(raw, &out.body)
 	return out
@@ -82,6 +85,7 @@ func (e *edgeEnv) must(want int, method, path, body string) map[string]any {
 	if r.status != want {
 		e.t.Fatalf("%s %s = %d %s, want %d", method, path, r.status, r.raw, want)
 	}
+
 	return r.body
 }
 
@@ -91,6 +95,7 @@ func (e *edgeEnv) walk(path string) []map[string]any {
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
+
 	var all []map[string]any
 	next := path
 	for range 100 {
@@ -98,14 +103,18 @@ func (e *edgeEnv) walk(path string) []map[string]any {
 		for _, item := range page["data"].([]any) {
 			all = append(all, item.(map[string]any))
 		}
+
 		if page["has_more"] != true {
 			if page["next_cursor"] != nil {
 				e.t.Fatalf("last page of %s has a cursor", path)
 			}
+
 			return all
 		}
+
 		next = path + sep + "cursor=" + page["next_cursor"].(string)
 	}
+
 	e.t.Fatalf("pagination of %s does not terminate", path)
 	return nil
 }
@@ -116,6 +125,7 @@ func (e *edgeEnv) endpoint(url string, types ...string) events.Endpoint {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	return ep
 }
 
@@ -132,6 +142,7 @@ func edgeEvent(t *testing.T, eventType string) events.Event {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return ev
 }
 
@@ -141,6 +152,7 @@ func edgeOldID(t *testing.T, at time.Time) uuid.UUID {
 	if _, err := rand.Read(id[:]); err != nil {
 		t.Fatal(err)
 	}
+
 	var ms [8]byte
 	binary.BigEndian.PutUint64(ms[:], uint64(at.UnixMilli()))
 	copy(id[:6], ms[2:])
@@ -158,13 +170,16 @@ func (e *edgeEnv) dispatch(want int) {
 		if err != nil {
 			e.t.Fatal(err)
 		}
+
 		total += n
 		if total >= want {
 			break
 		}
+
 		if time.Now().After(deadline) {
 			e.t.Fatalf("dispatched %d of %d events", total, want)
 		}
+
 		time.Sleep(10 * time.Millisecond)
 	}
 }
@@ -175,6 +190,7 @@ func (e *edgeEnv) deliver() int {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	return n
 }
 
@@ -184,6 +200,7 @@ func (e *edgeEnv) deliveries(endpoint uuid.UUID) []events.Delivery {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+
 	return ds
 }
 
@@ -193,6 +210,7 @@ func (e *edgeEnv) one(endpoint uuid.UUID) events.Delivery {
 	if len(ds) != 1 {
 		e.t.Fatalf("deliveries for %s = %d, want 1", endpoint, len(ds))
 	}
+
 	return ds[0]
 }
 
@@ -228,9 +246,11 @@ func newEdgeReceiver(t *testing.T, tls bool) *edgeReceiver {
 		if !ok {
 			status = http.StatusOK
 		}
+
 		if status >= 300 && status < 400 {
 			w.Header().Set("Location", "/elsewhere")
 		}
+
 		w.WriteHeader(status)
 	})
 	if tls {
@@ -238,6 +258,7 @@ func newEdgeReceiver(t *testing.T, tls bool) *edgeReceiver {
 	} else {
 		r.srv = httptest.NewServer(h)
 	}
+
 	t.Cleanup(r.srv.Close)
 	return r
 }
@@ -257,6 +278,7 @@ func (r *edgeReceiver) got(path string) []edgeHit {
 			out = append(out, h)
 		}
 	}
+
 	return out
 }
 
@@ -273,6 +295,7 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 		for i := range out {
 			out[i] = strconv.Quote("t.x" + strings.Repeat("a", i))
 		}
+
 		return "[" + strings.Join(out, ",") + "]"
 	}
 
@@ -338,15 +361,19 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 			if r.status != tt.status {
 				t.Fatalf("status = %d %s, want %d", r.status, r.raw, tt.status)
 			}
+
 			if tt.status != 201 {
 				if r.body["code"] != tt.code {
 					t.Fatalf("code = %v, want %s", r.body["code"], tt.code)
 				}
+
 				return
 			}
+
 			if !strings.HasPrefix(r.body["id"].(string), "we_") || !strings.HasPrefix(r.body["secret"].(string), "whsec_") || r.body["version"] != float64(0) {
 				t.Fatalf("created = %s", r.raw)
 			}
+
 			if _, ok := r.body["event_types"].([]any); !ok {
 				t.Fatalf("event_types = %v, want an array", r.body["event_types"])
 			}
@@ -364,6 +391,7 @@ func TestEventsEdgeCreateEndpointValidation(t *testing.T) {
 			if (r.status == 201) != ok {
 				t.Fatalf("status = %d %s, want accepted %v", r.status, r.raw, ok)
 			}
+
 			if !ok && (r.status != 422 || !strings.Contains(r.body["detail"].(string), strconv.Quote(pattern))) {
 				t.Fatalf("rejection = %d %s", r.status, r.raw)
 			}
@@ -385,14 +413,17 @@ func TestEventsEdgeEndpointLifecycleHTTP(t *testing.T) {
 		if len(all) != 5 {
 			t.Fatalf("listed %d endpoints", len(all))
 		}
+
 		for i, ep := range all {
 			if ep["id"] != ids[len(ids)-1-i] || ep["secret"] != nil || ep["object"] != "webhook_endpoint" {
 				t.Fatalf("endpoint %d = %v", i, ep)
 			}
 		}
+
 		if page := e.must(200, http.MethodGet, "/v1/webhook_endpoints?limit=5", ""); page["has_more"] != false || len(page["data"].([]any)) != 5 {
 			t.Fatalf("exact page = %v", page)
 		}
+
 		if page := e.must(200, http.MethodGet, "/v1/webhook_endpoints", ""); len(page["data"].([]any)) != 5 {
 			t.Fatalf("default page = %v", page)
 		}
@@ -434,9 +465,11 @@ func TestEventsEdgeEndpointLifecycleHTTP(t *testing.T) {
 				if r.status != tt.status {
 					t.Fatalf("status = %d %s, want %d", r.status, r.raw, tt.status)
 				}
+
 				if tt.check != nil && (!tt.check(r.body) || r.body["secret"] != nil) {
 					t.Fatalf("patched = %s", r.raw)
 				}
+
 				got := e.must(200, http.MethodGet, "/v1/webhook_endpoints/"+id, "")
 				if got["version"] != tt.version {
 					t.Fatalf("version = %v, want %v", got["version"], tt.version)
@@ -479,6 +512,7 @@ func TestEventsEdgeEndpointLifecycleHTTP(t *testing.T) {
 		if len(del) != 3 || del["object"] != "webhook_endpoint" || del["id"] != id || del["deleted"] != true {
 			t.Fatalf("delete = %v", del)
 		}
+
 		e.must(404, http.MethodDelete, "/v1/webhook_endpoints/"+id, "")
 		e.must(404, http.MethodGet, "/v1/webhook_endpoints/"+id, "")
 		e.must(404, http.MethodPatch, "/v1/webhook_endpoints/"+id, `{}`)
@@ -500,6 +534,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 	for _, typ := range []string{"hold.created", "hold.voided", "hold.created", "account.created"} {
 		evs = append(evs, edgeEvent(t, typ))
 	}
+
 	e.publish(evs...)
 	e.dispatch(4)
 	if n := e.deliver(); n != 5 {
@@ -511,23 +546,28 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 		if len(all) != 4 || all[0]["id"] != typeid.Encode("evt", evs[3].ID) {
 			t.Fatalf("events = %v", all)
 		}
+
 		for _, ev := range all {
 			if ev["object"] != "event" || ev["data"] == nil || ev["created_at"] == nil {
 				t.Fatalf("event = %v", ev)
 			}
 		}
+
 		if got := e.walk("/v1/events?type=hold.created&limit=1"); len(got) != 2 {
 			t.Fatalf("hold.created events = %d", len(got))
 		}
+
 		for _, q := range []string{"type=hold.*", "type=HOLD.CREATED", "type=nothing.here", "type=hold"} {
 			if got := e.walk("/v1/events?" + q); len(got) != 0 {
 				t.Fatalf("?%s matched %d events, want exact type matching", q, len(got))
 			}
 		}
+
 		got := e.must(200, http.MethodGet, "/v1/events/"+typeid.Encode("evt", evs[0].ID), "")
 		if got["type"] != "hold.created" || got["data"].(map[string]any)["object"] != "hold" {
 			t.Fatalf("event = %v", got)
 		}
+
 		e.must(404, http.MethodGet, "/v1/events/"+typeid.Encode("evt", uuid.Must(uuid.NewV7())), "")
 		e.must(400, http.MethodGet, "/v1/events/"+typeid.Encode("wd", evs[0].ID), "")
 		for _, q := range []string{"type=%00", "type=%FF"} {
@@ -535,6 +575,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 				t.Errorf("?%s = %d %s, want a 4xx or an empty list", q, r.status, r.raw)
 			}
 		}
+
 		e.must(400, http.MethodGet, "/v1/events?cursor=x", "")
 		e.must(400, http.MethodGet, "/v1/events?limit=1000", "")
 		e.must(405, http.MethodPost, "/v1/events", "{}")
@@ -546,11 +587,13 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 		if len(all) != 5 {
 			t.Fatalf("deliveries = %d, want 5", len(all))
 		}
+
 		for i := 1; i < len(all); i++ {
 			if all[i-1]["id"].(string) <= all[i]["id"].(string) {
 				t.Fatal("deliveries not newest first")
 			}
 		}
+
 		okID, badID := typeid.Encode("we", ok.ID), typeid.Encode("we", bad.ID)
 		counts := map[string]int{
 			"endpoint_id=" + okID:                                  3,
@@ -571,6 +614,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 				t.Errorf("?%s = %d deliveries, want %d", q, len(got), want)
 			}
 		}
+
 		for q, status := range map[string]int{
 			"status=Pending":   422,
 			"status=delivered": 422,
@@ -584,6 +628,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 			if r.status != status {
 				t.Errorf("?%s = %d %s, want %d", q, r.status, r.raw, status)
 			}
+
 			if status == 400 && strings.HasPrefix(q, "e") && !strings.HasPrefix(r.body["detail"].(string), strings.SplitN(q, "=", 2)[0]+": ") {
 				t.Errorf("?%s detail = %v, want it to name the parameter", q, r.body["detail"])
 			}
@@ -600,17 +645,21 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 				t.Fatalf("delivery[%s] = %v, want %v (%v)", k, got[k], v, got)
 			}
 		}
+
 		if len(got) != 13 || got["next_attempt_at"] == nil || got["last_attempt_at"] == nil {
 			t.Fatalf("delivery = %v", got)
 		}
+
 		retried := e.must(200, http.MethodPost, "/v1/webhook_deliveries/"+id+"/retry", "")
 		if retried["status"] != "pending" || retried["attempts"] != float64(1) {
 			t.Fatalf("retry = %v", retried)
 		}
+
 		succeeded := typeid.Encode("wd", e.deliveries(ok.ID)[0].ID)
 		if r := e.must(200, http.MethodPost, "/v1/webhook_deliveries/"+succeeded+"/retry", ""); r["status"] != "succeeded" || r["delivered_at"] == nil || r["next_attempt_at"] != nil {
 			t.Fatalf("retry of a delivered webhook = %v", r)
 		}
+
 		unknown := typeid.Encode("wd", uuid.Must(uuid.NewV7()))
 		e.must(404, http.MethodGet, "/v1/webhook_deliveries/"+unknown, "")
 		e.must(404, http.MethodPost, "/v1/webhook_deliveries/"+unknown+"/retry", "")
@@ -625,6 +674,7 @@ func TestEventsEdgeEventsAndDeliveriesHTTP(t *testing.T) {
 		if got := e.walk("/v1/webhook_deliveries?endpoint_id=" + typeid.Encode("we", bad.ID)); len(got) != 0 {
 			t.Fatalf("deliveries of a deleted endpoint = %d", len(got))
 		}
+
 		if got := e.walk("/v1/webhook_deliveries"); len(got) != 3 {
 			t.Fatalf("remaining deliveries = %d, want 3", len(got))
 		}
@@ -650,28 +700,35 @@ func TestEventsEdgeSignedRequest(t *testing.T) {
 	if len(hits) != 1 {
 		t.Fatalf("hits = %d", len(hits))
 	}
+
 	h := hits[0]
 	sig := h.header.Get(events.SignatureHeader)
 	m := edgeSignature.FindStringSubmatch(sig)
 	if m == nil {
 		t.Fatalf("signature header = %q", sig)
 	}
+
 	ts, _ := strconv.ParseInt(m[1], 10, 64)
 	if ts < before || ts > after {
 		t.Fatalf("signature timestamp %d outside [%d, %d]", ts, before, after)
 	}
+
 	if events.Sign(ep.Secret, time.Unix(ts, 0), h.body) != sig {
 		t.Fatal("signature does not match the body and timestamp")
 	}
+
 	if !events.Verify(ep.Secret, sig, h.body, time.Unix(ts, 0), 0) {
 		t.Fatal("Verify rejects the exact timestamp with zero tolerance")
 	}
+
 	if events.Verify(other.Secret, sig, h.body, time.Unix(ts, 0), time.Minute) {
 		t.Fatal("another endpoint's secret verifies the signature")
 	}
+
 	if events.Verify(ep.Secret, sig, append([]byte(" "), h.body...), time.Unix(ts, 0), time.Minute) {
 		t.Fatal("a modified body verifies")
 	}
+
 	wantHeaders := map[string]string{
 		"Content-Type":       "application/json",
 		"User-Agent":         "Astrum-Webhooks/1",
@@ -682,21 +739,26 @@ func TestEventsEdgeSignedRequest(t *testing.T) {
 			t.Fatalf("header %s = %q, want %q", k, got, v)
 		}
 	}
+
 	var body map[string]any
 	if err := json.Unmarshal(h.body, &body); err != nil {
 		t.Fatal(err)
 	}
+
 	if len(body) != 5 || body["object"] != "event" || body["id"] != typeid.Encode("evt", ev.ID) || body["type"] != "transaction.posted" ||
 		body["data"].(map[string]any)["object"] != "transaction" {
 		t.Fatalf("body = %s", h.body)
 	}
+
 	otherHits := rcv.got("/other")
 	if len(otherHits) != 1 {
 		t.Fatalf("second endpoint received %d requests", len(otherHits))
 	}
+
 	if !events.Verify(other.Secret, otherHits[0].header.Get(events.SignatureHeader), otherHits[0].body, time.Now(), time.Minute) {
 		t.Fatal("second endpoint signature does not verify with its own secret")
 	}
+
 	if string(otherHits[0].body) != string(h.body) {
 		t.Fatal("endpoints received different bodies for the same event")
 	}
@@ -747,6 +809,7 @@ func TestEventsEdgeResponseStatuses(t *testing.T) {
 		rcv.set(path, s)
 		eps[s] = e.endpoint(rcv.srv.URL + path)
 	}
+
 	e.publish(edgeEvent(t, "account.created"))
 	e.dispatch(1)
 	e.deliver()
@@ -757,20 +820,25 @@ func TestEventsEdgeResponseStatuses(t *testing.T) {
 			if d.Attempts != 1 || d.LastStatusCode == nil || *d.LastStatusCode != s {
 				t.Fatalf("delivery = %+v", d)
 			}
+
 			if s >= 200 && s <= 299 {
 				if d.Status != "succeeded" || d.LastError != nil || d.DeliveredAt == nil || d.NextAttemptAt != nil {
 					t.Fatalf("2xx delivery = %+v", d)
 				}
+
 				return
 			}
+
 			if d.Status != "pending" || d.LastError == nil || *d.LastError != fmt.Sprintf("endpoint responded %d", s) || d.DeliveredAt != nil {
 				t.Fatalf("non-2xx delivery = %+v", d)
 			}
+
 			if d.NextAttemptAt.Sub(*d.LastAttemptAt) != time.Hour {
 				t.Fatalf("backoff = %v, want 1h", d.NextAttemptAt.Sub(*d.LastAttemptAt))
 			}
 		})
 	}
+
 	if hits := rcv.got("/elsewhere"); len(hits) != 0 {
 		t.Fatalf("redirects were followed %d times", len(hits))
 	}
@@ -790,20 +858,25 @@ func TestEventsEdgeBackoffSchedule(t *testing.T) {
 		if n := e.deliver(); n != 1 {
 			t.Fatalf("attempt %d claimed %d", i+1, n)
 		}
+
 		d := e.one(ep.ID)
 		if d.Status != "pending" || d.Attempts != i+1 || d.NextAttemptAt.Sub(*d.LastAttemptAt) != wait {
 			t.Fatalf("after attempt %d = %+v, want backoff %v", i+1, d, wait)
 		}
+
 		if n := e.deliver(); n != 0 {
 			t.Fatalf("delivery retried before its backoff elapsed")
 		}
+
 		e.makeDue()
 	}
+
 	e.deliver()
 	d := e.one(ep.ID)
 	if d.Status != "failed" || d.Attempts != len(retries)+1 || d.NextAttemptAt != nil || *d.LastStatusCode != 503 {
 		t.Fatalf("exhausted = %+v", d)
 	}
+
 	e.makeDue()
 	if n := e.deliver(); n != 0 || len(rcv.got("/h")) != len(retries)+1 {
 		t.Fatalf("failed delivery was attempted again")
@@ -814,6 +887,7 @@ func TestEventsEdgeBackoffSchedule(t *testing.T) {
 	if r["status"] != "pending" || r["next_attempt_at"] == nil {
 		t.Fatalf("manual retry = %v", r)
 	}
+
 	e.deliver()
 	if d := e.one(ep.ID); d.Status != "succeeded" || d.Attempts != len(retries)+2 || d.LastError != nil {
 		t.Fatalf("after manual retry = %+v", d)
@@ -849,6 +923,7 @@ func TestEventsEdgeRedirectNotFollowed(t *testing.T) {
 	if hits := target.got(""); len(hits) != 0 {
 		t.Fatalf("redirect target received %d requests", len(hits))
 	}
+
 	if d := e.one(ep.ID); d.Status != "pending" || *d.LastStatusCode != http.StatusTemporaryRedirect {
 		t.Fatalf("redirected delivery = %+v", d)
 	}
@@ -868,6 +943,7 @@ func TestEventsEdgeTimeout(t *testing.T) {
 		close(stop)
 		slow.Close()
 	})
+
 	ep := e.endpoint(slow.URL)
 	e.publish(edgeEvent(t, "hold.created"))
 	e.dispatch(1)
@@ -876,6 +952,7 @@ func TestEventsEdgeTimeout(t *testing.T) {
 	if took := time.Since(start); took > 5*time.Second {
 		t.Fatalf("deliver took %v with a 200ms timeout", took)
 	}
+
 	d := e.one(ep.ID)
 	if d.Status != "pending" || d.Attempts != 1 || d.LastStatusCode != nil || d.LastError == nil || !strings.Contains(*d.LastError, "deadline exceeded") {
 		t.Fatalf("timed out delivery = %+v (%v)", d, d.LastError)
@@ -890,12 +967,14 @@ func TestEventsEdgeRefusesNonPublicAddresses(t *testing.T) {
 	if _, err := e.pool.Exec(context.Background(), `UPDATE webhook_endpoints SET url = $1 WHERE id = $2`, rcv.srv.URL+"/hook", ep.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	e.publish(edgeEvent(t, "hold.created"))
 	e.dispatch(1)
 	e.deliver()
 	if hits := rcv.got(""); len(hits) != 0 {
 		t.Fatalf("loopback receiver got %d requests", len(hits))
 	}
+
 	d := e.one(ep.ID)
 	if d.Status != "pending" || d.LastStatusCode != nil || d.LastError == nil || !strings.Contains(*d.LastError, "refusing to deliver to non-public address 127.0.0.1") {
 		t.Fatalf("delivery = %+v (%v)", d, d.LastError)
@@ -935,10 +1014,12 @@ func TestEventsEdgeLongErrorsAreTruncated(t *testing.T) {
 			if d.LastError == nil {
 				t.Fatalf("delivery %d = %+v", i, d)
 			}
+
 			got := *d.LastError
 			if got != tt.want || len(got) > 1024 || !utf8.ValidString(got) {
 				t.Fatalf("last_error (%d bytes) = %q, want %q", len(got), got, tt.want)
 			}
+
 			if _, err := e.svc.UpdateEndpoint(context.Background(), ep.ID, events.EndpointUpdate{Enabled: new(false)}); err != nil {
 				t.Fatal(err)
 			}
@@ -964,13 +1045,16 @@ func TestEventsEdgeSubscriptions(t *testing.T) {
 	for path, types := range subs {
 		eps[path] = e.endpoint(rcv.srv.URL+path, types...)
 	}
+
 	if _, err := e.svc.UpdateEndpoint(context.Background(), eps["/disabled"].ID, events.EndpointUpdate{Enabled: new(false)}); err != nil {
 		t.Fatal(err)
 	}
+
 	types := []string{"hold.created", "hold.voided", "holds.created", "account.created", "account.closed", "transaction.posted", "balance_monitor.triggered"}
 	for _, typ := range types {
 		e.publish(edgeEvent(t, typ))
 	}
+
 	e.dispatch(len(types))
 	for e.deliver() > 0 {
 	}
@@ -995,11 +1079,14 @@ func TestEventsEdgeSubscriptions(t *testing.T) {
 				if err := json.Unmarshal(h.body, &body); err != nil {
 					t.Fatal(err)
 				}
+
 				got[body.Type] = true
 			}
+
 			if len(got) != len(wantTypes) || len(rcv.got(path)) != len(wantTypes) {
 				t.Fatalf("received %v, want %v", got, wantTypes)
 			}
+
 			for _, typ := range wantTypes {
 				if !got[typ] {
 					t.Fatalf("missing %s in %v", typ, got)
@@ -1012,6 +1099,7 @@ func TestEventsEdgeSubscriptions(t *testing.T) {
 		if _, err := e.svc.UpdateEndpoint(context.Background(), eps["/disabled"].ID, events.EndpointUpdate{Enabled: new(true)}); err != nil {
 			t.Fatal(err)
 		}
+
 		e.dispatch(0)
 		e.deliver()
 		if n := len(rcv.got("/disabled")); n != 0 {
@@ -1032,9 +1120,11 @@ func TestEventsEdgeEndpointChangesAfterDispatch(t *testing.T) {
 	if _, err := e.svc.UpdateEndpoint(context.Background(), ep.ID, events.EndpointUpdate{Enabled: &off}); err != nil {
 		t.Fatal(err)
 	}
+
 	if n := e.deliver(); n != 0 {
 		t.Fatalf("delivered %d to a disabled endpoint", n)
 	}
+
 	if d := e.one(ep.ID); d.Status != "pending" || d.Attempts != 0 {
 		t.Fatalf("parked delivery = %+v", d)
 	}
@@ -1043,10 +1133,12 @@ func TestEventsEdgeEndpointChangesAfterDispatch(t *testing.T) {
 	if _, err := e.svc.UpdateEndpoint(context.Background(), ep.ID, events.EndpointUpdate{Enabled: &on, URL: &moved, EventTypes: &narrowed}); err != nil {
 		t.Fatal(err)
 	}
+
 	e.deliver()
 	if len(rcv.got("/old")) != 0 || len(rcv.got("/new")) != 1 {
 		t.Fatalf("old %d, new %d; want the pending delivery sent to the current URL", len(rcv.got("/old")), len(rcv.got("/new")))
 	}
+
 	h := rcv.got("/new")[0]
 	if !events.Verify(ep.Secret, h.header.Get(events.SignatureHeader), h.body, time.Now(), time.Minute) {
 		t.Fatal("secret changed across endpoint updates")
@@ -1087,8 +1179,10 @@ func TestEventsEdgeRetention(t *testing.T) {
 	if _, err := e.svc.UpdateEndpoint(ctx, parked.ID, events.EndpointUpdate{Enabled: &off}); err != nil {
 		t.Fatal(err)
 	}
+
 	for e.deliver() > 0 {
 	}
+
 	undispatched := old("hold.created", 40*24*time.Hour)
 	e.publish(undispatched)
 
@@ -1096,26 +1190,32 @@ func TestEventsEdgeRetention(t *testing.T) {
 	if err != nil || n != 4 {
 		t.Fatalf("Prune = %d, %v; want 4", n, err)
 	}
+
 	gone := map[string]events.Event{"early": early, "delivered": delivered, "failed": failed, "unsubscribed": unsubscribed}
 	kept := map[string]events.Event{"pending": pending, "young": young, "recent": recent, "undispatched": undispatched}
 	for name, ev := range gone {
 		if _, err := e.svc.Event(ctx, ev.ID); !errors.Is(err, events.ErrNotFound) {
 			t.Errorf("%s event survived: %v", name, err)
 		}
+
 		if ds, _ := e.svc.ListDeliveries(ctx, events.ListDeliveriesInput{EventID: ev.ID, Limit: 10}); len(ds) != 0 {
 			t.Errorf("%s deliveries survived: %d", name, len(ds))
 		}
 	}
+
 	for name, ev := range kept {
 		if _, err := e.svc.Event(ctx, ev.ID); err != nil {
 			t.Errorf("%s event pruned: %v", name, err)
 		}
 	}
+
 	if ds, _ := e.svc.ListDeliveries(ctx, events.ListDeliveriesInput{EventID: pending.ID, Limit: 10}); len(ds) != 1 || ds[0].Status != "pending" {
 		t.Fatalf("pending delivery = %+v", ds)
 	}
+
 	if n, err := e.svc.Prune(ctx); err != nil || n != 0 {
 		t.Fatalf("second Prune = %d, %v", n, err)
 	}
+
 	e.must(404, http.MethodGet, "/v1/events/"+typeid.Encode("evt", delivered.ID), "")
 }

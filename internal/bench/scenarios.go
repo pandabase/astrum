@@ -40,6 +40,7 @@ func (r *run) pair(rng *rand.Rand) (string, string) {
 	if to >= from {
 		to++
 	}
+
 	return r.accounts[from], r.accounts[to]
 }
 
@@ -72,6 +73,7 @@ func (r *run) batch() step {
 		for i := range txns {
 			txns[i] = r.transferBody(rng, "")
 		}
+
 		body := map[string]any{"transactions": txns, "atomic": true}
 		return len(txns), r.client.do(ctx, "POST", "/v1/transactions/batch", body, true, nil)
 	}
@@ -83,6 +85,7 @@ func (r *run) pending() step {
 		if err := r.client.do(ctx, "POST", "/v1/transactions", r.transferBody(rng, "pending"), true, &created); err != nil {
 			return 0, err
 		}
+
 		return 1, r.client.do(ctx, "POST", "/v1/transactions/"+created.ID+"/post", nil, false, nil)
 	}
 }
@@ -101,6 +104,7 @@ func (r *run) hold() step {
 		if err := r.client.do(ctx, "POST", "/v1/holds", body, true, &created); err != nil {
 			return 0, err
 		}
+
 		capture := map[string]any{"destination_account_id": to, "amount": amount}
 		return 1, r.client.do(ctx, "POST", "/v1/holds/"+created.ID+"/capture", capture, true, nil)
 	}
@@ -117,5 +121,6 @@ func scenarioStep(r *run) (step, error) {
 	if !ok {
 		return nil, fmt.Errorf("bench: unknown scenario %q; choose one of %v", r.cfg.Scenario, Scenarios())
 	}
+
 	return build(r), nil
 }

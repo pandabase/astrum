@@ -37,6 +37,7 @@ func TestMonitorsEdgeConditionHolds(t *testing.T) {
 				} else if delta < 0 {
 					cmp = -1
 				}
+
 				t.Run(fmt.Sprintf("%s %s value%+d", field, op, -delta), func(t *testing.T) {
 					if got := c.holds(balances); got != want(cmp) {
 						t.Fatalf("holds() = %v, want %v", got, want(cmp))
@@ -99,9 +100,11 @@ func TestMonitorsEdgeCrossedFiresOnEntryOnly(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if (len(fired) == 1) != tt.fired {
 				t.Fatalf("fired = %+v, want fired=%v", fired, tt.fired)
 			}
+
 			if tt.fired && (!fired[0].Triggered || balances[0].Posted.Amount != amt(tt.after)) {
 				t.Fatalf("fired monitor = %+v with balances %+v", fired[0], balances[0])
 			}

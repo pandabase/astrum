@@ -37,6 +37,7 @@ func start(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pool := testdb.New(t, map[string]fs.FS{
 		probeAuth.Name():   probeAuth.Migrations(),
 		probeIdem.Name():   probeIdem.Migrations(),
@@ -51,6 +52,7 @@ func start(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = m.Run(ctx) })
@@ -70,6 +72,7 @@ func start(t *testing.T) server {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return token
 	}
 	return server{url: srv.URL, writer: key(auth.RoleWrite), reader: key(auth.RoleRead)}
@@ -103,19 +106,24 @@ func TestScenarios(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if report.Operations != 30 || report.Succeeded != 30 || report.Failed != 0 || len(report.Errors) != 0 {
 				t.Fatalf("report = %+v", report)
 			}
+
 			if report.Transactions != tt.transactions {
 				t.Fatalf("transactions = %d, want %d", report.Transactions, tt.transactions)
 			}
+
 			if !strings.HasPrefix(report.LedgerID, "ldg_") || report.OperationsPerSecond <= 0 {
 				t.Fatalf("report = %+v", report)
 			}
+
 			l := report.Latency
 			if l.P50 <= 0 || l.P50 > l.P90 || l.P90 > l.P99 || l.P99 > l.P999 || l.P999 > l.Max {
 				t.Fatalf("latency = %+v", l)
 			}
+
 			if report.Integrity == nil || !report.Integrity.OK {
 				t.Fatalf("integrity = %+v", report.Integrity)
 			}
@@ -145,12 +153,15 @@ func TestDurationAndRate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if report.Elapsed < 2*time.Second || report.Elapsed > 4*time.Second {
 		t.Fatalf("elapsed = %s", report.Elapsed)
 	}
+
 	if report.Operations < 25 || report.Operations > 45 {
 		t.Fatalf("operations at 20/s for 2s = %d", report.Operations)
 	}
+
 	if ticks.Load() < 1 {
 		t.Fatal("progress was never reported")
 	}
@@ -200,6 +211,7 @@ func TestFailuresAreCountedByCode(t *testing.T) {
 				w.Write([]byte(`{"code":"insufficient_funds","detail":"not enough"}`))
 				return
 			}
+
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"id":"txn_1"}`))
 		default:
@@ -215,6 +227,7 @@ func TestFailuresAreCountedByCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if report.Succeeded != 5 || report.Failed != 5 || report.Errors["insufficient_funds"] != 5 || report.Transactions != 5 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -223,6 +236,7 @@ func TestFailuresAreCountedByCode(t *testing.T) {
 	if err := bench.WriteText(&text, report); err != nil {
 		t.Fatal(err)
 	}
+
 	for _, want := range []string{"scenario    transfer", "5 ok, 5 failed", "insufficient_funds × 5", "seed 7", "p99.9"} {
 		if !strings.Contains(text.String(), want) {
 			t.Errorf("text report lacks %q:\n%s", want, text.String())
@@ -233,10 +247,12 @@ func TestFailuresAreCountedByCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var decoded map[string]any
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatal(err)
 	}
+
 	latency, ok := decoded["latency_ns"].(map[string]any)
 	if !ok || latency["p99"] == nil || decoded["errors"].(map[string]any)["insufficient_funds"] != float64(5) {
 		t.Fatalf("json report = %s", raw)

@@ -44,6 +44,7 @@ func TestServerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated request = %d, want 401", resp.StatusCode)
@@ -53,6 +54,7 @@ func TestServerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	shell, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || string(shell) != "<html>astrum</html>" {
@@ -63,6 +65,7 @@ func TestServerLifecycle(t *testing.T) {
 	if err := runKeys(ctx, cfg, []string{"create", "-name", "e2e"}, &out); err != nil {
 		t.Fatal(err)
 	}
+
 	token := tokenFrom(t, out.String())
 	post := func(t *testing.T, url, key, body string) map[string]any { return postAs(t, token, url, key, body) }
 
@@ -93,6 +96,7 @@ func TestServerLifecycle(t *testing.T) {
 	if report["ok"] != true {
 		t.Fatalf("read key integrity = %v", report)
 	}
+
 	out.Reset()
 	keyID := post(t, base+"/v1/api_keys", "", `{"name":"temp","role":"write"}`)["id"].(string)
 	if err := runKeys(ctx, cfg, []string{"revoke", "-id", keyID}, &out); err != nil || !strings.Contains(out.String(), keyID) {
@@ -116,6 +120,7 @@ func freeAddr(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer l.Close()
 	return l.Addr().String()
 }
@@ -129,6 +134,7 @@ func waitHealthy(t *testing.T, base string, done <-chan error) {
 			t.Fatalf("server exited during startup: %v", err)
 		default:
 		}
+
 		resp, err := http.Get(base + "/healthz")
 		if err == nil {
 			resp.Body.Close()
@@ -136,8 +142,10 @@ func waitHealthy(t *testing.T, base string, done <-chan error) {
 				return
 			}
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	t.Fatal("server never became healthy")
 }
 
@@ -148,6 +156,7 @@ func tokenFrom(t *testing.T, text string) string {
 			return field
 		}
 	}
+
 	t.Fatalf("no key in %q", text)
 	return ""
 }
@@ -158,22 +167,27 @@ func postAs(t *testing.T, token, url, idempotencyKey, body string) map[string]an
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
 	if idempotencyKey != "" {
 		req.Header.Set("Idempotency-Key", idempotencyKey)
 	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	var out map[string]any
 	if err := json.UnmarshalRead(resp.Body, &out); err != nil {
 		t.Fatal(err)
 	}
+
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST %s = %d %v", url, resp.StatusCode, out)
 	}
+
 	return out
 }
 
@@ -183,11 +197,13 @@ func getJSON(t *testing.T, token, url string, out any) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	if err := json.UnmarshalRead(resp.Body, out); err != nil {
 		t.Fatal(err)

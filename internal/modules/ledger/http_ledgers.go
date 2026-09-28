@@ -18,6 +18,7 @@ func (h *handler) createLedger(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+
 	l, err := h.svc.createLedger(r.Context(), CreateLedgerInput{Name: in.Name, Description: in.Description, Metadata: in.Metadata})
 	respond(w, r, http.StatusCreated, l, toLedger, err)
 }
@@ -27,10 +28,12 @@ func (h *handler) listLedgers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	metadata, ok := queryMetadata(w, r)
 	if !ok {
 		return
 	}
+
 	ledgers, err := h.svc.listLedgers(r.Context(), ListLedgersInput{Metadata: metadata, Before: before, Limit: limit + 1})
 	respondList(w, r, ledgers, limit, toLedger, func(l Ledger) string { return encodeUUIDCursor(l.ID) }, err)
 }
@@ -50,6 +53,7 @@ func (h *handler) closePeriod(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
+
 		var closedBefore *time.Time
 		switch {
 		case len(in.ClosedBefore) == 0:
@@ -62,6 +66,7 @@ func (h *handler) closePeriod(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+
 		l, err := h.svc.closePeriod(r.Context(), id, closedBefore)
 		respond(w, r, http.StatusOK, l, toLedger, err)
 	})
@@ -73,6 +78,7 @@ func (h *handler) updateLedger(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
+
 		l, err := h.svc.updateLedger(r.Context(), id, in)
 		respond(w, r, http.StatusOK, l, toLedger, err)
 	})
@@ -83,10 +89,12 @@ func (h *handler) createCurrency(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+
 	if in.Exponent == nil {
 		writeError(w, r, fmt.Errorf("%w: exponent is required", ErrInvalid))
 		return
 	}
+
 	c, err := h.svc.createCurrency(r.Context(), CreateCurrencyInput{Code: in.Code, Exponent: *in.Exponent})
 	respond(w, r, http.StatusCreated, c, toCurrency, err)
 }
@@ -99,6 +107,7 @@ func (h *handler) listCurrencies(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	currencies, err := h.svc.listCurrencies(r.Context(), after, limit+1)
 	respondList(w, r, currencies, limit, toCurrency, func(c Currency) string {
 		return base64.RawURLEncoding.EncodeToString([]byte(c.Code))

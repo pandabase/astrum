@@ -28,12 +28,15 @@ func feAwaitSettledSnapshot(t *testing.T, e *env) {
 			FROM ledger_transactions WHERE status = 'posted'`).Scan(&settled); err != nil {
 			t.Fatal(err)
 		}
+
 		if settled {
 			return
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatal("posted transactions never dropped below the snapshot horizon")
 		}
+
 		time.Sleep(20 * time.Millisecond)
 	}
 }
@@ -45,6 +48,7 @@ func feStatement(t *testing.T, e *env, account uuid.UUID, from, until time.Time)
 	if err != nil {
 		t.Fatalf("CreateStatement() error = %v", err)
 	}
+
 	return st
 }
 
@@ -88,9 +92,11 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("Balances() error = %v, want %v", err, tt.err)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if got.Posted.Amount != amt(tt.posted) || got.Pending.Amount != amt(tt.pending) || got.Available.Amount != amt(tt.posted) {
 				t.Fatalf("posted %s pending %s available %s, want %d %d %d",
 					got.Posted.Amount, got.Pending.Amount, got.Available.Amount, tt.posted, tt.pending, tt.posted)
@@ -105,14 +111,17 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 		for i := 1; i < len(cuts); i++ {
 			ranges = append(ranges, ledger.EffectiveRange{From: new(cuts[i-1]), Until: new(cuts[i])})
 		}
+
 		ranges = append(ranges, ledger.EffectiveRange{From: new(cuts[len(cuts)-1])})
 		for _, r := range ranges {
 			got, err := e.m.Balances(ctx, b.ID, r)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			total, _ = total.Add(got.Posted.Amount)
 		}
+
 		if total != e.get(t, b.ID).Posted.Amount {
 			t.Fatalf("windows sum to %s, account holds %s", total, e.get(t, b.ID).Posted.Amount)
 		}
@@ -125,6 +134,7 @@ func TestHistoryEdgeBalanceWindows(t *testing.T) {
 			t.Fatalf("empty account = %+v, %v", got, err)
 		}
 	})
+
 	_, err := e.m.Balances(ctx, uuid.New(), ledger.EffectiveRange{Until: new(day(1))})
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -149,6 +159,7 @@ func TestHistoryEdgeSubMicrosecondBalanceWindowTruncates(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Balances() error = %v", err)
 		}
+
 		if got.Posted.Amount != amt(tt.want) {
 			t.Fatalf("posted = %s for [%s, %s), want %d", got.Posted.Amount, tt.from.Format(time.RFC3339Nano), tt.until.Format(time.RFC3339Nano), tt.want)
 		}
@@ -175,6 +186,7 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 	if first.EntryCount != 2 || second.EntryCount != 1 {
 		t.Fatalf("entry counts = %d and %d, want 2 and 1", first.EntryCount, second.EntryCount)
 	}
+
 	if first.Ending != second.Starting {
 		t.Fatalf("adjacent statements do not chain: %+v then %+v", first.Ending, second.Starting)
 	}
@@ -184,6 +196,7 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 		if st.EntryCount != 0 || st.Starting != st.Ending {
 			t.Fatalf("empty statement = %+v", st)
 		}
+
 		wantBalance(t, "empty ending", st.Ending, 1_101, 10, 1_091)
 		entries, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{StatementID: st.ID, Limit: 10})
 		if err != nil || len(entries) != 0 {
@@ -217,10 +230,12 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 		if err != nil || again.Ending != first.Ending || again.EntryCount != 2 {
 			t.Fatalf("stored statement changed: %+v, %v", again, err)
 		}
+
 		fresh := feStatement(t, e, b.ID, day(1), day(5))
 		if fresh.EntryCount != 3 || fresh.Ending.Amount != amt(998) {
 			t.Fatalf("fresh statement = %+v", fresh)
 		}
+
 		later := feStatement(t, e, b.ID, day(5), day(10))
 		if later.Starting.Amount != amt(998) || later.EntryCount != 1 {
 			t.Fatalf("following statement = %+v", later)
@@ -233,6 +248,7 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 			if in.Limit == 0 {
 				in.Limit = 100
 			}
+
 			return e.m.ListEntries(ctx, in)
 		}
 		tests := []struct {
@@ -258,9 +274,11 @@ func TestHistoryEdgeStatementBoundaries(t *testing.T) {
 				}
 			})
 		}
+
 		_, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{StatementID: uuid.New(), Limit: 10})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
+
 	e.verify(t)
 }
 
@@ -292,6 +310,7 @@ func TestHistoryEdgeStatementValidation(t *testing.T) {
 			}
 		})
 	}
+
 	_, err := e.m.Statement(ctx, uuid.New())
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -305,6 +324,7 @@ func TestHistoryEdgeListStatements(t *testing.T) {
 	for i := range 3 {
 		as = append(as, feStatement(t, e, a.ID, day(i+1), day(i+2)))
 	}
+
 	bs := feStatement(t, e, b.ID, day(1), day(2))
 
 	ids := func(sts []ledger.Statement) string {
@@ -312,6 +332,7 @@ func TestHistoryEdgeListStatements(t *testing.T) {
 		for i, st := range sts {
 			out[i] = st.ID.String()
 		}
+
 		return strings.Join(out, ",")
 	}
 	want := func(sts ...ledger.Statement) string { return ids(sts) }
@@ -339,6 +360,7 @@ func TestHistoryEdgeListStatements(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListStatements() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && ids(got) != tt.want {
 				t.Fatalf("statements = %s, want %s", ids(got), tt.want)
 			}
@@ -355,18 +377,21 @@ func TestHistoryEdgeAccountEntries(t *testing.T) {
 	for i := range 5 {
 		e.post(t, transfer(fmt.Sprint("ae-", i), src.ID, b.ID, int64(i+1)))
 	}
+
 	e.post(t, pending(transfer("ae-pending", src.ID, b.ID, 50)))
 
 	all, err := e.m.AccountEntries(ctx, b.ID, 0, 1000)
 	if err != nil || len(all) != 5 {
 		t.Fatalf("entries = %d, %v", len(all), err)
 	}
+
 	for i, line := range all {
 		want := int64((i + 1) * (i + 2) / 2)
 		if line.BalanceAfter != amt(want) || line.Amount != amt(int64(i+1)) {
 			t.Fatalf("line %d = %+v, want balance after %d", i, line, want)
 		}
 	}
+
 	credit, err := e.m.AccountEntries(ctx, src.ID, 0, 1)
 	if err != nil || len(credit) != 1 || credit[0].BalanceAfter != amt(1) {
 		t.Fatalf("credit normal lines = %+v, %v", credit, err)
@@ -395,11 +420,13 @@ func TestHistoryEdgeAccountEntries(t *testing.T) {
 			if !errors.Is(err, tt.err) || len(got) != tt.want {
 				t.Fatalf("AccountEntries() = %d, %v; want %d, %v", len(got), err, tt.want, tt.err)
 			}
+
 			if tt.name == "middle" && (got[0].PostingID != all[2].PostingID || got[1].PostingID != all[3].PostingID) {
 				t.Fatalf("middle page = %+v", got)
 			}
 		})
 	}
+
 	_, err = e.m.AccountEntries(ctx, uuid.New(), 0, 10)
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -413,11 +440,13 @@ func TestHistoryEdgeListEntriesBounds(t *testing.T) {
 	for i := range 3 {
 		e.post(t, transfer(fmt.Sprint("le-", i), src.ID, b.ID, 1))
 	}
+
 	filters := func(n int) map[string]string {
 		m := map[string]string{}
 		for i := range n {
 			m[fmt.Sprint("k", i)] = "v"
 		}
+
 		return m
 	}
 	tests := []struct {

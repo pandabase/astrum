@@ -37,12 +37,14 @@ func selectAccountEntries(ctx context.Context, q querier, account Account, after
 			if account.NormalSide == Credit {
 				line.BalanceAfter = line.BalanceAfter.Neg()
 			}
+
 			lines = append(lines, line)
 			return nil
 		})
 	if err != nil {
 		return nil, fmt.Errorf("select account entries: %w", err)
 	}
+
 	return lines, nil
 }
 
@@ -91,12 +93,14 @@ func selectEntries(ctx context.Context, q querier, in ListEntriesInput, postedBe
 	if in.Status != TransactionPosted {
 		query, last = openEntriesSQL, string(in.Status)
 	}
+
 	rows, err := q.Query(ctx, query, in.After, nullUUID(in.AccountID), nullUUID(in.LedgerID), nullUUID(in.TransactionID),
 		nullString(string(in.Side)), metadataFilter(in.Metadata), in.Effective.From, in.Effective.Until, last, in.Limit,
 		nullUUID(in.SettlementID), in.Settled)
 	if err != nil {
 		return nil, fmt.Errorf("select entries: %w", err)
 	}
+
 	entries := []Entry{}
 	var (
 		e                      Entry
@@ -113,6 +117,7 @@ func selectEntries(ctx context.Context, q querier, in ListEntriesInput, postedBe
 	if err != nil {
 		return nil, fmt.Errorf("select entries: %w", err)
 	}
+
 	return entries, nil
 }
 
@@ -166,14 +171,17 @@ func scanStatement(row pgx.Row) (Statement, error) {
 	if err != nil {
 		return Statement{}, err
 	}
+
 	st.Currency = money.Currency(currency)
 	if st.postedBefore, err = strconv.ParseUint(postedBefore, 10, 64); err != nil {
 		return Statement{}, err
 	}
+
 	side := &accountState{normalSide: Side(normalSide)}
 	if st.Starting, err = side.balance(startDebits, startCredits); err != nil {
 		return Statement{}, err
 	}
+
 	st.Ending, err = side.balance(endDebits, endCredits)
 	return st, err
 }
@@ -198,6 +206,7 @@ func queryStatement(ctx context.Context, q querier, id uuid.UUID) (Statement, er
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Statement{}, ErrNotFound
 	}
+
 	return st, err
 }
 
@@ -211,9 +220,11 @@ func selectStatements(ctx context.Context, q querier, in ListStatementsInput) ([
 	if err != nil {
 		return nil, fmt.Errorf("select statements: %w", err)
 	}
+
 	statements, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Statement, error) { return scanStatement(row) })
 	if err != nil {
 		return nil, fmt.Errorf("select statements: %w", err)
 	}
+
 	return statements, nil
 }

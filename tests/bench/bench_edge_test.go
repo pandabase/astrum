@@ -41,25 +41,30 @@ func (f *fakeAPI) serve(t *testing.T) string {
 		if r.Method == http.MethodPost {
 			f.bodies = append(f.bodies, r.URL.Path+" "+string(raw))
 		}
+
 		f.mu.Unlock()
 		switch {
 		case r.URL.Path == "/v1/me":
 			if f.meStatus != 0 {
 				w.WriteHeader(f.meStatus)
 			}
+
 			if f.meBody != "" {
 				io.WriteString(w, f.meBody)
 				return
 			}
+
 			role := f.role
 			if role == "" {
 				role = "write"
 			}
+
 			fmt.Fprintf(w, `{"role":%q}`, role)
 		case r.URL.Path == "/v1/ledgers":
 			if f.ledger != nil && f.ledger(w) {
 				return
 			}
+
 			w.WriteHeader(http.StatusCreated)
 			io.WriteString(w, `{"id":"ldg_fake"}`)
 		case r.URL.Path == "/v1/accounts":
@@ -67,6 +72,7 @@ func (f *fakeAPI) serve(t *testing.T) string {
 			if f.account != nil && f.account(n, w) {
 				return
 			}
+
 			var body struct {
 				Code string `json:"code"`
 			}
@@ -78,20 +84,24 @@ func (f *fakeAPI) serve(t *testing.T) string {
 				io.WriteString(w, `{"ok":true,"issues":[]}`)
 				return
 			}
+
 			if strings.HasPrefix(f.integrity, "5") {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+
 			io.WriteString(w, f.integrity)
 		default:
 			n := f.txns.Add(1)
 			if f.txn != nil && f.txn(n, w, r) {
 				return
 			}
+
 			if r.Method == http.MethodGet {
 				io.WriteString(w, `{"id":"acct_x"}`)
 				return
 			}
+
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintf(w, `{"id":"obj_%d"}`, n)
 		}
@@ -133,6 +143,7 @@ func TestEdgeRunSetupFailures(t *testing.T) {
 				io.WriteString(w, `{"code":"duplicate_code"}`)
 				return true
 			}
+
 			return false
 		}}, "duplicate_code"},
 	}
@@ -142,9 +153,11 @@ func TestEdgeRunSetupFailures(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("Run() = %v, want %q", err, tt.want)
 			}
+
 			if report.Operations != 0 || report.LedgerID != "" {
 				t.Fatalf("setup failure returned a report: %+v", report)
 			}
+
 			for _, r := range tt.api.seen() {
 				if strings.HasPrefix(r, "POST /v1/transactions") {
 					t.Fatalf("operations ran after setup failed: %v", tt.api.seen())
@@ -174,14 +187,17 @@ func TestEdgeRunSetupRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if api.accounts.Load() != 20 || report.LedgerID != "ldg_fake" || report.Accounts != 20 {
 		t.Fatalf("accounts created = %d, report = %+v", api.accounts.Load(), report)
 	}
+
 	for _, r := range api.seen() {
 		if strings.Contains(r, "//") {
 			t.Fatalf("request path %q kept the trailing slash", r)
 		}
 	}
+
 	codes := map[string]bool{}
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -203,12 +219,15 @@ func TestEdgeRunSetupRequests(t *testing.T) {
 			if err := json.Unmarshal([]byte(body), &a); err != nil {
 				t.Fatal(err)
 			}
+
 			if a.LedgerID != "ldg_fake" || a.Currency != "EUR" || a.NormalSide != "debit" || !a.AllowNegative {
 				t.Fatalf("account body = %s", body)
 			}
+
 			codes[a.Code] = true
 		}
 	}
+
 	for i := range 20 {
 		if !codes[fmt.Sprintf("bench-%d", i)] {
 			t.Fatalf("account codes = %v, missing bench-%d", codes, i)
@@ -240,16 +259,20 @@ func TestEdgeRunScenarioRequests(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if report.Transactions != tt.txns || report.Succeeded != 1 {
 				t.Fatalf("report = %+v", report)
 			}
+
 			wantBatch := 0
 			if tt.scenario == "batch" {
 				wantBatch = 7
 			}
+
 			if report.BatchSize != wantBatch {
 				t.Fatalf("BatchSize = %d, want %d", report.BatchSize, wantBatch)
 			}
+
 			seen := api.seen()
 			ops := seen[len(seen)-len(tt.paths):]
 			for i, p := range tt.paths {
@@ -257,6 +280,7 @@ func TestEdgeRunScenarioRequests(t *testing.T) {
 					t.Fatalf("requests = %v, want %v", ops, tt.paths)
 				}
 			}
+
 			if tt.scenario == "batch" {
 				api.mu.Lock()
 				last := api.bodies[len(api.bodies)-1]
@@ -272,6 +296,7 @@ func TestEdgeRunScenarioRequests(t *testing.T) {
 				if err := json.Unmarshal([]byte(strings.TrimPrefix(last, "/v1/transactions/batch ")), &b); err != nil {
 					t.Fatal(err)
 				}
+
 				if !b.Atomic || len(b.Transactions) != 7 {
 					t.Fatalf("batch body = %s", last)
 				}
@@ -300,6 +325,7 @@ func TestEdgeRunTwoStepFailures(t *testing.T) {
 					fmt.Fprintf(w, `{"code":%q}`, tt.code)
 					return true
 				}
+
 				return false
 			}}
 			cfg := fakeConfig(api.serve(t))
@@ -309,9 +335,11 @@ func TestEdgeRunTwoStepFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if report.Operations != 1 || report.Failed != 1 || report.Transactions != 0 || report.Errors[tt.code] != 1 {
 				t.Fatalf("report = %+v", report)
 			}
+
 			if tt.failOn == 1 && api.txns.Load() != 1 {
 				t.Fatalf("second step ran after the first failed: %v", api.seen())
 			}
@@ -326,12 +354,14 @@ func TestEdgeRunTransportErrors(t *testing.T) {
 		if err == nil {
 			conn.Close()
 		}
+
 		return true
 	}}
 	report, err := bench.Run(context.Background(), fakeConfig(api.serve(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if report.Operations != 6 || report.Failed != 6 || report.Succeeded != 0 || report.Errors["transport"] != 6 || len(report.Errors) != 1 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -345,6 +375,7 @@ func TestEdgeRunCancelReportsPartialResults(t *testing.T) {
 		if n == 4 {
 			cancel()
 		}
+
 		return false
 	}}
 	cfg := fakeConfig(api.serve(t))
@@ -353,9 +384,11 @@ func TestEdgeRunCancelReportsPartialResults(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context.Canceled", err)
 	}
+
 	if report.Operations < 3 || report.Operations > 4 || report.Failed != 0 || report.LedgerID != "ldg_fake" || report.Elapsed <= 0 {
 		t.Fatalf("partial report = %+v", report)
 	}
+
 	if report.Latency.Max <= 0 || report.OperationsPerSecond <= 0 {
 		t.Fatalf("partial report latency = %+v", report)
 	}
@@ -369,6 +402,7 @@ func TestEdgeRunCancelWithVerify(t *testing.T) {
 		if n == 2 {
 			cancel()
 		}
+
 		return false
 	}}
 	cfg := fakeConfig(api.serve(t))
@@ -378,6 +412,7 @@ func TestEdgeRunCancelWithVerify(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "integrity check") {
 		t.Fatalf("Run() error = %v", err)
 	}
+
 	if report.Integrity != nil || report.Operations == 0 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -406,12 +441,15 @@ func TestEdgeRunIntegrity(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Run() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			if tt.wantErr {
 				if !strings.Contains(err.Error(), "integrity check") || report.Operations != 6 {
 					t.Fatalf("error = %v report = %+v; the report must survive a failed check", err, report)
 				}
+
 				return
 			}
+
 			if report.Integrity == nil || report.Integrity.OK != tt.wantOK || len(report.Integrity.Issues) != tt.issues {
 				t.Fatalf("integrity = %+v", report.Integrity)
 			}
@@ -430,6 +468,7 @@ func TestEdgeRunSeedReproducesOperations(t *testing.T) {
 		if err != nil || report.Seed != 1234 {
 			t.Fatalf("Run() = %+v, %v", report, err)
 		}
+
 		api.mu.Lock()
 		defer api.mu.Unlock()
 		var out []string
@@ -438,6 +477,7 @@ func TestEdgeRunSeedReproducesOperations(t *testing.T) {
 				out = append(out, b)
 			}
 		}
+
 		return out
 	}
 	a, b := bodies(), bodies()
@@ -470,6 +510,7 @@ func TestEdgeRunCustomHTTPClient(t *testing.T) {
 	if _, err := bench.Run(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
+
 	if used.Load() != int64(len(api.seen())) || used.Load() == 0 {
 		t.Fatalf("custom client used %d times for %d requests", used.Load(), len(api.seen()))
 	}
@@ -485,16 +526,19 @@ func TestEdgeRunDroppedConnectionRetriedByIdempotencyKey(t *testing.T) {
 		if n != 1 {
 			return false
 		}
+
 		conn, _, err := http.NewResponseController(w).Hijack()
 		if err == nil {
 			conn.Close()
 		}
+
 		return true
 	}}
 	report, err := bench.Run(context.Background(), fakeConfig(api.serve(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if report.Succeeded != 6 || report.Failed != 0 || api.txns.Load() != 7 {
 		t.Fatalf("report = %+v, server saw %d transaction requests", report, api.txns.Load())
 	}

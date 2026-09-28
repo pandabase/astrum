@@ -34,10 +34,12 @@ func setupWith(t testing.TB, cfg ledger.Config) *env {
 	if cfg.SealKey == nil {
 		cfg.SealKey = []byte("test-seal-key-0123456789abcdef-0123456789")
 	}
+
 	probe, err := ledger.New(nil, testdb.Logger(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pool := testdb.New(t, map[string]fs.FS{probe.Name(): probe.Migrations(), "events": events.Migrations()})
 	m, err := ledger.New(pool, testdb.Logger(), cfg)
 	if err != nil {
@@ -56,6 +58,7 @@ func setupWith(t testing.TB, cfg ledger.Config) *env {
 	if e.ledger, err = m.CreateLedger(context.Background(), ledger.CreateLedgerInput{Name: "test"}); err != nil {
 		t.Fatal(err)
 	}
+
 	e.open = e.account(t, "USD", ledger.Credit, func(in *ledger.CreateAccountInput) { in.AllowNegative = true })
 	return e
 }
@@ -66,10 +69,12 @@ func (e *env) account(t testing.TB, currency money.Currency, side ledger.Side, o
 	for _, opt := range opts {
 		opt(&in)
 	}
+
 	acc, err := e.m.CreateAccount(context.Background(), in)
 	if err != nil {
 		t.Fatalf("CreateAccount() error = %v", err)
 	}
+
 	return acc
 }
 
@@ -93,6 +98,7 @@ func (e *env) post(t testing.TB, in ledger.PostInput) ledger.Transaction {
 	if err != nil {
 		t.Fatalf("Post(%s) error = %v", in.IdempotencyKey, err)
 	}
+
 	return txn
 }
 
@@ -102,6 +108,7 @@ func (e *env) get(t testing.TB, id uuid.UUID) ledger.Account {
 	if err != nil {
 		t.Fatalf("Account() error = %v", err)
 	}
+
 	return acc
 }
 
@@ -117,14 +124,17 @@ func (e *env) settle(t testing.TB) {
 	if err := e.pool.QueryRow(ctx, `SELECT pg_current_xact_id()::text`).Scan(&xid); err != nil {
 		t.Fatal(err)
 	}
+
 	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(20 * time.Millisecond) {
 		var done bool
 		if err := e.pool.QueryRow(ctx, `SELECT pg_snapshot_xmin(pg_current_snapshot()) > $1::xid8`, xid).Scan(&done); err != nil {
 			t.Fatal(err)
 		}
+
 		if done {
 			return
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatal("older transactions are still in flight")
 		}
@@ -136,10 +146,12 @@ func (e *env) verify(t testing.TB) {
 	if _, err := e.m.Seal(context.Background()); err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
+
 	report, err := e.m.Verify(context.Background())
 	if err != nil {
 		t.Fatalf("Verify() error = %v", err)
 	}
+
 	if !report.OK {
 		t.Fatalf("ledger integrity violated: %v", report.Issues)
 	}
@@ -180,5 +192,6 @@ func small(t testing.TB, a money.Amount) int64 {
 	if !ok {
 		t.Fatalf("amount %s does not fit in int64", a)
 	}
+
 	return n
 }

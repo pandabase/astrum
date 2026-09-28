@@ -18,6 +18,7 @@ func (s *service) listEntries(ctx context.Context, in ListEntriesInput) ([]Entry
 	if in.Status == "" {
 		in.Status = TransactionPosted
 	}
+
 	if err := validateListEntries(in); err != nil {
 		return nil, op.fail(err)
 	}
@@ -28,9 +29,11 @@ func (s *service) listEntries(ctx context.Context, in ListEntriesInput) ([]Entry
 		if err != nil {
 			return nil, op.fail(err)
 		}
+
 		if in.Status != TransactionPosted || (in.AccountID != uuid.Nil && in.AccountID != st.AccountID) {
 			return []Entry{}, nil
 		}
+
 		in.AccountID = st.AccountID
 		in.Effective = narrow(in.Effective, EffectiveRange{From: &st.From, Until: &st.Until})
 		postedBefore = st.postedBefore
@@ -40,6 +43,7 @@ func (s *service) listEntries(ctx context.Context, in ListEntriesInput) ([]Entry
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	op.debug("entries listed", "count", len(entries))
 	return entries, nil
 }
@@ -48,9 +52,11 @@ func narrow(a, b EffectiveRange) EffectiveRange {
 	if b.From != nil && (a.From == nil || b.From.After(*a.From)) {
 		a.From = b.From
 	}
+
 	if b.Until != nil && (a.Until == nil || b.Until.Before(*a.Until)) {
 		a.Until = b.Until
 	}
+
 	return a
 }
 
@@ -59,10 +65,12 @@ func (r EffectiveRange) truncated() EffectiveRange {
 		from := r.From.Truncate(time.Microsecond)
 		r.From = &from
 	}
+
 	if r.Until != nil {
 		until := r.Until.Truncate(time.Microsecond)
 		r.Until = &until
 	}
+
 	return r
 }
 
@@ -72,6 +80,7 @@ func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange
 	if err := validateRange(r); err != nil {
 		return Balances{}, op.fail(err)
 	}
+
 	r = r.truncated()
 	var b Balances
 	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -79,10 +88,12 @@ func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange
 		if err != nil {
 			return err
 		}
+
 		t, err := selectTotals(ctx, tx, id, r, 0)
 		if err != nil {
 			return err
 		}
+
 		a := accountState{
 			normalSide:     acc.NormalSide,
 			postedDebits:   t.postedDebits,
@@ -96,6 +107,7 @@ func (s *service) balancesAt(ctx context.Context, id uuid.UUID, r EffectiveRange
 	if err != nil {
 		return Balances{}, op.fail(err)
 	}
+
 	return b, nil
 }
 
@@ -113,30 +125,37 @@ func (s *service) createStatement(ctx context.Context, in CreateStatementInput) 
 		if err != nil {
 			return err
 		}
+
 		bound, err := selectSnapshotXmin(ctx, tx)
 		if err != nil {
 			return err
 		}
+
 		opening, err := selectTotals(ctx, tx, acc.ID, EffectiveRange{Until: &in.From}, bound)
 		if err != nil {
 			return err
 		}
+
 		period, err := selectTotals(ctx, tx, acc.ID, EffectiveRange{From: &in.From, Until: &in.Until}, bound)
 		if err != nil {
 			return err
 		}
+
 		endDebits, err := opening.postedDebits.Add(period.postedDebits)
 		if err != nil {
 			return err
 		}
+
 		endCredits, err := opening.postedCredits.Add(period.postedCredits)
 		if err != nil {
 			return err
 		}
+
 		id, err := uuid.NewV7()
 		if err != nil {
 			return err
 		}
+
 		st, err = insertStatement(ctx, tx, Statement{
 			ID:           id,
 			LedgerID:     acc.LedgerID,
@@ -149,11 +168,13 @@ func (s *service) createStatement(ctx context.Context, in CreateStatementInput) 
 			EntryCount:   period.postedCount,
 			postedBefore: bound,
 		})
+
 		return err
 	})
 	if err != nil {
 		return Statement{}, op.fail(err)
 	}
+
 	op.info("statement created",
 		"statement_id", st.ID,
 		"entries", st.EntryCount,
@@ -168,6 +189,7 @@ func (s *service) statement(ctx context.Context, id uuid.UUID) (Statement, error
 	if err != nil {
 		return Statement{}, op.fail(err)
 	}
+
 	return st, nil
 }
 
@@ -177,10 +199,12 @@ func (s *service) listStatements(ctx context.Context, in ListStatementsInput) ([
 	if in.Limit < 1 || in.Limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	statements, err := selectStatements(ctx, s.pool, in)
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return statements, nil
 }
 
@@ -193,9 +217,11 @@ func validateListEntries(in ListEntriesInput) error {
 	case in.Limit < 1 || in.Limit > maxListLimit:
 		return fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit)
 	}
+
 	if err := validateMetadataFilter(in.Metadata); err != nil {
 		return err
 	}
+
 	return validateRange(in.Effective)
 }
 
@@ -203,6 +229,7 @@ func validateRange(r EffectiveRange) error {
 	if r.From != nil && r.Until != nil && !r.Until.After(*r.From) {
 		return fmt.Errorf("%w: effective_at_upper_bound must be after effective_at_lower_bound", ErrInvalid)
 	}
+
 	return nil
 }
 
@@ -210,11 +237,13 @@ func validateMetadataFilter(m map[string]string) error {
 	if len(m) > maxMetadataFilters {
 		return fmt.Errorf("%w: at most %d metadata filters", ErrInvalid, maxMetadataFilters)
 	}
+
 	for k, v := range m {
 		if k == "" || !storableText(k) || !storableText(v) {
 			return fmt.Errorf("%w: metadata filter keys must be non-empty and text must be valid UTF-8 without NUL", ErrInvalid)
 		}
 	}
+
 	return nil
 }
 
@@ -225,8 +254,10 @@ func validateStatement(in CreateStatementInput) error {
 	case in.From.IsZero() || in.Until.IsZero():
 		return fmt.Errorf("%w: effective_at_lower_bound and effective_at_upper_bound are required", ErrInvalid)
 	}
+
 	if err := validateRange(EffectiveRange{From: &in.From, Until: &in.Until}); err != nil {
 		return err
 	}
+
 	return validateText(in.Description, nil)
 }

@@ -58,12 +58,14 @@ func entryHash(t Transaction) []byte {
 			break
 		}
 	}
+
 	writeAmount := func(h hash.Hash, a money.Amount) {
 		if version == sealEncodingV1 {
 			n, _ := a.Int64()
 			_ = binary.Write(h, binary.BigEndian, n)
 			return
 		}
+
 		b, _ := a.AppendBinary(nil)
 		h.Write(b)
 	}
@@ -80,6 +82,7 @@ func entryHash(t Transaction) []byte {
 	} else {
 		h.Write([]byte{0})
 	}
+
 	_ = binary.Write(h, binary.BigEndian, t.CreatedAt.UnixMicro())
 	_ = binary.Write(h, binary.BigEndian, uint32(len(t.Postings)))
 	for _, p := range t.Postings {
@@ -89,6 +92,7 @@ func entryHash(t Transaction) []byte {
 		writeAmount(h, p.Amount)
 		writeAmount(h, p.balanceAfter)
 	}
+
 	return h.Sum(nil)
 }
 
@@ -107,10 +111,12 @@ func entryHashV3(t Transaction) []byte {
 	} else {
 		h.Write([]byte{0})
 	}
+
 	var postedAt int64
 	if t.PostedAt != nil {
 		postedAt = t.PostedAt.UnixMicro()
 	}
+
 	_ = binary.Write(h, binary.BigEndian, []int64{t.CreatedAt.UnixMicro(), t.EffectiveAt.UnixMicro(), postedAt})
 	_ = binary.Write(h, binary.BigEndian, uint32(len(t.Postings)))
 	for _, p := range t.Postings {
@@ -122,6 +128,7 @@ func entryHashV3(t Transaction) []byte {
 		h.Write(amount)
 		h.Write(after)
 	}
+
 	return h.Sum(nil)
 }
 
@@ -129,6 +136,7 @@ func sealedHash(t Transaction, encoding *int16) []byte {
 	if encoding == nil {
 		return entryHash(t)
 	}
+
 	return entryHashV3(t)
 }
 
@@ -174,6 +182,7 @@ func (s *service) seal(ctx context.Context, limit int) (int, chainHead, error) {
 		if head, err = s.loadVerifiedHead(ctx, tx); err != nil {
 			return err
 		}
+
 		if highest := s.sealer.highest.Load(); head.seq < highest {
 			return fmt.Errorf("%w: seq %d, previously %d", errChainRewound, head.seq, highest)
 		}
@@ -182,10 +191,12 @@ func (s *service) seal(ctx context.Context, limit int) (int, chainHead, error) {
 		if err != nil {
 			return err
 		}
+
 		ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
 		if err != nil || len(ids) == 0 {
 			return err
 		}
+
 		txns, err := selectTransactionsInCommitOrder(ctx, tx, ids)
 		if err != nil {
 			return err
@@ -203,18 +214,21 @@ func (s *service) seal(ctx context.Context, limit int) (int, chainHead, error) {
 			head.hash = s.sealer.link(head.hash, head.seq, entry)
 			seqs[i], txnIDs[i], entries[i], chains[i] = head.seq, t.ID, entry, head.hash
 		}
+
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO ledger_seals (seq, transaction_id, entry_hash, chain_hash, encoding)
 			SELECT *, 3 FROM unnest($1::bigint[], $2::uuid[], $3::bytea[], $4::bytea[])`,
 			seqs, txnIDs, entries, chains); err != nil {
 			return err
 		}
+
 		sealed = len(txns)
 		return nil
 	})
 	if err == nil {
 		s.sealer.highest.Store(max(s.sealer.highest.Load(), head.seq))
 	}
+
 	return sealed, head, err
 }
 
@@ -230,12 +244,15 @@ func (s *service) loadVerifiedHead(ctx context.Context, q querier) (chainHead, e
 	if errors.Is(err, pgx.ErrNoRows) {
 		return chainHead{seq: genesisSequence, hash: make([]byte, sha256.Size)}, nil
 	}
+
 	if err != nil {
 		return chainHead{}, err
 	}
+
 	if !hmac.Equal(s.sealer.link(prev, head.seq, entry), head.hash) {
 		return chainHead{}, fmt.Errorf("%w at seq %d", errSealKeyMismatch, head.seq)
 	}
+
 	return head, nil
 }
 
@@ -246,10 +263,12 @@ func selectTransactionsInCommitOrder(ctx context.Context, q querier, ids []uuid.
 	if err != nil {
 		return nil, fmt.Errorf("select transactions: %w", err)
 	}
+
 	txns, err := scanTransactions(rows)
 	if err != nil {
 		return nil, fmt.Errorf("select transactions: %w", err)
 	}
+
 	return txns, nil
 }
 
@@ -269,6 +288,7 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 		if err != nil {
 			return nil, chainHead{}, err
 		}
+
 		type sealRow struct {
 			seq      int64
 			txnID    uuid.UUID
@@ -284,6 +304,7 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 		}); err != nil {
 			return nil, chainHead{}, err
 		}
+
 		if len(page) == 0 {
 			break
 		}
@@ -292,10 +313,12 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 		for i, p := range page {
 			ids[i] = p.txnID
 		}
+
 		txns, err := selectTransactionsInCommitOrder(ctx, tx, ids)
 		if err != nil {
 			return nil, chainHead{}, err
 		}
+
 		byID := make(map[uuid.UUID]Transaction, len(txns))
 		for _, t := range txns {
 			byID[t.ID] = t
@@ -305,6 +328,7 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 			if p.seq != next {
 				issues = append(issues, fmt.Sprintf("seal chain: expected seq %d, found %d", next, p.seq))
 			}
+
 			t, ok := byID[p.txnID]
 			switch {
 			case !ok:
@@ -312,9 +336,11 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 			case !hmac.Equal(sealedHash(t, p.encoding), p.entry):
 				issues = append(issues, fmt.Sprintf("seal %d: transaction %s content was altered", p.seq, p.txnID))
 			}
+
 			if want := s.sealer.link(prev, p.seq, p.entry); !hmac.Equal(want, p.chain) {
 				issues = append(issues, fmt.Sprintf("seal %d: chain hash does not verify", p.seq))
 			}
+
 			prev, next = p.chain, p.seq+1
 		}
 	}
@@ -343,10 +369,12 @@ func (s *service) verifyChain(ctx context.Context, tx pgx.Tx) ([]string, chainHe
 	if err != nil {
 		return nil, chainHead{}, err
 	}
+
 	unsealed, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {
 		return nil, chainHead{}, err
 	}
+
 	return append(issues, unsealed...), chainHead{seq: next - 1, hash: prev}, nil
 }
 

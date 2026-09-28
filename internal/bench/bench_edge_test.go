@@ -24,6 +24,7 @@ func durations(ns ...int64) []time.Duration {
 	for i, n := range ns {
 		out[i] = time.Duration(n)
 	}
+
 	return out
 }
 
@@ -32,6 +33,7 @@ func series(n int) []time.Duration {
 	for i := range out {
 		out[i] = time.Duration(i + 1)
 	}
+
 	return out
 }
 
@@ -91,6 +93,7 @@ func TestSummarizeEdge(t *testing.T) {
 			if got := summarize(tt.in); got != tt.want {
 				t.Fatalf("summarize() = %+v, want %+v", got, tt.want)
 			}
+
 			if !slices.Equal(before, tt.in) {
 				t.Fatalf("summarize mutated its input: %v, was %v", tt.in, before)
 			}
@@ -117,18 +120,22 @@ func TestRecorderBucketsErrors(t *testing.T) {
 	if rec.operations.Load() != 6 || rec.succeeded.Load() != 1 || rec.failed.Load() != 5 {
 		t.Fatalf("counts = %d/%d/%d", rec.operations.Load(), rec.succeeded.Load(), rec.failed.Load())
 	}
+
 	if rec.transactions.Load() != 3 {
 		t.Fatalf("transactions = %d, want only successful ones counted", rec.transactions.Load())
 	}
+
 	want := map[string]int64{"insufficient_funds": 1, "conflict": 1, "transport": 2, "": 1}
 	if len(rec.errors) != len(want) {
 		t.Fatalf("errors = %v, want %v", rec.errors, want)
 	}
+
 	for k, v := range want {
 		if rec.errors[k] != v {
 			t.Fatalf("errors = %v, want %v", rec.errors, want)
 		}
 	}
+
 	if !slices.Equal(rec.latencies, durations(1, 2, 3, 4, 5, 6)) {
 		t.Fatalf("latencies = %v", rec.latencies)
 	}
@@ -146,14 +153,17 @@ func TestRecorderConcurrentMerge(t *testing.T) {
 				if i%4 == 0 {
 					err = &apiError{Code: fmt.Sprintf("code_%d", w%2)}
 				}
+
 				rec.record(s, time.Duration(i), 1, err)
 			}
 		})
 	}
+
 	wg.Wait()
 	if len(rec.latencies) != 800 || rec.operations.Load() != 800 || rec.failed.Load() != 200 {
 		t.Fatalf("latencies=%d operations=%d failed=%d", len(rec.latencies), rec.operations.Load(), rec.failed.Load())
 	}
+
 	if rec.errors["code_0"] != 100 || rec.errors["code_1"] != 100 {
 		t.Fatalf("errors = %v", rec.errors)
 	}
@@ -216,6 +226,7 @@ func TestNormalizeEdge(t *testing.T) {
 			case tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)):
 				t.Fatalf("normalize() = %v, want %q", err, tt.wantErr)
 			}
+
 			if tt.check != nil {
 				tt.check(t, cfg)
 			}
@@ -228,15 +239,18 @@ func TestScenarioList(t *testing.T) {
 	if len(names) != len(scenarios) {
 		t.Fatalf("Scenarios() = %v, registry has %d", names, len(scenarios))
 	}
+
 	for _, name := range names {
 		if _, ok := scenarios[name]; !ok {
 			t.Fatalf("Scenarios() lists unregistered %q", name)
 		}
 	}
+
 	names[0] = "mutated"
 	if Scenarios()[0] != "transfer" {
 		t.Fatal("Scenarios() shares its backing array")
 	}
+
 	if _, err := scenarioStep(&run{cfg: Config{Scenario: "nope"}}); err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("scenarioStep(nope) = %v", err)
 	}
@@ -249,6 +263,7 @@ func TestPairNeverSelf(t *testing.T) {
 			for i := range r.accounts {
 				r.accounts[i] = fmt.Sprint(i)
 			}
+
 			rng := rand.New(rand.NewPCG(1, 2))
 			seen := map[[2]string]bool{}
 			for range 5000 {
@@ -256,8 +271,10 @@ func TestPairNeverSelf(t *testing.T) {
 				if from == to {
 					t.Fatalf("pair returned %s twice", from)
 				}
+
 				seen[[2]string{from, to}] = true
 			}
+
 			if len(seen) != n*(n-1) {
 				t.Fatalf("pairs covered = %d, want %d", len(seen), n*(n-1))
 			}
@@ -274,8 +291,10 @@ func TestAmountRange(t *testing.T) {
 		if _, err := fmt.Sscan(r.amount(rng), &n); err != nil {
 			t.Fatal(err)
 		}
+
 		lo, hi = min(lo, n), max(hi, n)
 	}
+
 	if lo != 1 || hi != 10000 {
 		t.Fatalf("amount range = [%d, %d], want [1, 10000]", lo, hi)
 	}
@@ -290,6 +309,7 @@ func TestSeedIsDeterministic(t *testing.T) {
 			body := r.transferBody(rng, "")
 			out = append(out, body.Entries[0].AccountID+body.Entries[1].AccountID+body.Entries[0].Amount)
 		}
+
 		return out
 	}
 	if !slices.Equal(draw(), draw()) {
@@ -304,14 +324,17 @@ func TestTransferBodyBalances(t *testing.T) {
 	if body.Status != "pending" || len(body.Entries) != 2 {
 		t.Fatalf("body = %+v", body)
 	}
+
 	d, c := body.Entries[0], body.Entries[1]
 	if d.Side != "debit" || c.Side != "credit" || d.Amount != c.Amount || d.AccountID == c.AccountID {
 		t.Fatalf("entries = %+v", body.Entries)
 	}
+
 	raw, err := json.Marshal(r.transferBody(rng, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Contains(string(raw), "status") {
 		t.Fatalf("empty status was encoded: %s", raw)
 	}
@@ -324,6 +347,7 @@ func TestScheduleEdge(t *testing.T) {
 			t.Fatal("schedule for rate 0 is not nil")
 		}
 	})
+
 	t.Run("ticks are exact multiples of the interval", func(t *testing.T) {
 		ctx := t.Context()
 		r := &run{cfg: Config{Rate: 2000, Concurrency: 4}}
@@ -336,6 +360,7 @@ func TestScheduleEdge(t *testing.T) {
 			}
 		}
 	})
+
 	t.Run("rate above one per nanosecond has zero interval", func(t *testing.T) {
 		ctx := t.Context()
 		r := &run{cfg: Config{Rate: 1e10, Concurrency: 1}}
@@ -347,6 +372,7 @@ func TestScheduleEdge(t *testing.T) {
 			}
 		}
 	})
+
 	t.Run("canceled context stops ticks", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		r := &run{cfg: Config{Rate: 0.001, Concurrency: 1}}
@@ -376,6 +402,7 @@ func TestDriveOperationsLimit(t *testing.T) {
 			if calls.Load() != tt.ops || rec.operations.Load() != tt.ops || rec.transactions.Load() != 2*tt.ops {
 				t.Fatalf("calls=%d operations=%d transactions=%d, want %d", calls.Load(), rec.operations.Load(), rec.transactions.Load(), tt.ops)
 			}
+
 			if int64(len(rec.latencies)) != tt.ops {
 				t.Fatalf("latencies = %d", len(rec.latencies))
 			}
@@ -396,6 +423,7 @@ func TestDriveDuration(t *testing.T) {
 	if elapsed < 60*time.Millisecond {
 		t.Fatalf("elapsed = %s, want at least the duration", elapsed)
 	}
+
 	if rec.operations.Load() == 0 || rec.failed.Load() != 0 {
 		t.Fatalf("operations=%d failed=%d; operations cut off by the deadline must not count as failures", rec.operations.Load(), rec.failed.Load())
 	}
@@ -411,11 +439,13 @@ func TestDriveCancellationKeepsCompleted(t *testing.T) {
 			cancel()
 			return 0, ctx.Err()
 		}
+
 		return 1, nil
 	})
 	if rec.operations.Load() != 4 || rec.succeeded.Load() != 4 || rec.failed.Load() != 0 {
 		t.Fatalf("operations=%d succeeded=%d failed=%d, want the 4 completed before cancel", rec.operations.Load(), rec.succeeded.Load(), rec.failed.Load())
 	}
+
 	if calls.Load() != 5 {
 		t.Fatalf("calls after cancel = %d, want 5", calls.Load())
 	}
@@ -457,10 +487,12 @@ func TestDriveFixedRateAccountsForCoordinatedOmission(t *testing.T) {
 		time.Sleep(work)
 		return 1, nil
 	})
+
 	l := summarize(rec.latencies)
 	if l.Max < 5*work {
 		t.Fatalf("max latency = %s; queueing behind slow operations must count from the scheduled time (want >= %s)", l.Max, 5*work)
 	}
+
 	if l.Mean < 3*work {
 		t.Fatalf("mean latency = %s, want >= %s", l.Mean, 3*work)
 	}
@@ -485,6 +517,7 @@ func TestDriveWorkersGetDistinctStreams(t *testing.T) {
 		mu.Unlock()
 		return 1, nil
 	})
+
 	for v, n := range draws {
 		if n > 1 {
 			t.Fatalf("value %d drawn %d times; workers share a random stream", v, n)
@@ -545,10 +578,12 @@ func TestClientDo(t *testing.T) {
 		if !ok || apiErr.Status != 409 || apiErr.Code != "version_conflict" || apiErr.Detail != "stale" {
 			t.Fatalf("err = %#v", err)
 		}
+
 		if err.Error() != "409 version_conflict: stale" {
 			t.Fatalf("Error() = %q", err.Error())
 		}
 	})
+
 	statusCodes := []struct {
 		path string
 		code string
@@ -568,37 +603,44 @@ func TestClientDo(t *testing.T) {
 			}
 		})
 	}
+
 	t.Run("2xx edge is success", func(t *testing.T) {
 		var out resource
 		if err := c.do(ctx, "GET", "/edge", nil, false, &out); err != nil || out.ID != "x" {
 			t.Fatalf("do = %v, %+v", err, out)
 		}
 	})
+
 	t.Run("undecodable success body", func(t *testing.T) {
 		var out resource
 		if err := c.do(ctx, "GET", "/garbage", nil, false, &out); err == nil {
 			t.Fatal("garbage body decoded without error")
 		}
+
 		if err := c.do(ctx, "GET", "/garbage", nil, false, nil); err != nil {
 			t.Fatalf("body is read even when discarded: %v", err)
 		}
 	})
+
 	t.Run("empty body into out", func(t *testing.T) {
 		var out resource
 		if err := c.do(ctx, "GET", "/empty", nil, false, &out); err == nil {
 			t.Fatal("empty 204 body decoded into a struct without error")
 		}
 	})
+
 	t.Run("unencodable body", func(t *testing.T) {
 		if err := c.do(ctx, "POST", "/ok", map[string]any{"c": make(chan int)}, false, nil); err == nil {
 			t.Fatal("unencodable body accepted")
 		}
 	})
+
 	t.Run("bad method", func(t *testing.T) {
 		if err := c.do(ctx, "BAD METHOD", "/ok", nil, false, nil); err == nil {
 			t.Fatal("invalid method accepted")
 		}
 	})
+
 	t.Run("headers", func(t *testing.T) {
 		mu.Lock()
 		headers, bodies = nil, nil
@@ -608,9 +650,11 @@ func TestClientDo(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+
 		if err := c.do(ctx, "GET", "/ok", nil, false, nil); err != nil {
 			t.Fatal(err)
 		}
+
 		mu.Lock()
 		defer mu.Unlock()
 		for i, h := range headers {
@@ -618,17 +662,21 @@ func TestClientDo(t *testing.T) {
 				t.Fatalf("request %d headers = %v", i, h)
 			}
 		}
+
 		a, b := headers[0].Get("Idempotency-Key"), headers[1].Get("Idempotency-Key")
 		if !strings.HasPrefix(a, "bench-") || !strings.HasPrefix(b, "bench-") || a == b {
 			t.Fatalf("idempotency keys = %q, %q; want distinct bench- keys", a, b)
 		}
+
 		if headers[0].Get("Content-Type") != "application/json" || bodies[0] != `{"n":1}` {
 			t.Fatalf("body request = %v %q", headers[0], bodies[0])
 		}
+
 		if headers[2].Get("Idempotency-Key") != "" || headers[2].Get("Content-Type") != "" || bodies[2] != "" {
 			t.Fatalf("GET request = %v %q", headers[2], bodies[2])
 		}
 	})
+
 	t.Run("transport error is not an apiError", func(t *testing.T) {
 		dead := httptest.NewServer(http.NotFoundHandler())
 		dead.Close()
@@ -637,10 +685,12 @@ func TestClientDo(t *testing.T) {
 		if err == nil {
 			t.Fatal("request to closed server succeeded")
 		}
+
 		if _, ok := errors.AsType[*apiError](err); ok {
 			t.Fatalf("transport failure reported as apiError: %v", err)
 		}
 	})
+
 	t.Run("canceled context", func(t *testing.T) {
 		cctx, cancel := context.WithCancel(ctx)
 		cancel()
@@ -676,6 +726,7 @@ func TestReportJSONExact(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if string(raw) != want {
 			t.Fatalf("marshal %d =\n%s\nwant\n%s", i, raw, want)
 		}
@@ -687,14 +738,17 @@ func TestReportJSONZeroValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want := `{"scenario":"","ledger_id":"","concurrency":0,"accounts":0,"seed":0,"elapsed_ns":0,"operations":0,"succeeded":0,"failed":0,"transactions":0,"operations_per_second":0,"transactions_per_second":0,"errors":{},"latency_ns":{"mean":0,"p50":0,"p90":0,"p99":0,"p999":0,"max":0}}`
 	if string(raw) != want {
 		t.Fatalf("zero report =\n%s\nwant\n%s", raw, want)
 	}
+
 	raw, err = json.Marshal(Report{Integrity: &Integrity{OK: true}, Elapsed: -time.Nanosecond})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.Contains(string(raw), `"elapsed_ns":-1`) || !strings.HasSuffix(string(raw), `"integrity":{"ok":true,"issues":[]}}`) {
 		t.Fatalf("report = %s", raw)
 	}
@@ -709,13 +763,16 @@ func TestReportJSONNestedAndIndented(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Count(string(raw), `"elapsed_ns":1000000000`) != 2 || strings.Count(string(raw), `"errors":{"a":1,"b":1}`) != 2 {
 		t.Fatalf("nested = %s", raw)
 	}
+
 	var buf bytes.Buffer
 	if err := json.MarshalWrite(&buf, r, jsontext.WithIndent("  ")); err != nil {
 		t.Fatal(err)
 	}
+
 	if !strings.HasPrefix(buf.String(), "{\n  \"scenario\": \"\",\n") || !strings.Contains(buf.String(), "\n    \"mean\": 0,\n") {
 		t.Fatalf("indented =\n%s", buf.String())
 	}
@@ -734,15 +791,18 @@ func TestReportJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var plain Report
 	if err := json.Unmarshal(raw, &plain); err == nil {
 		t.Fatal("Report now decodes durations by default; update this test to a plain round trip")
 	}
+
 	fromNanos := json.WithUnmarshalers(json.UnmarshalFromFunc(func(dec *jsontext.Decoder, d *time.Duration) error {
 		tok, err := dec.ReadToken()
 		if err != nil {
 			return err
 		}
+
 		n, err := tok.Int()
 		*d = time.Duration(n)
 		return err
@@ -751,10 +811,12 @@ func TestReportJSONRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(raw, &back, fromNanos); err != nil {
 		t.Fatal(err)
 	}
+
 	again, err := json.Marshal(back)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if string(again) != string(raw) || back.Elapsed != r.Elapsed || back.Latency != r.Latency {
 		t.Fatalf("round trip =\n%s\nwant\n%s", again, raw)
 	}
@@ -805,11 +867,13 @@ func TestWriteTextEdge(t *testing.T) {
 			if err := WriteText(&buf, tt.report); err != nil {
 				t.Fatal(err)
 			}
+
 			for _, w := range tt.want {
 				if !strings.Contains(buf.String(), w) {
 					t.Errorf("missing %q in:\n%s", w, buf.String())
 				}
 			}
+
 			for _, w := range tt.notWant {
 				if strings.Contains(buf.String(), w) {
 					t.Errorf("unexpected %q in:\n%s", w, buf.String())

@@ -29,6 +29,7 @@ func peCondition(op string, v money.Amount) *ledger.BalanceCondition {
 	case "lte":
 		c.LTE = &v
 	}
+
 	return c
 }
 
@@ -78,6 +79,7 @@ func TestLocksEdgeOperatorMatrix(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
+
 					lockLeg := peLeg(a.ID, ledger.Debit, 1)
 					view.set(&lockLeg, peCondition(op, bound))
 					in := peLegs(fmt.Sprintf("lock-%s-%s-%s", view.name, op, rel.name), lockLeg, peLeg(a.ID, ledger.Credit, 1))
@@ -86,9 +88,11 @@ func TestLocksEdgeOperatorMatrix(t *testing.T) {
 						wantErr(t, err, ledger.ErrBalanceLock)
 						return
 					}
+
 					if err != nil {
 						t.Fatalf("Post() error = %v", err)
 					}
+
 					accepted++
 					got := txn.Postings[0].Resulting
 					if got == nil || got.Posted.Amount != want[0] || got.Pending.Amount != want[1] || got.Available.Amount != want[2] {
@@ -98,12 +102,15 @@ func TestLocksEdgeOperatorMatrix(t *testing.T) {
 			}
 		}
 	}
+
 	if got := peViews(t, e, a.ID); got != want {
 		t.Fatalf("views = %v after lock matrix, want %v", got, want)
 	}
+
 	if got := e.get(t, a.ID).Version; got != versionBefore+accepted {
 		t.Fatalf("version = %d, want %d (only accepted transactions bump it)", got, versionBefore+accepted)
 	}
+
 	e.verify(t)
 }
 
@@ -214,6 +221,7 @@ func TestLocksEdgeSignsAndCombinations(t *testing.T) {
 		}))
 		e.post(t, in)
 	})
+
 	e.verify(t)
 }
 
@@ -229,6 +237,7 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 		if v := e.get(t, b.ID).Version; v != 0 {
 			t.Fatalf("version = %d", v)
 		}
+
 		e.post(t, locked(transfer("v-fresh", a.ID, b.ID, 1), b.ID, at(0)))
 		if v := e.get(t, b.ID).Version; v != 1 {
 			t.Fatalf("version after one transaction = %d, want 1", v)
@@ -258,9 +267,11 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 		if v := e.get(t, a.ID).Version; v != start+1 {
 			t.Fatalf("version after pending = %d, want %d", v, start+1)
 		}
+
 		if _, err := e.m.ArchiveTransaction(ctx, txn.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := e.m.Post(ctx, locked(transfer("v-stale-archive", a.ID, b.ID, 1), a.ID, at(start+1)))
 		wantErr(t, err, ledger.ErrLockVersion)
 		e.post(t, locked(transfer("v-current-archive", a.ID, b.ID, 1), a.ID, at(start+2)))
@@ -271,10 +282,12 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 		same := peLegs("v-repeat",
 			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: new(current)},
 			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: new(current)})
+
 		e.post(t, same)
 		split := peLegs("v-repeat-split",
 			ledger.Posting{AccountID: a.ID, Side: ledger.Debit, Amount: amt(1), LockVersion: new(current + 1)},
 			ledger.Posting{AccountID: a.ID, Side: ledger.Credit, Amount: amt(1), LockVersion: new(current + 2)})
+
 		_, err := e.m.Post(ctx, split)
 		wantErr(t, err, ledger.ErrLockVersion)
 	})
@@ -290,6 +303,7 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 				_, errs[i] = e.m.Post(ctx, locked(transfer(fmt.Sprintf("v-race-%d", i), a.ID, b.ID, 1), a.ID, at(current)))
 			})
 		}
+
 		wg.Wait()
 		won := 0
 		for _, err := range errs {
@@ -300,13 +314,16 @@ func TestLocksEdgeLockVersion(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		}
+
 		if won != 1 {
 			t.Fatalf("won %d, want exactly 1", won)
 		}
+
 		if got := e.balance(t, b.ID); got != beforeTotal+1 {
 			t.Fatalf("b = %d, want %d", got, beforeTotal+1)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -333,9 +350,11 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		if afterA.Posted != beforeA.Posted || afterA.Pending != beforeA.Pending || afterA.Available != beforeA.Available || afterA.Version != beforeA.Version {
 			t.Fatalf("a changed: %+v -> %+v", beforeA, afterA)
 		}
+
 		if afterB.Posted != beforeB.Posted || afterB.Pending != beforeB.Pending || afterB.Version != beforeB.Version {
 			t.Fatalf("b changed: %+v -> %+v", beforeB, afterB)
 		}
+
 		lines, err := e.m.AccountEntries(ctx, b.ID, 0, 10)
 		if err != nil || len(lines) != 0 {
 			t.Fatalf("b statement = %+v, %v", lines, err)
@@ -347,6 +366,7 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		if err != nil || again.Status != ledger.TransactionArchived || again.Version != archived.Version {
 			t.Fatalf("re-archive = %+v, %v", again, err)
 		}
+
 		_, err = e.m.PostTransaction(ctx, archived.ID, ledger.PostPendingInput{})
 		wantErr(t, err, ledger.ErrNotPending)
 		_, err = e.m.UpdateTransaction(ctx, archived.ID, ledger.UpdateTransactionInput{Description: new("x")})
@@ -369,6 +389,7 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		if txn.Status != ledger.TransactionArchived {
 			t.Fatalf("status = %s", txn.Status)
 		}
+
 		if acc := e.get(t, a.ID); acc.Available.Amount != amt(100) || acc.Pending.Amount != amt(100) {
 			t.Fatalf("a = %+v", acc)
 		}
@@ -379,6 +400,7 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 		if err != nil || results[0].Err != nil || results[1].Err != nil {
 			t.Fatalf("batch = %+v, %v", results, err)
 		}
+
 		if results[0].Transaction.Status != ledger.TransactionArchived || results[1].Transaction.Status != ledger.TransactionPosted {
 			t.Fatalf("statuses = %s, %s", results[0].Transaction.Status, results[1].Transaction.Status)
 		}
@@ -398,10 +420,12 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	foreign := e.accountIn(t, other.ID)
 	lockFails := &ledger.BalanceCondition{GTE: bound(1_000)}
 
@@ -438,17 +462,21 @@ func TestLocksEdgeArchiveOnFailure(t *testing.T) {
 			if err != nil {
 				t.Fatalf("PostBatch() error = %v, want per-entry results", err)
 			}
+
 			if results[0].Err != nil {
 				t.Errorf("sibling error = %v", results[0].Err)
 			}
+
 			if !errors.Is(results[1].Err, tt.want) {
 				t.Errorf("entry error = %v, want %v", results[1].Err, tt.want)
 			}
+
 			if results[1].Transaction != nil && results[1].Transaction.Status == ledger.TransactionArchived {
 				t.Errorf("invalid transaction was archived instead of rejected")
 			}
 		})
 	}
+
 	e.verify(t)
 }
 

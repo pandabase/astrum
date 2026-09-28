@@ -17,6 +17,7 @@ func asAttacker(t *testing.T, e *env, sql string, args ...any) {
 		if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 			return err
 		}
+
 		_, err := tx.Exec(ctx, sql, args...)
 		return err
 	})
@@ -24,6 +25,7 @@ func asAttacker(t *testing.T, e *env, sql string, args ...any) {
 		if strings.Contains(err.Error(), "permission denied") {
 			t.Skip("tamper tests need a superuser connection")
 		}
+
 		t.Fatalf("tamper: %v", err)
 	}
 }
@@ -34,6 +36,7 @@ func verifyIssues(t *testing.T, e *env) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return report.Issues
 }
 
@@ -44,6 +47,7 @@ func requireIssue(t *testing.T, issues []string, fragment string) {
 			return
 		}
 	}
+
 	t.Fatalf("expected an issue containing %q, got %v", fragment, issues)
 }
 
@@ -66,9 +70,11 @@ func TestSealChainIsComplete(t *testing.T) {
 	if err := e.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM ledger_transactions), (SELECT count(*) FROM ledger_seals)`).Scan(&txns, &seals); err != nil {
 		t.Fatal(err)
 	}
+
 	if txns != seals {
 		t.Fatalf("transactions = %d, seals = %d", txns, seals)
 	}
+
 	if n, err := e.m.Seal(ctx); err != nil || n != 0 {
 		t.Fatalf("resealing sealed ledger = %d, %v", n, err)
 	}
@@ -151,10 +157,12 @@ func TestWrongKeyFailsVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	report, err := other.Verify(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	requireIssue(t, report.Issues, "chain hash does not verify")
 }
 
@@ -169,13 +177,16 @@ func TestWrongKeyCannotExtendChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := other.CheckSealKey(ctx); err == nil {
 		t.Fatal("CheckSealKey() with the wrong key succeeded")
 	}
+
 	e.post(t, transfer("unsealed", a.ID, b.ID, 1))
 	if n, err := other.Seal(ctx); err == nil || n != 0 {
 		t.Fatalf("Seal() with the wrong key = %d, %v; want refusal", n, err)
 	}
+
 	e.verify(t)
 }
 
@@ -195,6 +206,7 @@ func TestSealWaitsForInFlightTransactions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer slow.Rollback(ctx)
 	if _, err := slow.Exec(ctx, `
 		WITH t AS (`+e.insertPosted(`'slow'`)+` RETURNING id)
@@ -212,6 +224,7 @@ func TestSealWaitsForInFlightTransactions(t *testing.T) {
 	if err := slow.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if n, err := e.m.Seal(ctx); err != nil || n != 2 {
 		t.Fatalf("sealed %d after commit, want 2 (err %v)", n, err)
 	}
@@ -220,6 +233,7 @@ func TestSealWaitsForInFlightTransactions(t *testing.T) {
 	if err := e.pool.QueryRow(ctx, `SELECT t.idempotency_key FROM ledger_seals s JOIN ledger_transactions t ON t.id = s.transaction_id ORDER BY s.seq DESC OFFSET 1 LIMIT 1`).Scan(&first); err != nil {
 		t.Fatal(err)
 	}
+
 	if first != "slow" {
 		t.Fatalf("chain order put %q first, want slow (earlier transaction id)", first)
 	}

@@ -70,6 +70,7 @@ func (b *batcher) run(ctx context.Context) {
 	for range b.workers {
 		wg.Go(func() { b.work(ctx) })
 	}
+
 	wg.Wait()
 	close(b.stopped)
 
@@ -85,6 +86,7 @@ func (b *batcher) work(ctx context.Context) {
 			b.drain()
 			return
 		}
+
 		b.commit(b.collect(first))
 	}
 }
@@ -110,6 +112,7 @@ func (b *batcher) collect(first *request) []*request {
 			return batch
 		}
 	}
+
 	return batch
 }
 
@@ -120,8 +123,10 @@ func (b *batcher) commit(batch []*request) {
 			r.done <- postingResult{err: err}
 			continue
 		}
+
 		live = append(live, r)
 	}
+
 	if len(live) == 0 {
 		return
 	}
@@ -142,6 +147,7 @@ func (b *batcher) commit(batch []*request) {
 		for _, r := range live {
 			b.commit([]*request{r})
 		}
+
 		return
 	}
 
@@ -150,7 +156,9 @@ func (b *batcher) commit(batch []*request) {
 			r.done <- postingResult{err: err}
 			continue
 		}
+
 		r.done <- results[i]
 	}
+
 	b.log.Debug("group committed", "size", len(live), "duration", time.Since(start))
 }

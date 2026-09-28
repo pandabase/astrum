@@ -51,6 +51,7 @@ func (p Posting) checkLocks(i int, b Balances) error {
 			return fmt.Errorf("%w: entry %d %s: %s", ErrBalanceLock, i, lock.name, v)
 		}
 	}
+
 	return nil
 }
 
@@ -58,6 +59,7 @@ func (p Posting) signedAmount() money.Amount {
 	if p.Side == Credit {
 		return p.Amount.Neg()
 	}
+
 	return p.Amount
 }
 
@@ -90,6 +92,7 @@ func (in PostInput) status() TransactionStatus {
 	if in.Status == "" {
 		return TransactionPosted
 	}
+
 	return in.Status
 }
 
@@ -122,9 +125,11 @@ func (t Transaction) matches(in PostInput) bool {
 			(r.EffectiveAt != nil && in.EffectiveAt != nil && r.EffectiveAt.Equal(*in.EffectiveAt))
 		return sameTime && r.status() == in.status() && sameContent(r, in)
 	}
+
 	if in.status() != TransactionPosted || (in.EffectiveAt != nil && !in.EffectiveAt.Equal(t.EffectiveAt)) {
 		return false
 	}
+
 	return sameContent(PostInput{
 		Description: t.Description,
 		Metadata:    t.Metadata,
@@ -137,18 +142,22 @@ func sameContent(stored, in PostInput) bool {
 	if stored.Description != in.Description || stored.ExternalID != in.ExternalID || len(stored.Postings) != len(in.Postings) {
 		return false
 	}
+
 	if !jsonEqual(stored.Metadata, in.Metadata) {
 		return false
 	}
+
 	for i, p := range in.Postings {
 		existing := stored.Postings[i]
 		if existing.AccountID != p.AccountID || existing.Side != p.Side || existing.Amount != p.Amount {
 			return false
 		}
+
 		if p.Currency != "" && existing.Currency != "" && p.Currency != existing.Currency {
 			return false
 		}
 	}
+
 	return true
 }
 

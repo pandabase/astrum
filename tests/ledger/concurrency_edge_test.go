@@ -28,6 +28,7 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 	for range 4 {
 		ids = append(ids, e.funded(t, seed).ID)
 	}
+
 	credit := e.account(t, "USD", ledger.Credit)
 	e.post(t, peLegs("fund-credit", peLeg(credit.ID, ledger.Credit, seed), peLeg(e.open.ID, ledger.Debit, seed)))
 	od := e.account(t, "USD", ledger.Debit, func(in *ledger.CreateAccountInput) { in.OverdraftLimit = amt(overdraft) })
@@ -51,6 +52,7 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 				for to == from {
 					to = ids[rng.IntN(len(ids))]
 				}
+
 				return from, to
 			}
 			var mine []uuid.UUID
@@ -95,12 +97,14 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 						err = nil
 					}
 				}
+
 				if err != nil && !tolerated(err) {
 					failures <- fmt.Errorf("%s: %w", key, err)
 				}
 			}
 		})
 	}
+
 	wg.Wait()
 	close(failures)
 	for err := range failures {
@@ -111,6 +115,7 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var postedNet, pendingNet money.Amount
 	for _, acc := range accounts {
 		signed := func(b ledger.Balance) money.Amount {
@@ -118,17 +123,21 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			return net
 		}
 		if postedNet, err = postedNet.Add(signed(acc.Posted)); err != nil {
 			t.Fatal(err)
 		}
+
 		if pendingNet, err = pendingNet.Add(signed(acc.Pending)); err != nil {
 			t.Fatal(err)
 		}
+
 		if acc.Pending != acc.Posted {
 			t.Errorf("account %s has unresolved pending money: %+v", acc.Code, acc)
 		}
+
 		floor := amt(0)
 		switch {
 		case acc.AllowNegative:
@@ -136,20 +145,25 @@ func TestConcurrencyEdgeMixedWorkloadConservesMoney(t *testing.T) {
 		case acc.ID == od.ID:
 			floor = amt(-overdraft)
 		}
+
 		if acc.Posted.Amount.Cmp(floor) < 0 || acc.Available.Amount.Cmp(floor) < 0 {
 			t.Errorf("account %s below its floor %s: posted %s available %s", acc.Code, floor, acc.Posted.Amount, acc.Available.Amount)
 		}
+
 		lines, err := e.m.AccountEntries(ctx, acc.ID, 0, 1000)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if len(lines) > 0 && lines[len(lines)-1].BalanceAfter != acc.Posted.Amount {
 			t.Errorf("account %s statement ends at %s, balance is %s", acc.Code, lines[len(lines)-1].BalanceAfter, acc.Posted.Amount)
 		}
 	}
+
 	if !postedNet.IsZero() || !pendingNet.IsZero() {
 		t.Fatalf("money created or destroyed: posted net %s, pending net %s", postedNet, pendingNet)
 	}
+
 	e.verify(t)
 }
 
@@ -182,6 +196,7 @@ func TestConcurrencyEdgeExactExhaustion(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	accepted := 0
@@ -193,20 +208,25 @@ func TestConcurrencyEdgeExactExhaustion(t *testing.T) {
 			t.Fatalf("attempt %d: %v", i, err)
 		}
 	}
+
 	if accepted != 33 {
 		t.Fatalf("accepted = %d, want exactly 33", accepted)
 	}
+
 	acc := e.get(t, a.ID)
 	if acc.Available.Amount != amt(10) {
 		t.Fatalf("available = %s, want 10", acc.Available.Amount)
 	}
+
 	var inbound int64
 	for _, id := range sinks {
 		inbound += small(t, e.get(t, id).Pending.Amount)
 	}
+
 	if inbound != 990 {
 		t.Fatalf("sinks pending total = %d, want 990", inbound)
 	}
+
 	e.verify(t)
 }
 
@@ -224,15 +244,18 @@ func TestConcurrencyEdgeOpposingTransfers(t *testing.T) {
 		wg.Go(func() { _, errs[2*i] = e.m.Post(ctx, transfer(fmt.Sprintf("ab-%d", i), a.ID, b.ID, 50)) })
 		wg.Go(func() { _, errs[2*i+1] = e.m.Post(ctx, transfer(fmt.Sprintf("ba-%d", i), b.ID, a.ID, 50)) })
 	}
+
 	wg.Wait()
 	for i, err := range errs {
 		if err != nil && !errors.Is(err, ledger.ErrInsufficientFunds) {
 			t.Fatalf("transfer %d: %v", i, err)
 		}
 	}
+
 	balA, balB := e.balance(t, a.ID), e.balance(t, b.ID)
 	if balA+balB != 1_000 || balA < 0 || balB < 0 || balA%50 != 0 {
 		t.Fatalf("a = %d, b = %d", balA, balB)
 	}
+
 	e.verify(t)
 }

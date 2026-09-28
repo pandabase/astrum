@@ -25,17 +25,21 @@ func TestDatabaseInvariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	voided, err := e.m.CreateHold(ctx, holdInput("v", a.ID, 5, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.VoidHold(ctx, voided.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	sched, err := e.m.Schedule(ctx, scheduleInput("s", a.ID, b.ID, 1, time.Now().Add(time.Hour)))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	e.settle(t)
 	e.verify(t)
 
@@ -96,16 +100,19 @@ func TestDatabaseInvariants(t *testing.T) {
 			}
 		})
 	}
+
 	e.verify(t)
 
 	t.Run("empty transaction is caught by verify", func(t *testing.T) {
 		if _, err := e.pool.Exec(ctx, e.insertPosted(`'empty'`)); err != nil {
 			t.Fatal(err)
 		}
+
 		report, err := e.m.Verify(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		requireIssue(t, report.Issues, "has no entries")
 	})
 }

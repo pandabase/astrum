@@ -19,6 +19,7 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 	if err := validateHold(in); err != nil {
 		return Hold{}, op.fail(err)
 	}
+
 	in.ExpiresAt = in.ExpiresAt.Truncate(time.Microsecond)
 
 	var (
@@ -31,17 +32,20 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 		if err != nil {
 			return err
 		}
+
 		existing, err := selectHold(ctx, tx, `idempotency_key = $1`, in.IdempotencyKey)
 		switch {
 		case err == nil:
 			if !existing.matches(in) {
 				return ErrIdempotencyConflict
 			}
+
 			hold, replayed = existing, true
 			return nil
 		case !errors.Is(err, ErrNotFound):
 			return err
 		}
+
 		if err := state.reserve(in.AccountID, in.Currency, in.Amount); err != nil {
 			return err
 		}
@@ -50,6 +54,7 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 		if err != nil {
 			return err
 		}
+
 		hold, err = insertHold(ctx, tx, Hold{
 			ID:             id,
 			IdempotencyKey: in.IdempotencyKey,
@@ -62,12 +67,15 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 		if db.Constraint(err) == constraintHoldKey {
 			return fmt.Errorf("%w: %w", db.ErrRetry, err)
 		}
+
 		if err != nil {
 			return err
 		}
+
 		if err := writeAccounts(ctx, tx, state); err != nil {
 			return err
 		}
+
 		return emit(ctx, tx, eventHoldCreated, toHold, hold)
 	})
 	if err != nil {
@@ -78,6 +86,7 @@ func (s *service) createHold(ctx context.Context, in CreateHoldInput) (Hold, err
 		op.info("hold replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
+
 	op.info("hold created", "hold_id", hold.ID, "amount", hold.Amount, "expires_at", hold.ExpiresAt)
 	return hold, nil
 }
@@ -89,6 +98,7 @@ func (s *service) hold(ctx context.Context, id uuid.UUID) (Hold, error) {
 	if err != nil {
 		return Hold{}, op.fail(err)
 	}
+
 	return h, nil
 }
 
@@ -114,6 +124,7 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		if err != nil {
 			return err
 		}
+
 		side := normalSide.opposite()
 		post := PostInput{
 			IdempotencyKey: in.IdempotencyKey,
@@ -130,18 +141,23 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 			if err != nil {
 				return err
 			}
+
 			if txn.IdempotencyKey != in.IdempotencyKey {
 				return fmt.Errorf("%w: hold is %s", ErrHoldNotPending, h.Status)
 			}
+
 			if *h.CapturedAmount != in.Amount || !txn.matches(post) {
 				return fmt.Errorf("%w: hold was captured with different terms", ErrIdempotencyConflict)
 			}
+
 			hold, replayed = h, true
 			return nil
 		}
+
 		if h.Status != HoldPending {
 			return fmt.Errorf("%w: hold is %s", ErrHoldNotPending, h.Status)
 		}
+
 		if in.Amount.Cmp(h.Amount) > 0 {
 			return fmt.Errorf("%w: capture of %s exceeds hold of %s", ErrInvalid, in.Amount, h.Amount)
 		}
@@ -150,6 +166,7 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		if err != nil {
 			return err
 		}
+
 		if !now.Before(h.ExpiresAt) {
 			return fmt.Errorf("%w: hold expired at %s", ErrHoldNotPending, h.ExpiresAt)
 		}
@@ -161,10 +178,12 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		if err != nil && !errors.Is(err, errAborted) {
 			return err
 		}
+
 		o := results[0]
 		if o.err != nil {
 			return o.err
 		}
+
 		if o.replayed {
 			return ErrIdempotencyConflict
 		}
@@ -172,6 +191,7 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		if hold, err = resolveHold(ctx, tx, h.ID, HoldCaptured, &in.Amount, &o.txn.ID); err != nil {
 			return err
 		}
+
 		return emit(ctx, tx, eventHoldCaptured, toHold, hold)
 	})
 	if err != nil {
@@ -182,6 +202,7 @@ func (s *service) captureHold(ctx context.Context, id uuid.UUID, in CaptureInput
 		op.info("capture replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
+
 	released, _ := hold.Amount.Sub(in.Amount)
 	op.info("hold captured",
 		"hold_id", hold.ID,
@@ -204,6 +225,7 @@ func (s *service) voidHold(ctx context.Context, id uuid.UUID) (Hold, error) {
 		if err != nil {
 			return err
 		}
+
 		switch h.Status {
 		case HoldVoided:
 			hold, replayed = h, true
@@ -217,15 +239,19 @@ func (s *service) voidHold(ctx context.Context, id uuid.UUID) (Hold, error) {
 		if err != nil {
 			return err
 		}
+
 		if err := state.release(h.AccountID, h.Amount); err != nil {
 			return err
 		}
+
 		if err := writeAccounts(ctx, tx, state); err != nil {
 			return err
 		}
+
 		if hold, err = resolveHold(ctx, tx, h.ID, HoldVoided, nil, nil); err != nil {
 			return err
 		}
+
 		return emit(ctx, tx, eventHoldVoided, toHold, hold)
 	})
 	if err != nil {
@@ -236,6 +262,7 @@ func (s *service) voidHold(ctx context.Context, id uuid.UUID) (Hold, error) {
 		op.info("void replayed", "hold_id", hold.ID)
 		return hold, nil
 	}
+
 	op.info("hold voided", "hold_id", hold.ID, "released", hold.Amount)
 	return hold, nil
 }
@@ -254,6 +281,7 @@ func (s *service) expireHolds(ctx context.Context, limit int) (int, error) {
 		if err != nil {
 			return err
 		}
+
 		var (
 			ids      []uuid.UUID
 			accounts []uuid.UUID
@@ -276,14 +304,17 @@ func (s *service) expireHolds(ctx context.Context, limit int) (int, error) {
 		if err != nil {
 			return err
 		}
+
 		for i := range ids {
 			if err := state.release(accounts[i], amounts[i]); err != nil {
 				return err
 			}
 		}
+
 		if err := writeAccounts(ctx, tx, state); err != nil {
 			return err
 		}
+
 		rows, err = tx.Query(ctx, `
 			UPDATE ledger_holds SET status = 'expired', resolved_at = now()
 			WHERE id = ANY($1)
@@ -291,13 +322,16 @@ func (s *service) expireHolds(ctx context.Context, limit int) (int, error) {
 		if err != nil {
 			return err
 		}
+
 		holds, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Hold, error) { return scanHold(row) })
 		if err != nil {
 			return err
 		}
+
 		expired = len(holds)
 		return emit(ctx, tx, eventHoldExpired, toHold, holds...)
 	})
+
 	return expired, err
 }
 
@@ -318,6 +352,7 @@ func (s *service) listHolds(ctx context.Context, in ListHoldsInput) ([]Hold, err
 	case !slices.Contains([]HoldStatus{"", HoldPending, HoldCaptured, HoldVoided, HoldExpired}, in.Status):
 		return nil, op.fail(fmt.Errorf("%w: status must be pending, captured, voided or expired", ErrInvalid))
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+holdColumns+` FROM ledger_holds
 		WHERE ($1::uuid IS NULL OR account_id = $1) AND ($2::text IS NULL OR status = $2) AND ($3::uuid IS NULL OR id < $3)
@@ -326,9 +361,11 @@ func (s *service) listHolds(ctx context.Context, in ListHoldsInput) ([]Hold, err
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	holds, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Hold, error) { return scanHold(row) })
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return holds, nil
 }

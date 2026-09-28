@@ -48,6 +48,7 @@ func (h *edgeHarness) serve(w http.ResponseWriter, r *http.Request) {
 	if h.release != nil {
 		<-h.release
 	}
+
 	body, _ := io.ReadAll(r.Body)
 	switch r.URL.Path {
 	case "/empty":
@@ -72,6 +73,7 @@ func (h *edgeHarness) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	httpx.JSON(w, r, int(h.status.Load()), map[string]any{"call": n, "len": len(body), "method": r.Method, "query": r.URL.RawQuery})
 }
 
@@ -87,21 +89,26 @@ func (h *edgeHarness) send(method, path string, keys []string, body string, extr
 	if err != nil {
 		h.t.Fatal(err)
 	}
+
 	for _, k := range keys {
 		req.Header.Add(idempotency.Header, k)
 	}
+
 	for i := 0; i+1 < len(extra); i += 2 {
 		req.Header.Set(extra[i], extra[i+1])
 	}
+
 	resp, err := h.srv.Client().Do(req)
 	if err != nil {
 		h.t.Fatal(err)
 	}
+
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		h.t.Fatal(err)
 	}
+
 	return edgeResp{status: resp.StatusCode, header: resp.Header, body: raw}
 }
 
@@ -116,9 +123,11 @@ func problemCode(t *testing.T, r edgeResp) string {
 	if err := json.Unmarshal(r.body, &p); err != nil {
 		t.Fatalf("problem %q: %v", r.body, err)
 	}
+
 	if r.header.Get("Content-Type") != "application/problem+json" {
 		t.Fatalf("problem Content-Type = %q", r.header.Get("Content-Type"))
 	}
+
 	return p.Code
 }
 
@@ -136,18 +145,23 @@ func TestIdempotencyEdgeReplayIsByteIdentical(t *testing.T) {
 			if first.status != status || second.status != status || third.status != status {
 				t.Fatalf("statuses = %d %d %d, want %d", first.status, second.status, third.status, status)
 			}
+
 			if !bytes.Equal(first.body, second.body) || !bytes.Equal(first.body, third.body) || !bytes.HasSuffix(second.body, []byte("}\n")) {
 				t.Fatalf("bodies differ: %q %q %q", first.body, second.body, third.body)
 			}
+
 			if first.header.Get(idempotency.ReplayedHeader) != "" || second.header.Get(idempotency.ReplayedHeader) != "true" {
 				t.Fatalf("replayed headers = %q %q", first.header.Get(idempotency.ReplayedHeader), second.header.Get(idempotency.ReplayedHeader))
 			}
+
 			if second.header.Get("Content-Type") != first.header.Get("Content-Type") {
 				t.Fatalf("Content-Type = %q, want %q", second.header.Get("Content-Type"), first.header.Get("Content-Type"))
 			}
+
 			if second.header.Get("X-Request-ID") == first.header.Get("X-Request-ID") {
 				t.Fatal("replay reused the original request id header")
 			}
+
 			if got := h.calls.Load() - before; got != 1 {
 				t.Fatalf("handler ran %d times", got)
 			}
@@ -166,13 +180,16 @@ func TestIdempotencyEdgeServerErrorsAreNotStored(t *testing.T) {
 			if r := h.post(key, `{}`); r.status != status {
 				t.Fatalf("first = %d", r.status)
 			}
+
 			if r := h.post(key, `{"different":true}`); r.status != status || r.header.Get(idempotency.ReplayedHeader) != "" {
 				t.Fatalf("retry with a new body = %d replayed=%q, want a fresh execution", r.status, r.header.Get(idempotency.ReplayedHeader))
 			}
+
 			h.status.Store(http.StatusCreated)
 			if r := h.post(key, `{}`); r.status != http.StatusCreated {
 				t.Fatalf("recovery = %d", r.status)
 			}
+
 			if got := h.calls.Load() - before; got != 3 {
 				t.Fatalf("handler ran %d times, want 3", got)
 			}
@@ -215,6 +232,7 @@ func TestIdempotencyEdgeResponseShapes(t *testing.T) {
 		if first.header.Get("Location") == "" || first.header.Get("X-Custom") != "yes" {
 			t.Fatalf("first headers = %v", first.header)
 		}
+
 		if second.header.Get("Location") != "" || second.header.Get("X-Custom") != "" || second.header.Get("Content-Type") != "application/json" {
 			t.Fatalf("replayed headers = %v", second.header)
 		}
@@ -226,10 +244,12 @@ func TestIdempotencyEdgeResponseShapes(t *testing.T) {
 		if first.status != http.StatusBadRequest || problemCode(t, first) != httpx.CodeInvalidRequest {
 			t.Fatalf("oversized for handler = %d %s", first.status, first.body)
 		}
+
 		second := h.send(http.MethodPost, "/decode", []string{"toolarge"}, big)
 		if second.status != http.StatusBadRequest || second.header.Get(idempotency.ReplayedHeader) != "true" || !bytes.Equal(first.body, second.body) {
 			t.Fatalf("stored 400 replay = %d %q", second.status, second.body)
 		}
+
 		if r := h.send(http.MethodPost, "/decode", []string{"toolarge"}, `{"a":"x"}`); r.status != http.StatusUnprocessableEntity || problemCode(t, r) != httpx.CodeIdempotencyReuse {
 			t.Fatalf("fixed body with the same key = %d %s", r.status, r.body)
 		}
@@ -243,6 +263,7 @@ func TestIdempotencyEdgeRequestFingerprint(t *testing.T) {
 	if base.status != http.StatusCreated {
 		t.Fatalf("base = %d", base.status)
 	}
+
 	tests := []struct {
 		name, method, path, body string
 		extra                    []string
@@ -275,6 +296,7 @@ func TestIdempotencyEdgeRequestFingerprint(t *testing.T) {
 			} else if r.status != http.StatusUnprocessableEntity || problemCode(t, r) != httpx.CodeIdempotencyReuse {
 				t.Fatalf("mismatch = %d %s, want 422 %s", r.status, r.body, httpx.CodeIdempotencyReuse)
 			}
+
 			if h.calls.Load() != before {
 				t.Fatal("handler ran for a reused key")
 			}
@@ -294,11 +316,13 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 					t.Fatalf("%s replayed", method)
 				}
 			}
+
 			if got := h.calls.Load() - before; got != 3 {
 				t.Fatalf("%s handler ran %d times, want 3", method, got)
 			}
 		})
 	}
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
 		t.Run("honored for "+method, func(t *testing.T) {
 			before := h.calls.Load()
@@ -306,6 +330,7 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 			if r := h.send(method, "/v1/things", []string{"m-" + method}, ""); r.header.Get(idempotency.ReplayedHeader) != "true" {
 				t.Fatalf("%s not replayed", method)
 			}
+
 			if got := h.calls.Load() - before; got != 1 {
 				t.Fatalf("%s handler ran %d times, want 1", method, got)
 			}
@@ -339,13 +364,16 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 			if r.status != tt.status {
 				t.Fatalf("status = %d %s, want %d", r.status, r.body, tt.status)
 			}
+
 			if tt.status == 400 && problemCode(t, r) != httpx.CodeInvalidRequest {
 				t.Fatalf("problem = %s", r.body)
 			}
+
 			again := h.send(http.MethodPost, "/v1/things", tt.keys, `{}`)
 			if replayed := again.header.Get(idempotency.ReplayedHeader) == "true"; replayed != tt.stored {
 				t.Fatalf("second request replayed = %v, want %v (%d %s)", replayed, tt.stored, again.status, again.body)
 			}
+
 			want := int32(2)
 			switch {
 			case tt.stored:
@@ -353,6 +381,7 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 			case tt.status == 400:
 				want = 0
 			}
+
 			if got := h.calls.Load() - before; got != want {
 				t.Fatalf("handler ran %d times, want %d", got, want)
 			}
@@ -364,6 +393,7 @@ func TestIdempotencyEdgeMethodsAndKeys(t *testing.T) {
 			t.Fatalf("trimmed = %d, want replay of the padded key", r.status)
 		}
 	})
+
 	t.Run("second header is not a key", func(t *testing.T) {
 		if r := h.send(http.MethodPost, "/v1/things", []string{"second"}, `{}`); r.header.Get(idempotency.ReplayedHeader) != "" {
 			t.Fatal("second header value was used as a key")
@@ -384,21 +414,27 @@ func TestIdempotencyEdgeScope(t *testing.T) {
 	if a.status != 201 || b.status != 201 || anon.status != 201 || h.calls.Load() != 3 {
 		t.Fatalf("a %d, b %d, anon %d, calls %d; want three executions", a.status, b.status, anon.status, h.calls.Load())
 	}
+
 	if r := as("a", `{"who":"a"}`); r.header.Get(idempotency.ReplayedHeader) != "true" || !bytes.Equal(r.body, a.body) {
 		t.Fatalf("a replay = %d %q", r.status, r.body)
 	}
+
 	if r := as("a", `{"who":"b"}`); r.status != http.StatusUnprocessableEntity {
 		t.Fatalf("a with b's body = %d, want 422", r.status)
 	}
+
 	if r := as("b", `{"who":"b"}`); !bytes.Equal(r.body, b.body) {
 		t.Fatalf("b replay = %q, want %q", r.body, b.body)
 	}
+
 	if r := as("", `{"who":"anon"}`); !bytes.Equal(r.body, anon.body) {
 		t.Fatalf("unscoped replay = %q", r.body)
 	}
+
 	if r := as("A", `{"who":"a"}`); r.header.Get(idempotency.ReplayedHeader) != "" {
 		t.Fatal("scopes differing in case share keys")
 	}
+
 	if h.calls.Load() != 4 {
 		t.Fatalf("calls = %d, want 4", h.calls.Load())
 	}
@@ -413,29 +449,36 @@ func TestIdempotencyEdgeConcurrentSameKey(t *testing.T) {
 	for range clients {
 		go func() { results <- h.post("race", `{"n":1}`) }()
 	}
+
 	var rejected []edgeResp
 	for range clients - 1 {
 		rejected = append(rejected, <-results)
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler entered %d times while one request is in flight", n)
 	}
+
 	for _, r := range rejected {
 		if r.status != http.StatusConflict || problemCode(t, r) != httpx.CodeIdempotencyBusy {
 			t.Fatalf("concurrent duplicate = %d %s, want 409 %s", r.status, r.body, httpx.CodeIdempotencyBusy)
 		}
 	}
+
 	close(h.release)
 	winner := <-results
 	if winner.status != http.StatusCreated {
 		t.Fatalf("winner = %d", winner.status)
 	}
+
 	if r := h.post("race", `{"n":1}`); !bytes.Equal(r.body, winner.body) || r.header.Get(idempotency.ReplayedHeader) != "true" {
 		t.Fatalf("after the race = %d %q", r.status, r.body)
 	}
+
 	if r := h.post("race", `{"n":2}`); r.status != http.StatusUnprocessableEntity {
 		t.Fatalf("different body after the race = %d", r.status)
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler ran %d times, want 1", n)
 	}
@@ -454,9 +497,11 @@ func TestIdempotencyEdgeConcurrentDifferentBodyWhileInFlight(t *testing.T) {
 		case <-time.After(time.Millisecond):
 		}
 	}
+
 	if r := h.post("inflight", `{"n":2}`); r.status != http.StatusUnprocessableEntity || problemCode(t, r) != httpx.CodeIdempotencyReuse {
 		t.Fatalf("different body in flight = %d %s, want 422", r.status, r.body)
 	}
+
 	close(h.release)
 	if r := <-done; r.status != http.StatusCreated {
 		t.Fatalf("original = %d", r.status)
@@ -472,6 +517,7 @@ func TestIdempotencyEdgeBodyLimit(t *testing.T) {
 	if err := json.Unmarshal(r.body, &out); err != nil || r.status != http.StatusCreated || out["len"] != float64(httpx.MaxBulkBodyBytes) {
 		t.Fatalf("at limit = %d %v, want the handler to see the full body", r.status, out)
 	}
+
 	if again := h.post("limit", atLimit); again.header.Get(idempotency.ReplayedHeader) != "true" {
 		t.Fatalf("at limit replay = %d", again.status)
 	}
@@ -480,10 +526,12 @@ func TestIdempotencyEdgeBodyLimit(t *testing.T) {
 	if over.status != http.StatusRequestEntityTooLarge || problemCode(t, over) != httpx.CodeRequestTooLarge {
 		t.Fatalf("over limit = %d %s", over.status, over.body)
 	}
+
 	before := h.calls.Load()
 	if r := h.post("over", `{}`); r.status != http.StatusCreated || r.header.Get(idempotency.ReplayedHeader) != "" {
 		t.Fatalf("key after 413 = %d, want the key to be unused", r.status)
 	}
+
 	if h.calls.Load()-before != 1 {
 		t.Fatal("handler did not run after the 413")
 	}
@@ -492,6 +540,7 @@ func TestIdempotencyEdgeBodyLimit(t *testing.T) {
 	if r := h.send(http.MethodPost, "/v1/things", nil, atLimit+"x"); r.status != http.StatusCreated {
 		t.Fatalf("oversized without a key = %d, want the middleware to pass it through", r.status)
 	}
+
 	if h.calls.Load()-before != 1 {
 		t.Fatal("handler did not run for a keyless oversized request")
 	}
@@ -504,6 +553,7 @@ func TestIdempotencyEdgeRunAndPrune(t *testing.T) {
 	if n, err := h.svc.Prune(context.Background()); err != nil || n != 0 {
 		t.Fatalf("Prune = %d, %v; want fresh keys kept", n, err)
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- h.svc.Run(ctx) }()
@@ -516,6 +566,7 @@ func TestIdempotencyEdgeRunAndPrune(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Run did not stop after cancel")
 	}
+
 	if r := h.post("fresh", `{}`); r.header.Get(idempotency.ReplayedHeader) != "true" {
 		t.Fatal("key lost after Run")
 	}
@@ -528,26 +579,32 @@ func TestIdempotencyEdgeSecretsAreNeverStored(t *testing.T) {
 	if first.status != http.StatusCreated || !strings.Contains(string(first.body), "sk_edge_secret_value") {
 		t.Fatalf("first = %d %s", first.status, first.body)
 	}
+
 	for range 2 {
 		replay := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{}`)
 		if replay.status != http.StatusConflict || problemCode(t, replay) != httpx.CodeIdempotencyDone {
 			t.Fatalf("replay = %d %s", replay.status, replay.body)
 		}
+
 		if strings.Contains(string(replay.body), "sk_edge_secret_value") {
 			t.Fatalf("replay leaked the secret: %s", replay.body)
 		}
 	}
+
 	if n := h.calls.Load(); n != 1 {
 		t.Fatalf("handler ran %d times, want 1", n)
 	}
+
 	var stored int
 	if err := h.pool.QueryRow(context.Background(),
 		`SELECT count(*) FROM idempotency_keys WHERE position('sk_edge_secret_value' in convert_from(response_body, 'UTF8')) > 0`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
+
 	if stored != 0 {
 		t.Fatalf("%d stored responses contain the secret", stored)
 	}
+
 	if other := h.send(http.MethodPost, "/secret", []string{"secret-key"}, `{"changed":true}`); other.status != http.StatusUnprocessableEntity {
 		t.Fatalf("different body = %d %s, want 422", other.status, other.body)
 	}

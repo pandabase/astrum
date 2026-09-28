@@ -54,6 +54,7 @@ func toBulkResult(r BulkResult) bulkResultResource {
 		out.Status = "failed"
 		out.Error = &batchError{Code: *r.ErrorCode, Detail: *r.ErrorDetail}
 	}
+
 	return out
 }
 

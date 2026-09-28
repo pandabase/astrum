@@ -15,12 +15,14 @@ func Handler(dir string, api http.Handler) (http.Handler, error) {
 	if _, err := fs.Stat(root, "index.html"); err != nil {
 		return nil, errors.New("web: " + dir + " has no index.html; build the interface with pnpm -C web build")
 	}
+
 	files := http.FileServerFS(root)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" || r.URL.Path == "/v1" || strings.HasPrefix(r.URL.Path, "/v1/") {
 			api.ServeHTTP(w, r)
 			return
 		}
+
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD")
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -37,9 +39,11 @@ func Handler(dir string, api http.Handler) (http.Handler, error) {
 			serveShell(w, r, root)
 			return
 		}
+
 		if strings.HasPrefix(name, "assets/") {
 			h.Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
+
 		files.ServeHTTP(w, r)
 	}), nil
 }
@@ -50,6 +54,7 @@ func serveShell(w http.ResponseWriter, r *http.Request, root fs.FS) {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
 	defer f.Close()
 	info, err := f.Stat()
 	content, ok := f.(io.ReadSeeker)

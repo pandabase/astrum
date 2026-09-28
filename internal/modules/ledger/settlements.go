@@ -24,6 +24,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 	if err := validateSettlement(in); err != nil {
 		return Settlement{}, op.fail(err)
 	}
+
 	if in.UpperBound != nil {
 		bound := in.UpperBound.Truncate(time.Microsecond)
 		in.UpperBound = &bound
@@ -41,6 +42,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			if !existing.matches(in) {
 				return ErrIdempotencyConflict
 			}
+
 			st, replayed = existing, true
 			return nil
 		case !errors.Is(err, pgx.ErrNoRows):
@@ -51,14 +53,17 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		if err != nil {
 			return err
 		}
+
 		settled, ok := state.accounts[in.SettledAccountID]
 		if !ok {
 			return fmt.Errorf("%w: settled account %s", ErrNotFound, in.SettledAccountID)
 		}
+
 		contra, ok := state.accounts[in.ContraAccountID]
 		if !ok {
 			return fmt.Errorf("%w: contra account %s", ErrNotFound, in.ContraAccountID)
 		}
+
 		if settled.ledgerID != contra.ledgerID || settled.currency != contra.currency {
 			return fmt.Errorf("%w: settled and contra accounts must share a ledger and currency", ErrInvalid)
 		}
@@ -67,6 +72,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		if err != nil {
 			return err
 		}
+
 		net, err := (&accountState{normalSide: settled.normalSide}).balance(debits, credits)
 		if err != nil {
 			return err
@@ -76,6 +82,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		if err != nil {
 			return err
 		}
+
 		st = Settlement{
 			ID:               id,
 			IdempotencyKey:   in.IdempotencyKey,
@@ -95,6 +102,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			if err != nil {
 				return err
 			}
+
 			st.TransactionID = &txn.ID
 		}
 
@@ -103,6 +111,7 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			if db.Constraint(err) == constraintSettlementKey {
 				return fmt.Errorf("%w: %w", db.ErrRetry, err)
 			}
+
 			return err
 		}
 
@@ -110,22 +119,27 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 		if err != nil {
 			return err
 		}
+
 		own := 0
 		if st.TransactionID != nil {
 			own = 1
 		}
+
 		if marked != int64(count+own) {
 			return fmt.Errorf("ledger: settlement marked %d entries, summed %d", marked, count+own)
 		}
+
 		return emit(ctx, tx, eventSettlementCreated, toSettlement, st)
 	})
 	if err != nil {
 		return Settlement{}, op.fail(err)
 	}
+
 	if replayed {
 		op.info("settlement replayed", "settlement_id", st.ID)
 		return st, nil
 	}
+
 	op.info("settlement created", "settlement_id", st.ID, "amount", st.Amount, "entries", st.EntryCount,
 		"transaction_id", st.TransactionID)
 	return st, nil
@@ -137,10 +151,12 @@ func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, 
 	if amount.Sign() < 0 {
 		side, amount = settledSide, amount.Neg()
 	}
+
 	metadata, err := json.Marshal(map[string]string{"settlement_id": typeid.Encode("stl", st.ID)})
 	if err != nil {
 		return Transaction{}, err
 	}
+
 	results, err := applyRequests(ctx, tx, []*postingRequest{{in: PostInput{
 
 		IdempotencyKey: typeid.Encode("stl", st.ID),
@@ -154,9 +170,11 @@ func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, 
 	if err != nil && !errors.Is(err, errAborted) {
 		return Transaction{}, err
 	}
+
 	if results[0].err != nil {
 		return Transaction{}, results[0].err
 	}
+
 	return results[0].txn, nil
 }
 
@@ -167,9 +185,11 @@ func (s *service) settlement(ctx context.Context, id uuid.UUID) (Settlement, err
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrNotFound
 	}
+
 	if err != nil {
 		return Settlement{}, op.fail(err)
 	}
+
 	return st, nil
 }
 
@@ -179,6 +199,7 @@ func (s *service) listSettlements(ctx context.Context, in ListSettlementsInput) 
 	if in.Limit < 1 || in.Limit > maxListLimit {
 		return nil, op.fail(fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit))
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+settlementColumns+` FROM ledger_settlements
 		WHERE ($1::uuid IS NULL OR settled_account_id = $1) AND ($2::uuid IS NULL OR id < $2)
@@ -187,10 +208,12 @@ func (s *service) listSettlements(ctx context.Context, in ListSettlementsInput) 
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	settlements, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Settlement, error) { return scanSettlement(row) })
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return settlements, nil
 }
 
@@ -220,11 +243,13 @@ func validateSettlement(in CreateSettlementInput) error {
 	if err := validateKeyAndText(in.IdempotencyKey, in.Description, in.Metadata); err != nil {
 		return err
 	}
+
 	switch {
 	case in.SettledAccountID == uuid.Nil || in.ContraAccountID == uuid.Nil:
 		return fmt.Errorf("%w: settled_account_id and contra_account_id are required", ErrInvalid)
 	case in.SettledAccountID == in.ContraAccountID:
 		return fmt.Errorf("%w: an account cannot settle into itself", ErrInvalid)
 	}
+
 	return nil
 }

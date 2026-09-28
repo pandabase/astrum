@@ -32,10 +32,12 @@ func TestCurrencies(t *testing.T) {
 		if err != nil || eth.Code != "ETH" || eth.Exponent != 18 {
 			t.Fatalf("CreateCurrency = %+v, %v", eth, err)
 		}
+
 		again, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 18})
 		if err != nil || !again.CreatedAt.Equal(eth.CreatedAt) {
 			t.Fatalf("replay = %+v, %v", again, err)
 		}
+
 		_, err = e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 8})
 		wantErr(t, err, ledger.ErrCurrencyExists)
 		_, err = e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "USD", Exponent: 3})
@@ -53,6 +55,7 @@ func TestCurrencies(t *testing.T) {
 			_, err := e.m.CreateCurrency(ctx, in)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
+
 		_, err := e.m.Currency(ctx, "NOPE")
 		wantErr(t, err, ledger.ErrNotFound)
 	})
@@ -65,15 +68,19 @@ func TestCurrencies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			all = append(all, page...)
 			if len(page) < 50 {
 				break
 			}
+
 			after = page[len(page)-1].Code
 		}
+
 		if len(all) < 160 {
 			t.Fatalf("listed %d currencies, want the ISO set", len(all))
 		}
+
 		for i := 1; i < len(all); i++ {
 			if all[i-1].Code >= all[i].Code {
 				t.Fatalf("out of order: %s before %s", all[i-1].Code, all[i].Code)
@@ -89,6 +96,7 @@ func TestCurrencies(t *testing.T) {
 		if jpy.CurrencyExponent != 0 {
 			t.Fatalf("JPY account exponent = %d", jpy.CurrencyExponent)
 		}
+
 		eth := e.account(t, "ETH", ledger.Debit)
 		if got := e.get(t, eth.ID); got.CurrencyExponent != 18 {
 			t.Fatalf("ETH account exponent = %d", got.CurrencyExponent)
@@ -119,6 +127,7 @@ func TestWideAmounts(t *testing.T) {
 	if _, err := e.m.CreateCurrency(ctx, ledger.CreateCurrencyInput{Code: "ETH", Exponent: 18}); err != nil {
 		t.Fatal(err)
 	}
+
 	m := money.MustParseAmount
 	treasury := e.account(t, "ETH", ledger.Credit, unrestricted)
 	wallet := e.account(t, "ETH", ledger.Debit)
@@ -136,10 +145,12 @@ func TestWideAmounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	acc := e.get(t, wallet.ID)
 	if acc.Available.Amount != m("30000000000000000000000000000") {
 		t.Fatalf("available = %s", acc.Available.Amount)
 	}
+
 	_, err = e.m.Post(ctx, transferAmount("too-much", wallet.ID, merchant.ID, m("30000000000000000000000000001")))
 	wantErr(t, err, ledger.ErrInsufficientFunds)
 
@@ -150,12 +161,15 @@ func TestWideAmounts(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := e.get(t, merchant.ID).Posted.Amount; got != m("12345678901234567890123456789") {
 		t.Fatalf("merchant = %s", got)
 	}
+
 	if got := e.get(t, wallet.ID); got.Posted.Amount != m("37654321098765432109876543211") || !got.Held.IsZero() {
 		t.Fatalf("wallet = balance %s held %s", got.Posted.Amount, got.Held)
 	}
+
 	if got := e.get(t, treasury.ID).Posted.Amount; got != fifty {
 		t.Fatalf("treasury = %s, want %s on its credit normal side", got, fifty)
 	}
@@ -169,6 +183,7 @@ func TestWideAmounts(t *testing.T) {
 	if err != nil || txn.Postings[0].Amount != fifty {
 		t.Fatalf("replay = %+v, %v", txn, err)
 	}
+
 	e.verify(t)
 }
 
@@ -180,6 +195,7 @@ func TestHTTPCurrencies(t *testing.T) {
 	if eth["object"] != "currency" || eth["code"] != "ETH" || eth["exponent"] != float64(18) {
 		t.Fatalf("currency = %v", eth)
 	}
+
 	a.must(http.StatusCreated, http.MethodPost, "/v1/currencies", "", `{"code":"ETH","exponent":18}`)
 	if got := a.must(http.StatusOK, http.MethodGet, "/v1/currencies/JPY", "", ""); got["exponent"] != float64(0) {
 		t.Fatalf("JPY = %v", got)
@@ -189,6 +205,7 @@ func TestHTTPCurrencies(t *testing.T) {
 	for _, c := range a.list("/v1/currencies?limit=100") {
 		codes[c["code"].(string)] = true
 	}
+
 	if !codes["ETH"] || !codes["USD"] || !codes["ZWG"] {
 		t.Fatalf("listed %d currencies without ETH, USD or ZWG", len(codes))
 	}
@@ -200,6 +217,7 @@ func TestHTTPCurrencies(t *testing.T) {
 	if wallet["currency_exponent"] != float64(18) {
 		t.Fatalf("account = %v", wallet)
 	}
+
 	wei := "99999999999999999999999999999999999999"
 	a.must(http.StatusCreated, http.MethodPost, "/v1/transactions", "mint", transferJSON(id, wallet["id"].(string), wei))
 	acc := a.must(http.StatusOK, http.MethodGet, "/v1/accounts/"+wallet["id"].(string), "", "")

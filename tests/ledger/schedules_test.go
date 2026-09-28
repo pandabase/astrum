@@ -25,6 +25,7 @@ func TestScheduleExecutesExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	future, err := e.m.Schedule(ctx, scheduleInput("rent-feb", a.ID, b.ID, 300, time.Now().Add(time.Hour)))
 	if err != nil {
 		t.Fatal(err)
@@ -40,19 +41,24 @@ func TestScheduleExecutesExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if got.Status != ledger.ScheduleExecuted || got.TransactionID == nil {
 		t.Fatalf("due schedule = %+v", got)
 	}
+
 	txn, err := e.m.Transaction(ctx, *got.TransactionID)
 	if err != nil || txn.IdempotencyKey != "rent-jan" {
 		t.Fatalf("executed transaction = %+v, %v", txn, err)
 	}
+
 	if st, _ := e.m.Scheduled(ctx, future.ID); st.Status != ledger.ScheduleScheduled {
 		t.Fatalf("future schedule status = %s", st.Status)
 	}
+
 	if bal := e.balance(t, b.ID); bal != 300 {
 		t.Fatalf("b = %d, want 300 (executed once)", bal)
 	}
+
 	e.verify(t)
 }
 
@@ -70,13 +76,16 @@ func TestScheduleFailureIsRecorded(t *testing.T) {
 	if err != nil || executed != 1 || failed != 1 {
 		t.Fatalf("ExecuteDue() = %d executed, %d failed, %v", executed, failed, err)
 	}
+
 	if st, _ := e.m.Scheduled(ctx, ok.ID); st.Status != ledger.ScheduleExecuted {
 		t.Fatalf("ok status = %s", st.Status)
 	}
+
 	st, _ := e.m.Scheduled(ctx, broke.ID)
 	if st.Status != ledger.ScheduleFailed || st.Failure == nil {
 		t.Fatalf("broke = %+v", st)
 	}
+
 	e.verify(t)
 }
 
@@ -93,10 +102,12 @@ func TestScheduleCancelAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	again, err := e.m.Schedule(ctx, in)
 	if err != nil || again.ID != st.ID {
 		t.Fatalf("schedule replay = %s, %v", again.ID, err)
 	}
+
 	moved := scheduleInput("payroll", a.ID, b.ID, 10, at.Add(time.Minute))
 	_, err = e.m.Schedule(ctx, moved)
 	wantErr(t, err, ledger.ErrIdempotencyConflict)
@@ -112,6 +123,7 @@ func TestScheduleCancelAndReplay(t *testing.T) {
 	if _, _, err := e.m.ExecuteDue(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	_, err = e.m.CancelSchedule(ctx, executedLater.ID)
 	wantErr(t, err, ledger.ErrScheduleNotPending)
 
@@ -146,11 +158,13 @@ func TestConcurrentSchedulers(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	if bal := e.balance(t, b.ID); bal != schedules*10 {
 		t.Fatalf("b = %d, want %d", bal, schedules*10)
 	}
+
 	e.verify(t)
 }
 
@@ -165,10 +179,12 @@ func TestListSchedules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	later, err := e.m.Schedule(ctx, scheduleInput("list-later", a.ID, b.ID, 100, time.Now().Add(time.Hour)))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, _, err := e.m.ExecuteDue(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -177,14 +193,17 @@ func TestListSchedules(t *testing.T) {
 	if err != nil || len(all) != 2 || all[0].ID != later.ID || all[1].ID != due.ID {
 		t.Fatalf("all = %+v, %v", all, err)
 	}
+
 	waiting, err := e.m.ListSchedules(ctx, ledger.ListSchedulesInput{Status: ledger.ScheduleScheduled, Limit: 10})
 	if err != nil || len(waiting) != 1 || waiting[0].ID != later.ID {
 		t.Fatalf("scheduled = %+v, %v", waiting, err)
 	}
+
 	executed, err := e.m.ListSchedules(ctx, ledger.ListSchedulesInput{Status: ledger.ScheduleExecuted, Before: later.ID, Limit: 10})
 	if err != nil || len(executed) != 1 || executed[0].ID != due.ID {
 		t.Fatalf("executed = %+v, %v", executed, err)
 	}
+
 	_, err = e.m.ListSchedules(ctx, ledger.ListSchedulesInput{Status: "pending", Limit: 10})
 	wantErr(t, err, ledger.ErrInvalid)
 }

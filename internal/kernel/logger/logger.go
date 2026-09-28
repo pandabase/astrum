@@ -57,8 +57,10 @@ func For(ctx context.Context, base *log.Logger) *log.Logger {
 	if id := RequestID(ctx); id != "" {
 		base = base.With("request_id", id)
 	}
+
 	if actor, _ := ctx.Value(actorKey{}).(string); actor != "" {
 		base = base.With("actor", actor)
 	}
+
 	return base
 }

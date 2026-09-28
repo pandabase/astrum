@@ -42,10 +42,12 @@ func newKernel(pool *pgxpool.Pool, base *log.Logger, cfg config.Config, l *log.L
 	if cfg.WebhookAllowInsecure {
 		l.Warn("webhooks may target http:// and private addresses")
 	}
+
 	evs := events.NewService(pool, base, events.Config{
 		AllowInsecureURLs: cfg.WebhookAllowInsecure,
 		Retention:         cfg.EventRetention,
 	})
+
 	ledgerModule, err := ledger.New(pool, base, ledger.Config{
 		Workers:          cfg.LedgerWorkers,
 		MaxBatch:         cfg.LedgerMaxBatch,
@@ -55,6 +57,7 @@ func newKernel(pool *pgxpool.Pool, base *log.Logger, cfg config.Config, l *log.L
 	if err != nil {
 		return nil, err
 	}
+
 	return &kernel{
 		pool:    pool,
 		log:     base,
@@ -72,11 +75,13 @@ func (k *kernel) migrate(ctx context.Context) error {
 	for _, m := range k.modules {
 		migrators = append(migrators, m)
 	}
+
 	for _, m := range migrators {
 		if err := db.Migrate(ctx, k.pool, k.log, m.Name(), m.Migrations()); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -84,13 +89,16 @@ func (k *kernel) preflight(ctx context.Context, l *log.Logger) error {
 	if err := k.ledger.CheckSealKey(ctx); err != nil {
 		return err
 	}
+
 	admins, err := k.auth.ActiveAdmins(ctx)
 	if err != nil {
 		return err
 	}
+
 	if admins == 0 {
 		l.Warn("no active admin API key; create one with: astrum keys create -name <name>")
 	}
+
 	return nil
 }
 
@@ -105,6 +113,7 @@ func (k *kernel) start(ctx context.Context, l *log.Logger) *sync.WaitGroup {
 			}
 		})
 	}
+
 	return &workers
 }
 
@@ -122,10 +131,12 @@ func (k *kernel) handler(cfg config.Config, l *log.Logger) (http.Handler, error)
 	if cfg.WebDir == "" {
 		return handler, nil
 	}
+
 	handler, err := web.Handler(cfg.WebDir, handler)
 	if err != nil {
 		return nil, err
 	}
+
 	l.Info("serving web interface", "dir", cfg.WebDir)
 	return handler, nil
 }

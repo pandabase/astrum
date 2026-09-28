@@ -25,6 +25,7 @@ func TestSpecVectors(t *testing.T) {
 		if got := typeid.Encode(tt.prefix, want); got != tt.text {
 			t.Errorf("Encode(%s) = %s, want %s", tt.uuid, got, tt.text)
 		}
+
 		got, err := typeid.Parse(tt.prefix, tt.text)
 		if err != nil || got != want {
 			t.Errorf("Parse(%s) = %s, %v; want %s", tt.text, got, err, want)
@@ -57,6 +58,7 @@ func FuzzRoundTrip(f *testing.F) {
 		if len(b) != 16 {
 			return
 		}
+
 		id := uuid.UUID(b)
 		got, err := typeid.Parse("x", typeid.Encode("x", id))
 		if err != nil || got != id {
@@ -79,10 +81,12 @@ func TestIDJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	v.ID = typeid.ID[accountPrefix]{}
 	if err := json.Unmarshal(raw, &v); err != nil || v.ID.UUID() != id {
 		t.Fatalf("round trip %s = %s, %v", raw, v.ID, err)
 	}
+
 	if err := json.Unmarshal([]byte(`{"id":"txn_01h455vb4pex5vsknk084sn02q"}`), &v); err == nil {
 		t.Fatal("wrong prefix accepted")
 	}

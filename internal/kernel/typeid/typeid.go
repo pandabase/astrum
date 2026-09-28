@@ -20,9 +20,11 @@ var decodeTable = func() [256]byte {
 	for i := range t {
 		t[i] = 0xff
 	}
+
 	for i := range len(alphabet) {
 		t[alphabet[i]] = byte(i)
 	}
+
 	return t
 }()
 
@@ -37,8 +39,10 @@ func Encode(prefix string, id uuid.UUID) string {
 				v |= 1
 			}
 		}
+
 		out[i] = alphabet[v]
 	}
+
 	return prefix + "_" + string(out[:])
 }
 
@@ -47,15 +51,18 @@ func Parse(prefix, s string) (uuid.UUID, error) {
 	if !ok {
 		return uuid.Nil, fmt.Errorf("%w: expected a %s_ id", ErrInvalid, prefix)
 	}
+
 	if len(suffix) != suffixLen || suffix[0] > '7' {
 		return uuid.Nil, fmt.Errorf("%w: malformed %s_ id", ErrInvalid, prefix)
 	}
+
 	var id uuid.UUID
 	for i := range suffixLen {
 		v := decodeTable[suffix[i]]
 		if v == 0xff {
 			return uuid.Nil, fmt.Errorf("%w: malformed %s_ id", ErrInvalid, prefix)
 		}
+
 		for b := range 5 {
 			bit := 5*i + b - 2
 			if bit >= 0 && v&(0x10>>b) != 0 {
@@ -63,6 +70,7 @@ func Parse(prefix, s string) (uuid.UUID, error) {
 			}
 		}
 	}
+
 	return id, nil
 }
 
@@ -91,6 +99,7 @@ func (id *ID[P]) UnmarshalText(b []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*id = ID[P](u)
 	return nil
 }

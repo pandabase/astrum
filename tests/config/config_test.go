@@ -26,8 +26,10 @@ func TestLoad(t *testing.T) {
 			if _, err := config.Load(); err == nil {
 				t.Errorf("%s=-1 accepted", env)
 			}
+
 			t.Setenv(env, "")
 		}
+
 		t.Setenv("DB_ALLOW_UNSAFE_DURABILITY", "maybe")
 		if _, err := config.Load(); err == nil {
 			t.Error("non-boolean DB_ALLOW_UNSAFE_DURABILITY accepted")
@@ -62,6 +64,7 @@ func TestLoad(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
+
 		want := config.Config{
 			DatabaseURL:            "postgres://localhost/astrum",
 			HTTPAddr:               ":8080",
@@ -98,6 +101,7 @@ func TestLoad(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
+
 		want := config.Config{
 			DatabaseURL:            "postgres://db/astrum",
 			HTTPAddr:               ":9090",
@@ -127,10 +131,12 @@ func TestEventRetention(t *testing.T) {
 	if err != nil || cfg.EventRetention != 30*24*time.Hour {
 		t.Fatalf("default retention = %s, %v", cfg.EventRetention, err)
 	}
+
 	t.Setenv("EVENT_RETENTION", "48h")
 	if cfg, err = config.Load(); err != nil || cfg.EventRetention != 48*time.Hour {
 		t.Fatalf("retention = %s, %v", cfg.EventRetention, err)
 	}
+
 	for _, bad := range []string{"30 days", "-1h", "0s"} {
 		t.Setenv("EVENT_RETENTION", bad)
 		if _, err := config.Load(); err == nil {

@@ -25,6 +25,7 @@ func scanHold(row pgx.Row) (Hold, error) {
 	if err != nil {
 		return Hold{}, err
 	}
+
 	h.Currency = money.Currency(currency)
 	h.Status = HoldStatus(status)
 	return h, nil
@@ -35,6 +36,7 @@ func selectHold(ctx context.Context, q querier, where string, arg any) (Hold, er
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Hold{}, ErrNotFound
 	}
+
 	return h, err
 }
 
@@ -69,9 +71,11 @@ func scanSchedule(row pgx.Row) (ScheduledTransaction, error) {
 	if err != nil {
 		return ScheduledTransaction{}, err
 	}
+
 	if err := json.Unmarshal(request, &s.Request); err != nil {
 		return ScheduledTransaction{}, fmt.Errorf("decode scheduled request %s: %w", s.ID, err)
 	}
+
 	s.Status = ScheduleStatus(status)
 	return s, nil
 }
@@ -81,5 +85,6 @@ func selectSchedule(ctx context.Context, q querier, where string, arg any) (Sche
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ScheduledTransaction{}, ErrNotFound
 	}
+
 	return s, err
 }

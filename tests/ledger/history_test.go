@@ -23,6 +23,7 @@ func dated(key string, from, to uuid.UUID, amount int64, d int, metadata string)
 	if metadata != "" {
 		in.Metadata = jsontext.Value(metadata)
 	}
+
 	return in
 }
 
@@ -42,10 +43,12 @@ func TestListEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	other, err := e.m.CreateLedger(ctx, ledger.CreateLedgerInput{Name: "other"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	e.post(t, transfer("elsewhere", e.accountIn(t, other.ID).ID, e.accountIn(t, other.ID).ID, 1))
 
 	list := func(in ledger.ListEntriesInput) []ledger.Entry {
@@ -53,10 +56,12 @@ func TestListEntries(t *testing.T) {
 		if in.Limit == 0 {
 			in.Limit = 100
 		}
+
 		entries, err := e.m.ListEntries(ctx, in)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return entries
 	}
 	amounts := func(entries []ledger.Entry) string {
@@ -64,6 +69,7 @@ func TestListEntries(t *testing.T) {
 		for _, en := range entries {
 			s = append(s, fmt.Sprintf("%s%s", en.Side[:1], en.Amount))
 		}
+
 		return fmt.Sprint(s)
 	}
 
@@ -95,6 +101,7 @@ func TestListEntries(t *testing.T) {
 		if len(entries) != 2 || *entries[0].BalanceAfter != amt(100) || *entries[1].BalanceAfter != amt(140) {
 			t.Fatalf("a entries = %+v", entries)
 		}
+
 		if p := list(ledger.ListEntriesInput{Status: ledger.TransactionPending, TransactionID: pendingTxn.ID}); p[0].BalanceAfter != nil {
 			t.Fatalf("pending entry has a balance after: %+v", p[0])
 		}
@@ -140,6 +147,7 @@ func TestHistoricalBalances(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return got
 	}
 	tests := []struct {
@@ -161,10 +169,12 @@ func TestHistoricalBalances(t *testing.T) {
 			}
 		})
 	}
+
 	now := e.get(t, b.ID)
 	if all := balances(ledger.EffectiveRange{}); all.Posted != now.Posted || all.Pending != now.Pending {
 		t.Fatalf("unbounded history %+v differs from the account %+v", all, now)
 	}
+
 	_, err := e.m.Balances(ctx, uuid.New(), ledger.EffectiveRange{})
 	wantErr(t, err, ledger.ErrNotFound)
 }
@@ -186,6 +196,7 @@ func TestStatements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	wantBalance(t, "starting", st.Starting, 1_000, 0, 1_000)
 	wantBalance(t, "ending", st.Ending, 1_100, 40, 1_060)
 	if st.EntryCount != 2 || st.LedgerID != e.ledger.ID || st.Currency != "USD" {
@@ -197,10 +208,12 @@ func TestStatements(t *testing.T) {
 	if err != nil || again.Ending != st.Ending || again.EntryCount != 2 {
 		t.Fatalf("statement after a backdated post = %+v, %v", again, err)
 	}
+
 	entries, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{StatementID: st.ID, Limit: 100})
 	if err != nil || len(entries) != 2 {
 		t.Fatalf("statement entries = %+v, %v", entries, err)
 	}
+
 	e.settle(t)
 	fresh, err := e.m.CreateStatement(ctx, ledger.CreateStatementInput{AccountID: b.ID, From: day(2), Until: day(10)})
 	if err != nil || fresh.EntryCount != 3 || fresh.Ending.Amount != amt(1_065) {
@@ -221,6 +234,7 @@ func TestStatements(t *testing.T) {
 			_, err := e.m.CreateStatement(ctx, in)
 			wantErr(t, err, ledger.ErrInvalid)
 		}
+
 		_, err := e.m.CreateStatement(ctx, ledger.CreateStatementInput{AccountID: uuid.New(), From: day(1), Until: day(3)})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
@@ -234,6 +248,7 @@ func TestStatements(t *testing.T) {
 			t.Fatalf("error = %v, want restrict_violation", err)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -248,6 +263,7 @@ func TestStatementIgnoresInFlight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer slow.Rollback(ctx)
 	if _, err := slow.Exec(ctx, `
 		WITH t AS (`+e.insertPosted(`'slow'`)+` RETURNING id)
@@ -261,9 +277,11 @@ func TestStatementIgnoresInFlight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := slow.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	entries, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{StatementID: st.ID, Limit: 100})
 	if err != nil || len(entries) != int(st.EntryCount) || st.EntryCount != 1 {
 		t.Fatalf("statement counted %d entries, lists %d (%v)", st.EntryCount, len(entries), err)
@@ -277,9 +295,11 @@ func TestMetadataFilters(t *testing.T) {
 	a := e.account(t, "USD", ledger.Debit, unrestricted, func(in *ledger.CreateAccountInput) {
 		in.Metadata = jsontext.Value(`{"vendor":"acme","tier":"gold"}`)
 	})
+
 	b := e.account(t, "USD", ledger.Debit, unrestricted, func(in *ledger.CreateAccountInput) {
 		in.Metadata = jsontext.Value(`{"vendor":"globex"}`)
 	})
+
 	e.post(t, dated("x", a.ID, b.ID, 1, 1, `{"invoice":"9","channel":"web"}`))
 	e.post(t, dated("y", a.ID, b.ID, 1, 1, `{"invoice":"10"}`))
 
@@ -287,14 +307,17 @@ func TestMetadataFilters(t *testing.T) {
 	if err != nil || len(accounts) != 1 || accounts[0].ID != a.ID {
 		t.Fatalf("accounts = %+v, %v", accounts, err)
 	}
+
 	txns, err := e.m.ListTransactions(ctx, ledger.ListTransactionsInput{Metadata: map[string]string{"invoice": "9", "channel": "web"}, Limit: 10})
 	if err != nil || len(txns) != 1 || txns[0].IdempotencyKey != "x" {
 		t.Fatalf("transactions = %+v, %v", txns, err)
 	}
+
 	none, err := e.m.ListTransactions(ctx, ledger.ListTransactionsInput{Metadata: map[string]string{"invoice": "9", "channel": "app"}, Limit: 10})
 	if err != nil || len(none) != 0 {
 		t.Fatalf("mismatched filter = %+v, %v", none, err)
 	}
+
 	ledgers, err := e.m.ListLedgers(ctx, ledger.ListLedgersInput{Metadata: map[string]string{"missing": "x"}, Limit: 10})
 	if err != nil || len(ledgers) != 0 {
 		t.Fatalf("ledgers = %+v, %v", ledgers, err)
@@ -315,9 +338,11 @@ func TestHTTPHistory(t *testing.T) {
 	if len(entries) != 3 || entries[0]["object"] != "entry" || entries[2]["balance_after"] != "300" {
 		t.Fatalf("entries = %v", entries)
 	}
+
 	if got := a.list("/v1/entries?account_id=" + cash + "&metadata[day]=2"); len(got) != 1 {
 		t.Fatalf("metadata filtered entries = %v", got)
 	}
+
 	if got := a.list("/v1/transactions?metadata[day]=3"); len(got) != 1 {
 		t.Fatalf("metadata filtered transactions = %v", got)
 	}
@@ -337,10 +362,12 @@ func TestHTTPHistory(t *testing.T) {
 		st["ending_balance"].(map[string]any)["amount"] != "300" {
 		t.Fatalf("statement = %v", st)
 	}
+
 	a.must(http.StatusOK, http.MethodGet, "/v1/statements/"+id, "", "")
 	if got := a.list("/v1/entries?statement_id=" + id); len(got) != 2 {
 		t.Fatalf("statement entries = %v", got)
 	}
+
 	if got := a.list("/v1/statements?account_id=" + cash); len(got) != 1 {
 		t.Fatalf("statements = %v", got)
 	}

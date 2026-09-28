@@ -31,10 +31,12 @@ func TestDocExamples(t *testing.T) {
 			t.Skipf("%s is not installed", tool)
 		}
 	}
+
 	pages, err := filepath.Glob("../../docs/examples/*.md")
 	if err != nil || len(pages) == 0 {
 		t.Fatalf("no example pages found: %v", err)
 	}
+
 	for _, page := range pages {
 		t.Run(strings.TrimSuffix(filepath.Base(page), ".md"), func(t *testing.T) {
 			blocks := parseDoc(t, page)
@@ -55,6 +57,7 @@ func parseDoc(t *testing.T, path string) []docBlock {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var (
 		blocks []docBlock
 		fence  string
@@ -71,20 +74,25 @@ func parseDoc(t *testing.T, path string) []docBlock {
 			switch fence {
 			case "sh":
 				blocks = append(blocks, docBlock{script: body.String()})
+
 			case "text":
 				if len(blocks) == 0 || blocks[len(blocks)-1].output != nil {
 					t.Fatalf("%s: text block without a sh block before it", path)
 				}
+
 				blocks[len(blocks)-1].output = new(body.String())
 			}
+
 			fence = ""
 		case fence != "":
 			body.WriteString(line + "\n")
 		}
 	}
+
 	if len(blocks) == 0 {
 		t.Fatalf("%s: no sh blocks", path)
 	}
+
 	return blocks
 }
 
@@ -99,6 +107,7 @@ func runDoc(t *testing.T, blocks []docBlock, url string) {
 			script.WriteString("{\n" + body + "} >/dev/null\n")
 			continue
 		}
+
 		fmt.Fprintf(&script, "{\n%s} >%q\n", body, filepath.Join(out, fmt.Sprint(i)))
 	}
 
@@ -109,14 +118,17 @@ func runDoc(t *testing.T, blocks []docBlock, url string) {
 	if stderr, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("script failed: %v\n%s", err, stderr)
 	}
+
 	for i, b := range blocks {
 		if b.output == nil {
 			continue
 		}
+
 		got, err := os.ReadFile(filepath.Join(out, fmt.Sprint(i)))
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if string(got) != *b.output {
 			t.Errorf("block %d output:\n%s\nwant:\n%s\nscript:\n%s", i, got, *b.output, b.script)
 		}

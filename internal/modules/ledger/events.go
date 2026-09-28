@@ -32,6 +32,7 @@ func transactionResourceOnly(t Transaction) transactionResource {
 	for i := range r.Entries {
 		r.Entries[i].ResultingBalances = nil
 	}
+
 	return r
 }
 
@@ -40,6 +41,7 @@ func emit[T, R any](ctx context.Context, tx pgx.Tx, eventType string, resource f
 	if err != nil {
 		return err
 	}
+
 	return events.Insert(ctx, tx, evs...)
 }
 
@@ -50,8 +52,10 @@ func render[T, R any](eventType string, items []T, resource func(T) R) ([]events
 		if err != nil {
 			return nil, err
 		}
+
 		out[i] = ev
 	}
+
 	return out, nil
 }
 
@@ -60,11 +64,13 @@ func monitorEvents(state *ledgerState) ([]events.Event, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]events.Event, len(fired))
 	for i, m := range fired {
 		if out[i], err = events.New(eventMonitorTriggered, toMonitor(m, &balances[i])); err != nil {
 			return nil, err
 		}
 	}
+
 	return out, nil
 }

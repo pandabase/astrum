@@ -50,6 +50,7 @@ func edgePool(t *testing.T, url string) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(pool.Close)
 	return pool
 }
@@ -85,6 +86,7 @@ func startEdge(t *testing.T, cfg config.Config) *edgeServer {
 		case <-time.After(40 * time.Second):
 		}
 	})
+
 	waitHealthy(t, s.base, s.done)
 	return s
 }
@@ -126,6 +128,7 @@ func TestEdgeHealthHandler(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Content-Type") != "application/problem+json" {
 		t.Fatalf("closed pool = %d %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
+
 	var problem struct {
 		Status int    `json:"status"`
 		Code   string `json:"code"`
@@ -134,9 +137,11 @@ func TestEdgeHealthHandler(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
 		t.Fatal(err)
 	}
+
 	if problem.Status != 503 || problem.Code != "service_unavailable" || problem.Detail != "database unavailable" {
 		t.Fatalf("problem = %+v", problem)
 	}
+
 	if strings.Contains(rec.Body.String(), "closed pool") {
 		t.Fatalf("health leaks the database error: %s", rec.Body.String())
 	}
@@ -171,6 +176,7 @@ func TestEdgeStartupFailuresWithoutDatabase(t *testing.T) {
 				t.Setenv("PGCONNECT_TIMEOUT", "2")
 				t.Setenv("PGSSLMODE", "disable")
 			}
+
 			cfg := base
 			tt.change(&cfg)
 			err := runWithin(t, context.Background(), cfg, 15*time.Second)
@@ -179,6 +185,7 @@ func TestEdgeStartupFailuresWithoutDatabase(t *testing.T) {
 			}
 		})
 	}
+
 	t.Run("canceled before start", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -196,6 +203,7 @@ func TestEdgeStartupFailuresWithDatabase(t *testing.T) {
 			t.Fatalf("run() = %v", err)
 		}
 	})
+
 	t.Run("web dir without index", func(t *testing.T) {
 		cfg := edgeConfig(t, testdb.URL(t))
 		cfg.WebDir = t.TempDir()
@@ -203,6 +211,7 @@ func TestEdgeStartupFailuresWithDatabase(t *testing.T) {
 			t.Fatalf("run() = %v", err)
 		}
 	})
+
 	t.Run("missing web dir", func(t *testing.T) {
 		cfg := edgeConfig(t, testdb.URL(t))
 		cfg.WebDir = t.TempDir() + "/missing"
@@ -210,6 +219,7 @@ func TestEdgeStartupFailuresWithDatabase(t *testing.T) {
 			t.Fatalf("run() = %v", err)
 		}
 	})
+
 	t.Run("modified kernel migration", func(t *testing.T) {
 		url := testdb.URL(t)
 		pool := edgePool(t, url)
@@ -217,16 +227,19 @@ func TestEdgeStartupFailuresWithDatabase(t *testing.T) {
 		if err := db.Migrate(context.Background(), pool, testdb.Logger(), "auth", tampered); err != nil {
 			t.Fatal(err)
 		}
+
 		err := runWithin(t, context.Background(), edgeConfig(t, url), 30*time.Second)
 		if err == nil || !strings.Contains(err.Error(), "migrate auth/0001_init: applied migration was modified") {
 			t.Fatalf("run() = %v", err)
 		}
 	})
+
 	t.Run("address in use", func(t *testing.T) {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		defer l.Close()
 		cfg := edgeConfig(t, testdb.URL(t))
 		cfg.HTTPAddr = l.Addr().String()
@@ -234,6 +247,7 @@ func TestEdgeStartupFailuresWithDatabase(t *testing.T) {
 			t.Fatalf("run() = %v", err)
 		}
 	})
+
 	t.Run("invalid address", func(t *testing.T) {
 		cfg := edgeConfig(t, testdb.URL(t))
 		cfg.HTTPAddr = "127.0.0.1:notaport"
@@ -252,6 +266,7 @@ func TestEdgeSealKeyMismatch(t *testing.T) {
 	if err := runKeys(context.Background(), cfg, []string{"create", "-name", "seal"}, &out); err != nil {
 		t.Fatal(err)
 	}
+
 	token := tokenFrom(t, out.String())
 	ledger := postAs(t, token, s.base+"/v1/ledgers", "", `{"name":"seal"}`)["id"]
 	a := postAs(t, token, s.base+"/v1/accounts", "", fmt.Sprintf(`{"ledger_id":%q,"code":"a","currency":"USD","normal_side":"debit","allow_negative":true}`, ledger))["id"]
@@ -265,14 +280,18 @@ func TestEdgeSealKeyMismatch(t *testing.T) {
 		if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM ledger_seals`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
+
 		if n > 0 {
 			break
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatal("transaction was never sealed")
 		}
+
 		time.Sleep(50 * time.Millisecond)
 	}
+
 	if err := s.stop(t); err != nil {
 		t.Fatalf("first run() = %v", err)
 	}
@@ -312,10 +331,12 @@ func TestEdgeServerBehaviour(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			resp.Body.Close()
 			if resp.StatusCode != tt.want {
 				t.Fatalf("%s %s = %d, want %d", tt.method, tt.path, resp.StatusCode, tt.want)
@@ -327,13 +348,16 @@ func TestEdgeServerBehaviour(t *testing.T) {
 		if err := s.stop(t); err != nil {
 			t.Fatalf("run() = %v", err)
 		}
+
 		if _, err := http.Get(s.base + "/healthz"); err == nil {
 			t.Fatal("server still answering after shutdown")
 		}
+
 		l, err := net.Listen("tcp", cfg.HTTPAddr)
 		if err != nil {
 			t.Fatalf("port not released: %v", err)
 		}
+
 		l.Close()
 	})
 }
@@ -345,10 +369,12 @@ func TestEdgeKeysWithoutDatabase(t *testing.T) {
 		if err == nil || err.Error() != keysUsage {
 			t.Fatalf("runKeys() = %v", err)
 		}
+
 		if err := runKeys(context.Background(), cfg, []string{}, &strings.Builder{}); err == nil || err.Error() != keysUsage {
 			t.Fatalf("runKeys([]) = %v", err)
 		}
 	})
+
 	t.Run("bad log format", func(t *testing.T) {
 		bad := cfg
 		bad.LogFormat = "xml"
@@ -356,11 +382,13 @@ func TestEdgeKeysWithoutDatabase(t *testing.T) {
 			t.Fatalf("runKeys() = %v", err)
 		}
 	})
+
 	t.Run("bad database url", func(t *testing.T) {
 		if err := runKeys(context.Background(), cfg, []string{"create", "-name", "x"}, &strings.Builder{}); err == nil || !strings.Contains(err.Error(), "db: parse url") {
 			t.Fatalf("runKeys() = %v", err)
 		}
 	})
+
 	t.Run("usage text", func(t *testing.T) {
 		for _, want := range []string{"astrum keys create -name <name> [-role admin|write|read] [-expires <duration>]", "astrum keys revoke -id <key_...>"} {
 			if !strings.Contains(keysUsage, want) {
@@ -404,17 +432,21 @@ func TestEdgeKeysCLI(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				m := createdLine.FindStringSubmatch(out)
 				if m == nil {
 					t.Fatalf("output = %q", out)
 				}
+
 				if m[1] != tt.role || m[3] != tt.name {
 					t.Fatalf("role/name = %s/%s, want %s/%s", m[1], m[3], tt.role, tt.name)
 				}
+
 				id, err := typeid.Parse("key", m[2])
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				k, err := authn.Authenticate(ctx, m[4])
 				if err != nil || k.ID != id || string(k.Role) != tt.role || k.ExpiresAt != nil {
 					t.Fatalf("Authenticate() = %+v, %v", k, err)
@@ -428,14 +460,17 @@ func TestEdgeKeysCLI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		m := createdLine.FindStringSubmatch(out)
 		if m == nil {
 			t.Fatalf("output = %q", out)
 		}
+
 		k, err := authn.Authenticate(ctx, m[4])
 		if err != nil || k.ExpiresAt == nil {
 			t.Fatalf("Authenticate() = %+v, %v", k, err)
 		}
+
 		if left := time.Until(*k.ExpiresAt); left < 59*time.Minute || left > 61*time.Minute {
 			t.Fatalf("expires in %s, want about 1h", left)
 		}
@@ -464,11 +499,13 @@ func TestEdgeKeysCLI(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), tt.want) {
 					t.Fatalf("runKeys(%v) = %v, want %q", tt.args, err, tt.want)
 				}
+
 				if out != "" {
 					t.Fatalf("output on error = %q", out)
 				}
 			})
 		}
+
 		if _, err := keys("create", "-name", "x", "-role", "god"); !errors.Is(err, auth.ErrInvalid) {
 			t.Fatalf("invalid role error = %v, want auth.ErrInvalid", err)
 		}
@@ -490,6 +527,7 @@ func TestEdgeKeysCLI(t *testing.T) {
 					expires = k.ExpiresAt
 				}
 			}
+
 			t.Fatalf("runKeys(create -expires -1h) created a key (expires_at = %v): %q", expires, out)
 		}
 	})
@@ -519,21 +557,26 @@ func TestEdgeKeysCLI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		m := createdLine.FindStringSubmatch(out)
 		if m == nil {
 			t.Fatalf("output = %q", out)
 		}
+
 		out, err = keys("revoke", "-id", m[2])
 		if err != nil || out != fmt.Sprintf("revoked %s (doomed)\n", m[2]) {
 			t.Fatalf("revoke = %q, %v", out, err)
 		}
+
 		if _, err := authn.Authenticate(ctx, m[4]); !errors.Is(err, auth.ErrUnauthenticated) {
 			t.Fatalf("revoked key still authenticates: %v", err)
 		}
+
 		out, err = keys("revoke", "-id", m[2])
 		if err != nil || out != fmt.Sprintf("revoked %s (doomed)\n", m[2]) {
 			t.Fatalf("second revoke = %q, %v", out, err)
 		}
+
 		id, _ := typeid.Parse("key", m[2])
 		k, err := authn.Key(ctx, id)
 		if err != nil || k.RevokedAt == nil {
@@ -562,6 +605,7 @@ func TestEdgeKeysCLI(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), tt.text) || (tt.want != nil && !errors.Is(err, tt.want)) {
 					t.Fatalf("runKeys(%v) = %v, want %q", tt.args, err, tt.text)
 				}
+
 				if out != "" {
 					t.Fatalf("output on error = %q", out)
 				}
@@ -584,22 +628,27 @@ func TestEdgeKeysMigratesFreshDatabase(t *testing.T) {
 	if err := runKeys(context.Background(), config.Config{DatabaseURL: url}, []string{"create", "-name", "first"}, &out); err != nil {
 		t.Fatal(err)
 	}
+
 	pool := edgePool(t, url)
 	var modules []string
 	rows, err := pool.Query(context.Background(), `SELECT DISTINCT module FROM schema_migrations ORDER BY module`)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for rows.Next() {
 		var m string
 		if err := rows.Scan(&m); err != nil {
 			t.Fatal(err)
 		}
+
 		modules = append(modules, m)
 	}
+
 	if strings.Join(modules, ",") != "auth" {
 		t.Fatalf("keys CLI migrated %v, want only auth", modules)
 	}
+
 	admins, err := auth.New(pool, testdb.Logger()).ActiveAdmins(context.Background())
 	if err != nil || admins != 1 {
 		t.Fatalf("ActiveAdmins() = %d, %v", admins, err)
@@ -612,9 +661,11 @@ func TestEdgeMainEnvWithoutConfig(t *testing.T) {
 		main()
 		return
 	}
+
 	if testing.Short() {
 		t.Skip("spawns a process")
 	}
+
 	tests := []struct {
 		name string
 		env  []string
@@ -644,6 +695,7 @@ func edgeCommand(t *testing.T, pattern string) *exec.Cmd {
 	for _, k := range []string{"HTTP_ADDR", "LOG_LEVEL", "LOG_FORMAT", "WEB_DIR", "DB_MAX_CONNS", "LEDGER_WORKERS", "LEDGER_MAX_BATCH", "LEDGER_BATCH_CONCURRENCY", "DB_ALLOW_UNSAFE_DURABILITY", "WEBHOOK_ALLOW_INSECURE", "EVENT_RETENTION"} {
 		cmd.Env = append(cmd.Env, k+"=")
 	}
+
 	return cmd
 }
 
@@ -652,9 +704,11 @@ func exitCode(t *testing.T, err error) int {
 	if err == nil {
 		return 0
 	}
+
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		return exitErr.ExitCode()
 	}
+
 	t.Fatal(err)
 	return -1
 }

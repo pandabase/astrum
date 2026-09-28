@@ -23,6 +23,7 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	all := m.Migrations()
 	before := fstest.MapFS{}
 	for _, name := range []string{"0001_init.sql", "0002_account_status.sql"} {
@@ -30,8 +31,10 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		before[name] = &fstest.MapFile{Data: data}
 	}
+
 	pool := testdb.New(t, map[string]fs.FS{"ledger": before, "events": events.Migrations()})
 
 	cash, legacy, deposits := uuid.New(), uuid.New(), uuid.New()
@@ -55,6 +58,7 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 				return err
 			}
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -65,10 +69,12 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 	if err := db.Migrate(ctx, pool, testdb.Logger(), "ledger", all); err != nil {
 		t.Fatal(err)
 	}
+
 	m, err = ledger.New(pool, testdb.Logger(), ledger.Config{SealKey: key, SweepInterval: time.Hour})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() { _ = m.Run(runCtx); close(done) }()
@@ -78,13 +84,16 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 	if acc.Posted.Amount != amt(9_000_000_000_000_000_000) || acc.Held != amt(100) || acc.OverdraftLimit != amt(25) || acc.CurrencyExponent != 2 {
 		t.Fatalf("cash after upgrade = %+v", acc)
 	}
+
 	if acc := mustAccount(t, m, legacy); acc.Currency != "XYZ" || acc.CurrencyExponent != 2 {
 		t.Fatalf("legacy currency account = %+v", acc)
 	}
+
 	ledgers, err := m.ListLedgers(ctx, ledger.ListLedgersInput{Limit: 10})
 	if err != nil || len(ledgers) != 1 || ledgers[0].Name != "Default" {
 		t.Fatalf("ledgers after upgrade = %+v, %v", ledgers, err)
 	}
+
 	for _, id := range []uuid.UUID{cash, legacy, deposits} {
 		if got := mustAccount(t, m, id).LedgerID; got != ledgers[0].ID {
 			t.Fatalf("account %s is in ledger %s, want the default ledger", id, got)
@@ -95,16 +104,20 @@ func TestUpgradeToWideAmounts(t *testing.T) {
 	if _, err := m.Post(ctx, in); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := mustAccount(t, m, cash).Posted.Amount.String(); got != "18000000000000000000" {
 		t.Fatalf("cash = %s", got)
 	}
+
 	if _, err := m.Seal(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	report, err := m.Verify(ctx)
 	if err != nil || !report.OK {
 		t.Fatalf("verify = %+v, %v", report, err)
 	}
+
 	if !strings.HasPrefix(report.ChainHead, "2:") {
 		t.Fatalf("chain head = %s, want both transactions sealed", report.ChainHead)
 	}
@@ -116,5 +129,6 @@ func mustAccount(t *testing.T, m *ledger.Module, id uuid.UUID) ledger.Account {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return acc
 }

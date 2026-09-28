@@ -22,6 +22,7 @@ func TestCreateAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if acc.ID.Version() != 7 || acc.Code != in.Code || acc.OverdraftLimit != amt(500) || acc.Posted.Amount != amt(0) || acc.Version != 0 {
 		t.Fatalf("CreateAccount() = %+v", acc)
 	}
@@ -75,6 +76,7 @@ func TestPostBalancesOnNormalSide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var meta map[string]any
 	if err := json.Unmarshal(got.Metadata, &meta); err != nil || meta["psp_ref"] != "ch_123" {
 		t.Fatalf("metadata round trip = %s, %v", got.Metadata, err)
@@ -83,9 +85,11 @@ func TestPostBalancesOnNormalSide(t *testing.T) {
 	if b := e.balance(t, cash.ID); b != 10_000 {
 		t.Errorf("cash = %d, want 10000", b)
 	}
+
 	if b := e.balance(t, deposits.ID); b != 10_000 {
 		t.Errorf("deposits = %d, want 10000 (credit-normal reads positive)", b)
 	}
+
 	e.verify(t)
 }
 
@@ -107,6 +111,7 @@ func TestPostIdempotency(t *testing.T) {
 				t.Fatalf("replay = %s, %v; want %s", again.ID, err, first.ID)
 			}
 		}
+
 		if bal := e.balance(t, b.ID); bal != 1_000 {
 			t.Fatalf("balance = %d, want 1000", bal)
 		}
@@ -176,9 +181,11 @@ func TestPostRejections(t *testing.T) {
 	if acc := e.get(t, overdraft.ID); acc.Posted.Amount != amt(-50) || acc.Available.Amount != amt(-50) {
 		t.Fatalf("overdraft account = %+v, want balance -50", acc)
 	}
+
 	if b := e.balance(t, usdA.ID); b != 100 {
 		t.Fatalf("usdA = %d after rejections, want 100", b)
 	}
+
 	e.verify(t)
 }
 
@@ -194,6 +201,7 @@ func TestPostBalanceOverflow(t *testing.T) {
 	if bal := e.get(t, b.ID).Posted.Amount; bal != money.MaxAmount() {
 		t.Fatalf("balance = %s, want %s", bal, money.MaxAmount())
 	}
+
 	e.verify(t)
 }
 
@@ -213,6 +221,7 @@ func TestBatchAtomic(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrBatchAborted)
 		wantErr(t, results[1].Err, ledger.ErrInsufficientFunds)
 		if bal := e.balance(t, a.ID); bal != 1_000 {
@@ -230,15 +239,18 @@ func TestBatchAtomic(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		for i, r := range results {
 			if r.Err != nil {
 				t.Fatalf("result %d: %v", i, r.Err)
 			}
 		}
+
 		if bal := e.balance(t, c.ID); bal != 500 {
 			t.Fatalf("c = %d, want 500", bal)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -282,12 +294,15 @@ func TestBatchPartial(t *testing.T) {
 			t.Errorf("result %d replayed = %v, want %v", i, r.Replayed, want.replayed)
 		}
 	}
+
 	if results[3].Transaction.ID != existing.ID || results[5].Transaction.ID != results[4].Transaction.ID {
 		t.Fatal("replays must return the original transactions")
 	}
+
 	if bal := e.balance(t, b.ID); bal != 65 {
 		t.Fatalf("b = %d, want 65", bal)
 	}
+
 	e.verify(t)
 }
 
@@ -314,9 +329,11 @@ func TestReverse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if rev.ReversesID == nil || *rev.ReversesID != original.ID {
 		t.Fatalf("reverses_id = %v, want %s", rev.ReversesID, original.ID)
 	}
+
 	if e.balance(t, a.ID) != 1_000 || e.balance(t, b.ID) != 0 {
 		t.Fatal("reversal did not restore balances")
 	}
@@ -350,6 +367,7 @@ func TestReverse(t *testing.T) {
 		_, err := e.m.Reverse(ctx, uuid.New(), ledger.ReverseInput{IdempotencyKey: "x"})
 		wantErr(t, err, ledger.ErrNotFound)
 	})
+
 	e.verify(t)
 }
 
@@ -373,14 +391,17 @@ func TestStatement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	page2, err := e.m.AccountEntries(ctx, deposits.ID, page1[len(page1)-1].PostingID, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	lines := append(page1, page2...)
 	if len(page1) != 3 || len(page2) != 2 {
 		t.Fatalf("pages = %d + %d, want 3 + 2", len(page1), len(page2))
 	}
+
 	for i, line := range lines {
 		if want := amt(int64(100 * (i + 1))); line.BalanceAfter != want {
 			t.Errorf("line %d balance_after = %s, want %s (normal side, running)", i, line.BalanceAfter, want)

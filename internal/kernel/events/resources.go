@@ -94,17 +94,21 @@ func (s *Service) CreateEndpoint(ctx context.Context, in EndpointInput) (Endpoin
 	if in.EventTypes == nil {
 		in.EventTypes = []string{}
 	}
+
 	if err := s.validateEndpoint(in.URL, in.Description, in.EventTypes); err != nil {
 		return Endpoint{}, err
 	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Endpoint{}, err
 	}
+
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		return Endpoint{}, err
 	}
+
 	e, err := scanEndpoint(s.pool.QueryRow(ctx, `
 		INSERT INTO webhook_endpoints (id, url, secret, description, event_types, enabled)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -113,6 +117,7 @@ func (s *Service) CreateEndpoint(ctx context.Context, in EndpointInput) (Endpoin
 	if err != nil {
 		return Endpoint{}, fmt.Errorf("events: create endpoint: %w", err)
 	}
+
 	e.Secret = "whsec_" + base64.RawURLEncoding.EncodeToString(secret)
 	s.log.Info("webhook endpoint created", "endpoint_id", e.ID, "url", e.URL, "event_types", e.EventTypes)
 	return e, nil
@@ -131,6 +136,7 @@ func (s *Service) ListEndpoints(ctx context.Context, before uuid.UUID, limit int
 	if err != nil {
 		return nil, err
 	}
+
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Endpoint, error) { return scanEndpoint(row) })
 }
 
@@ -141,22 +147,28 @@ func (s *Service) UpdateEndpoint(ctx context.Context, id uuid.UUID, in EndpointU
 		if err != nil {
 			return err
 		}
+
 		next := current
 		if in.URL != nil {
 			next.URL = *in.URL
 		}
+
 		if in.Description != nil {
 			next.Description = *in.Description
 		}
+
 		if in.EventTypes != nil {
 			next.EventTypes = *in.EventTypes
 		}
+
 		if in.Enabled != nil {
 			next.Enabled = *in.Enabled
 		}
+
 		if err := s.validateEndpoint(next.URL, next.Description, next.EventTypes); err != nil {
 			return err
 		}
+
 		e, err = scanEndpoint(tx.QueryRow(ctx, `
 			UPDATE webhook_endpoints
 			SET url = $2, description = $3, event_types = $4, enabled = $5, version = version + 1
@@ -167,6 +179,7 @@ func (s *Service) UpdateEndpoint(ctx context.Context, id uuid.UUID, in EndpointU
 	if err != nil {
 		return Endpoint{}, err
 	}
+
 	s.log.Info("webhook endpoint updated", "endpoint_id", e.ID, "enabled", e.Enabled, "version", e.Version)
 	return e, nil
 }
@@ -176,9 +189,11 @@ func (s *Service) DeleteEndpoint(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+
 	s.log.Info("webhook endpoint deleted", "endpoint_id", id)
 	return nil
 }
@@ -187,6 +202,7 @@ func validPort(port string) bool {
 	if port == "" {
 		return true
 	}
+
 	n, err := strconv.Atoi(port)
 	return err == nil && n >= 1 && n <= 65535
 }
@@ -196,9 +212,11 @@ func publicHost(host string) bool {
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return false
 	}
+
 	if ip, err := netip.ParseAddr(host); err == nil {
 		return public(ip)
 	}
+
 	return true
 }
 
@@ -218,11 +236,13 @@ func (s *Service) validateEndpoint(raw, description string, types []string) erro
 	case len(types) > maxEventTypes:
 		return fmt.Errorf("%w: at most %d event types", ErrInvalid, maxEventTypes)
 	}
+
 	for _, t := range types {
 		if !eventTypePattern.MatchString(t) {
 			return fmt.Errorf("%w: event type %q must look like transaction.posted or transaction.*", ErrInvalid, t)
 		}
 	}
+
 	return nil
 }
 
@@ -242,6 +262,7 @@ func scanEvent(row pgx.Row) (Event, error) {
 	if err := row.Scan(&e.ID, &e.Type, &data, &e.CreatedAt); err != nil {
 		return Event{}, err
 	}
+
 	e.Data = bytes.Clone(data)
 	return e, nil
 }
@@ -259,6 +280,7 @@ func (s *Service) ListEvents(ctx context.Context, in ListEventsInput) ([]Event, 
 	if err != nil {
 		return nil, err
 	}
+
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Event, error) { return scanEvent(row) })
 }
 
@@ -308,6 +330,7 @@ func (s *Service) ListDeliveries(ctx context.Context, in ListDeliveriesInput) ([
 	default:
 		return nil, fmt.Errorf("%w: status must be pending, succeeded or failed", ErrInvalid)
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+deliveryColumns+` FROM webhook_deliveries AS d JOIN events AS e ON e.id = d.event_id
 		WHERE ($1::uuid IS NULL OR d.id < $1)
@@ -319,6 +342,7 @@ func (s *Service) ListDeliveries(ctx context.Context, in ListDeliveriesInput) ([
 	if err != nil {
 		return nil, err
 	}
+
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Delivery, error) { return scanDelivery(row) })
 }
 
@@ -329,10 +353,12 @@ func (s *Service) RetryDelivery(ctx context.Context, id uuid.UUID) (Delivery, er
 		WHERE id = $1 AND status <> 'succeeded'`, id); err != nil {
 		return Delivery{}, err
 	}
+
 	d, err := s.Delivery(ctx, id)
 	if err == nil {
 		s.log.Info("webhook delivery retry requested", "delivery_id", id, "status", d.Status)
 	}
+
 	return d, err
 }
 
@@ -340,6 +366,7 @@ func notFound[T any](v T, err error) (T, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, ErrNotFound
 	}
+
 	return v, err
 }
 
@@ -347,6 +374,7 @@ func nullUUID(id uuid.UUID) *uuid.UUID {
 	if id == uuid.Nil {
 		return nil
 	}
+
 	return &id
 }
 
@@ -354,5 +382,6 @@ func nullString(s string) *string {
 	if s == "" {
 		return nil
 	}
+
 	return &s
 }

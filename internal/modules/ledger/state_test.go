@@ -23,15 +23,19 @@ func newFixture(t *testing.T, accounts map[string]accountState) *fixture {
 		if a.currency == "" {
 			a.currency = "USD"
 		}
+
 		if a.normalSide == "" {
 			a.normalSide = Debit
 		}
+
 		if a.status == "" {
 			a.status = AccountOpen
 		}
+
 		f.ids[name] = a.id
 		list = append(list, &a)
 	}
+
 	f.state = newLedgerState(list, nil)
 	return f
 }
@@ -53,10 +57,12 @@ func (f *fixture) available(t *testing.T, name string) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	n, ok := v.Int64()
 	if !ok {
 		t.Fatalf("available %s does not fit in int64", v)
 	}
+
 	return n
 }
 
@@ -123,12 +129,14 @@ func TestApplyFundsChecks(t *testing.T) {
 			if tt.accounts[tt.from].normalSide == Credit {
 				in.Postings[0].Side, in.Postings[1].Side = Debit, Credit
 			}
+
 			before := *f.state.accounts[f.ids[tt.from]]
 
 			_, err := f.state.apply(in, nil)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("apply() error = %v, want %v", err, tt.wantErr)
 			}
+
 			if err != nil && *f.state.accounts[f.ids[tt.from]] != before {
 				t.Fatal("failed apply mutated state")
 			}
@@ -143,12 +151,15 @@ func TestApplyIsSequential(t *testing.T) {
 	if _, err := f.state.apply(f.transfer("a", "b", 100), nil); !errors.Is(err, ErrInsufficientFunds) {
 		t.Fatalf("a->b before funding: error = %v, want ErrInsufficientFunds", err)
 	}
+
 	if _, err := f.state.apply(f.transfer("open", "a", 100), nil); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := f.state.apply(f.transfer("a", "b", 100), nil); err != nil {
 		t.Fatalf("a->b after funding: %v", err)
 	}
+
 	if got := f.available(t, "b"); got != 100 {
 		t.Fatalf("b available = %d, want 100", got)
 	}
@@ -177,13 +188,16 @@ func TestApplyBalanceAfterAndVersions(t *testing.T) {
 		if p.balanceAfter != wantAfter[i] {
 			t.Errorf("posting %d balanceAfter = %s, want %s", i, p.balanceAfter, wantAfter[i])
 		}
+
 		if p.Currency != "USD" {
 			t.Errorf("posting %d currency = %q, want USD", i, p.Currency)
 		}
 	}
+
 	if v := f.state.accounts[f.ids["open"]].version; v != 8 {
 		t.Errorf("version = %d, want 8 (one bump per entry)", v)
 	}
+
 	if len(f.state.dirty()) != 2 {
 		t.Errorf("dirty accounts = %d, want 2", len(f.state.dirty()))
 	}
@@ -197,6 +211,7 @@ func TestApplyRejections(t *testing.T) {
 		"eur":   {allowNegative: true, currency: "EUR"},
 		"other": {allowNegative: true, ledgerID: uuid.New()},
 	})
+
 	tests := []struct {
 		name     string
 		postings []Posting
@@ -214,6 +229,7 @@ func TestApplyRejections(t *testing.T) {
 			if _, err := f.state.apply(PostInput{IdempotencyKey: "k", Postings: tt.postings}, nil); !errors.Is(err, tt.wantErr) {
 				t.Fatalf("apply() error = %v, want %v", err, tt.wantErr)
 			}
+
 			if len(f.state.dirty()) != 0 {
 				t.Fatal("rejected entry left dirty state")
 			}
@@ -229,12 +245,15 @@ func TestReserveAndRelease(t *testing.T) {
 	if err := f.state.reserve(a, "", amt(101)); !errors.Is(err, ErrInsufficientFunds) {
 		t.Fatalf("over-reserve error = %v, want ErrInsufficientFunds", err)
 	}
+
 	if err := f.state.reserve(a, "EUR", amt(10)); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("wrong currency reserve error = %v, want ErrInvalid", err)
 	}
+
 	if err := f.state.reserve(a, "USD", amt(70)); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := f.available(t, "a"); got != 30 {
 		t.Fatalf("available = %d, want 30", got)
 	}
@@ -242,6 +261,7 @@ func TestReserveAndRelease(t *testing.T) {
 	if _, err := f.state.apply(f.transfer("a", "b", 50), map[uuid.UUID]money.Amount{a: amt(70)}); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+
 	if got := f.available(t, "a"); got != 50 {
 		t.Fatalf("available after capture = %d, want 50", got)
 	}
@@ -259,6 +279,7 @@ func TestAccountBelowFloorCanBeRepaired(t *testing.T) {
 	if _, err := f.state.apply(f.transfer("open", "a", 100), nil); err != nil {
 		t.Fatalf("credit to underfunded account: %v", err)
 	}
+
 	if _, err := f.state.apply(f.transfer("a", "open", 1), nil); !errors.Is(err, ErrInsufficientFunds) {
 		t.Fatalf("debit from underfunded account error = %v, want ErrInsufficientFunds", err)
 	}
@@ -284,6 +305,7 @@ func TestNonOpenAccountsRejectMovement(t *testing.T) {
 					t.Errorf("%s: error = %v, want ErrAccountNotOpen", name, err)
 				}
 			}
+
 			if err := f.state.release(f.ids["a"], amt(40)); err != nil {
 				t.Fatalf("release on %s account: %v", status, err)
 			}
@@ -301,9 +323,11 @@ func TestPendingTransitions(t *testing.T) {
 	if _, err := f.state.apply(in, nil); err != nil {
 		t.Fatal(err)
 	}
+
 	if got := f.available(t, "a"); got != 30 {
 		t.Fatalf("available after pending = %d, want 30", got)
 	}
+
 	if _, err := f.state.apply(f.transfer("a", "b", 31), nil); !errors.Is(err, ErrInsufficientFunds) {
 		t.Fatalf("spend past reservation error = %v", err)
 	}
@@ -312,10 +336,12 @@ func TestPendingTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	a := f.state.accounts[f.ids["a"]]
 	if !a.pendingCredits.IsZero() || a.postedCredits != amt(50) || posted[1].balanceAfter != amt(50) {
 		t.Fatalf("after post: pending credits %s, posted credits %s, balance after %s", a.pendingCredits, a.postedCredits, posted[1].balanceAfter)
 	}
+
 	if got := f.available(t, "a"); got != 50 {
 		t.Fatalf("available after post = %d, want 50", got)
 	}
@@ -339,6 +365,7 @@ func TestBalanceViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for name, tt := range map[string]struct {
 		got  Balance
 		want [3]int64
@@ -352,6 +379,7 @@ func TestBalanceViews(t *testing.T) {
 			t.Errorf("%s = %+v, want %+v", name, tt.got, want)
 		}
 	}
+
 	if got, _ := a.available(); got != available.Amount {
 		t.Errorf("available() = %s, balances say %s", got, available.Amount)
 	}

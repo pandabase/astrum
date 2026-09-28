@@ -33,6 +33,7 @@ func validateCurrency(in CreateCurrencyInput) error {
 	case in.Exponent < 0 || in.Exponent > maxCurrencyExponent:
 		return fmt.Errorf("%w: exponent must be 0-%d", ErrInvalid, maxCurrencyExponent)
 	}
+
 	return nil
 }
 
@@ -40,6 +41,7 @@ func validateAccount(in CreateAccountInput) error {
 	if err := validateDetails(in.Name, in.Description, in.Metadata, false); err != nil {
 		return err
 	}
+
 	switch {
 	case in.LedgerID == uuid.Nil:
 		return fmt.Errorf("%w: ledger_id is required", ErrInvalid)
@@ -54,6 +56,7 @@ func validateAccount(in CreateAccountInput) error {
 	case in.OverdraftLimit.Sign() < 0:
 		return fmt.Errorf("%w: overdraft_limit must not be negative", ErrInvalid)
 	}
+
 	return nil
 }
 
@@ -66,6 +69,7 @@ func validateDetails(name, description string, metadata jsontext.Value, nameRequ
 	case !storableText(name):
 		return fmt.Errorf("%w: name must be valid UTF-8 without NUL", ErrInvalid)
 	}
+
 	return validateText(description, metadata)
 }
 
@@ -73,6 +77,7 @@ func validatePost(in PostInput) error {
 	if err := validateKeyAndText(in.IdempotencyKey, in.Description, in.Metadata); err != nil {
 		return err
 	}
+
 	switch {
 	case in.Status != "" && in.Status != TransactionPending && in.Status != TransactionPosted:
 		return fmt.Errorf("%w: status must be pending or posted", ErrInvalid)
@@ -83,6 +88,7 @@ func validatePost(in PostInput) error {
 	case in.EffectiveAt != nil && !representableTime(*in.EffectiveAt):
 		return fmt.Errorf("%w: effective_at must be between years 1 and 9999", ErrInvalid)
 	}
+
 	return validateEntries(in.Postings)
 }
 
@@ -95,6 +101,7 @@ func validateEntries(postings []Posting) error {
 	if len(postings) < 2 || len(postings) > maxPostings {
 		return fmt.Errorf("%w: transaction needs 2-%d entries", ErrInvalid, maxPostings)
 	}
+
 	for i, p := range postings {
 		switch {
 		case p.AccountID == uuid.Nil:
@@ -109,6 +116,7 @@ func validateEntries(postings []Posting) error {
 			return fmt.Errorf("%w: entry %d lock_version must not be negative", ErrInvalid, i)
 		}
 	}
+
 	return nil
 }
 
@@ -118,15 +126,19 @@ func validateUpdateTransaction(in UpdateTransactionInput) error {
 			return err
 		}
 	}
+
 	if len(in.Metadata) > maxMetadataBytes {
 		return fmt.Errorf("%w: metadata exceeds %d bytes", ErrInvalid, maxMetadataBytes)
 	}
+
 	if in.EffectiveAt != nil && !representableTime(*in.EffectiveAt) {
 		return fmt.Errorf("%w: effective_at must be between years 1 and 9999", ErrInvalid)
 	}
+
 	if in.Postings != nil {
 		return validateEntries(in.Postings)
 	}
+
 	return nil
 }
 
@@ -134,6 +146,7 @@ func validatePartialEntries(postings []Posting) error {
 	if len(postings) == 0 {
 		return nil
 	}
+
 	return validateEntries(postings)
 }
 
@@ -145,6 +158,7 @@ func validateHold(in CreateHoldInput) error {
 	if err := validateKeyAndText(in.IdempotencyKey, in.Description, nil); err != nil {
 		return err
 	}
+
 	switch {
 	case in.AccountID == uuid.Nil:
 		return fmt.Errorf("%w: account_id is required", ErrInvalid)
@@ -155,6 +169,7 @@ func validateHold(in CreateHoldInput) error {
 	case in.ExpiresAt.IsZero():
 		return fmt.Errorf("%w: expires_at is required", ErrInvalid)
 	}
+
 	return nil
 }
 
@@ -162,12 +177,14 @@ func validateCapture(in CaptureInput) error {
 	if err := validateKeyAndText(in.IdempotencyKey, in.Description, in.Metadata); err != nil {
 		return err
 	}
+
 	switch {
 	case in.Destination == uuid.Nil:
 		return fmt.Errorf("%w: destination_account_id is required", ErrInvalid)
 	case in.Amount.Sign() <= 0:
 		return fmt.Errorf("%w: amount must be positive", ErrInvalid)
 	}
+
 	return nil
 }
 
@@ -175,6 +192,7 @@ func validateSchedule(in ScheduleInput) error {
 	if in.ExecuteAt.IsZero() {
 		return fmt.Errorf("%w: execute_at is required", ErrInvalid)
 	}
+
 	return validatePost(in.PostInput)
 }
 
@@ -185,6 +203,7 @@ func validateKeyAndText(key, description string, metadata jsontext.Value) error 
 	case !storableText(key):
 		return fmt.Errorf("%w: text must be valid UTF-8 without NUL", ErrInvalid)
 	}
+
 	return validateText(description, metadata)
 }
 
@@ -199,12 +218,14 @@ func validateText(description string, metadata jsontext.Value) error {
 	case !utf8.Valid(metadata) || bytes.Contains(metadata, []byte(`\u0000`)):
 		return fmt.Errorf("%w: metadata must be valid UTF-8 without NUL", ErrInvalid)
 	}
+
 	if len(bytes.TrimSpace(metadata)) > 0 {
 		var obj map[string]jsontext.Value
 		if err := json.Unmarshal(metadata, &obj); err != nil || obj == nil {
 			return fmt.Errorf("%w: metadata must be a JSON object", ErrInvalid)
 		}
 	}
+
 	return nil
 }
 
@@ -212,10 +233,12 @@ func normalizeMetadata(raw jsontext.Value) jsontext.Value {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return jsontext.Value(`{}`)
 	}
+
 	compact := jsontext.Value(bytes.Clone(raw))
 	if err := compact.Compact(); err != nil {
 		return raw
 	}
+
 	return compact
 }
 
@@ -229,11 +252,14 @@ func validateListAccounts(in ListAccountsInput) error {
 	default:
 		return fmt.Errorf("%w: status must be open, frozen or closed", ErrInvalid)
 	}
+
 	if in.Currency != "" && in.Currency.Validate() != nil {
 		return fmt.Errorf("%w: %s", ErrInvalid, currencyRule)
 	}
+
 	if in.Limit < 1 || in.Limit > maxListLimit {
 		return fmt.Errorf("%w: limit must be 1-%d", ErrInvalid, maxListLimit)
 	}
+
 	return validateMetadataFilter(in.Metadata)
 }

@@ -24,11 +24,13 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 	if err != nil {
 		return fmt.Errorf("migrate %s: acquire: %w", module, err)
 	}
+
 	defer conn.Release()
 
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended(current_schema(), $1))`, migrationLockID); err != nil {
 		return fmt.Errorf("migrate %s: lock: %w", module, err)
 	}
+
 	defer conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended(current_schema(), $1))`, migrationLockID)
 
 	if _, err := conn.Exec(ctx, `
@@ -46,6 +48,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 	if err != nil {
 		return fmt.Errorf("migrate %s: list: %w", module, err)
 	}
+
 	slices.Sort(files)
 	logger.Debug("found migrations", "count", len(files))
 
@@ -56,6 +59,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 		if err != nil {
 			return fmt.Errorf("migrate %s/%s: read: %w", module, version, err)
 		}
+
 		start := time.Now()
 		ran := false
 		sum := sha256.Sum256(sql)
@@ -67,9 +71,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 			if err != nil {
 				return err
 			}
+
 			if tag.RowsAffected() == 0 {
 				return verifyChecksum(ctx, tx, module, version, checksum)
 			}
+
 			ran = true
 			_, err = tx.Exec(ctx, string(sql))
 			return err
@@ -78,13 +84,16 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *log.Logger, module
 			logger.Error("migration failed", "version", version, "err", err)
 			return fmt.Errorf("migrate %s/%s: %w", module, version, err)
 		}
+
 		if !ran {
 			logger.Debug("migration already applied", "version", version)
 			continue
 		}
+
 		applied++
 		logger.Info("migration applied", "version", version, "duration", time.Since(start))
 	}
+
 	logger.Info("migrations up to date", "applied", applied, "total", len(files))
 	return nil
 }
@@ -95,13 +104,16 @@ func verifyChecksum(ctx context.Context, tx pgx.Tx, module, version, checksum st
 		`SELECT checksum FROM schema_migrations WHERE module = $1 AND version = $2`, module, version).Scan(&stored); err != nil {
 		return err
 	}
+
 	if stored == nil {
 		_, err := tx.Exec(ctx,
 			`UPDATE schema_migrations SET checksum = $3 WHERE module = $1 AND version = $2`, module, version, checksum)
 		return err
 	}
+
 	if *stored != checksum {
 		return fmt.Errorf("applied migration was modified (checksum %s, file %s); add a new migration instead", *stored, checksum)
 	}
+
 	return nil
 }

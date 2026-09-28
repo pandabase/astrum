@@ -46,6 +46,7 @@ func Load() (Config, error) {
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")
 	}
+
 	if len(cfg.LedgerSealKey) < 32 {
 		return Config{}, errors.New("config: LEDGER_SEAL_KEY is required and must be at least 32 bytes (e.g. openssl rand -hex 32)")
 	}
@@ -54,33 +55,43 @@ func Load() (Config, error) {
 	if cfg.DBMaxConns, err = intEnv("DB_MAX_CONNS", 32); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.LedgerWorkers, err = intEnv("LEDGER_WORKERS", 8); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.LedgerMaxBatch, err = intEnv("LEDGER_MAX_BATCH", 256); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.LedgerBatchConcurrency, err = intEnv("LEDGER_BATCH_CONCURRENCY", 4); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.AllowUnsafeDurability, err = boolEnv("DB_ALLOW_UNSAFE_DURABILITY"); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.WebhookAllowInsecure, err = boolEnv("WEBHOOK_ALLOW_INSECURE"); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.EventRetention, err = durationEnv("EVENT_RETENTION", 30*24*time.Hour); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.RateLimit, err = nonNegativeIntEnv("RATE_LIMIT", 1000); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.RateLimitBurst, err = intEnv("RATE_LIMIT_BURST", max(2*cfg.RateLimit, 1)); err != nil {
 		return Config{}, err
 	}
+
 	if cfg.LedgerWorkers >= cfg.DBMaxConns {
 		return Config{}, fmt.Errorf("config: LEDGER_WORKERS (%d) must be below DB_MAX_CONNS (%d)", cfg.LedgerWorkers, cfg.DBMaxConns)
 	}
+
 	return cfg, nil
 }
 
@@ -88,6 +99,7 @@ func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
+
 	return fallback
 }
 
@@ -96,10 +108,12 @@ func intEnv(key string, fallback int) (int, error) {
 	if raw == "" {
 		return fallback, nil
 	}
+
 	v, err := strconv.Atoi(raw)
 	if err != nil || v <= 0 {
 		return 0, fmt.Errorf("config: %s must be a positive integer", key)
 	}
+
 	return v, nil
 }
 
@@ -108,10 +122,12 @@ func nonNegativeIntEnv(key string, fallback int) (int, error) {
 	if raw == "" {
 		return fallback, nil
 	}
+
 	v, err := strconv.Atoi(raw)
 	if err != nil || v < 0 {
 		return 0, fmt.Errorf("config: %s must be zero or a positive integer", key)
 	}
+
 	return v, nil
 }
 
@@ -120,10 +136,12 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 	if raw == "" {
 		return fallback, nil
 	}
+
 	v, err := time.ParseDuration(raw)
 	if err != nil || v <= 0 {
 		return 0, fmt.Errorf("config: %s must be a positive duration such as 720h", key)
 	}
+
 	return v, nil
 }
 
@@ -132,9 +150,11 @@ func boolEnv(key string) (bool, error) {
 	if raw == "" {
 		return false, nil
 	}
+
 	v, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false, fmt.Errorf("config: %s must be a boolean", key)
 	}
+
 	return v, nil
 }

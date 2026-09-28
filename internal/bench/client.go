@@ -35,29 +35,36 @@ func (c *client) do(ctx context.Context, method, path string, body any, idempote
 		if err != nil {
 			return err
 		}
+
 		reader = bytes.NewReader(raw)
 	}
+
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, reader)
 	if err != nil {
 		return err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+c.key)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
 	if idempotent {
 		req.Header.Set("Idempotency-Key", "bench-"+uuid.NewString())
 	}
+
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
+
 	if resp.StatusCode >= 300 {
 		var problem struct {
 			Code   string `json:"code"`
@@ -67,11 +74,14 @@ func (c *client) do(ctx context.Context, method, path string, body any, idempote
 		if problem.Code == "" {
 			problem.Code = strings.ToLower(strings.ReplaceAll(http.StatusText(resp.StatusCode), " ", "_"))
 		}
+
 		return &apiError{Status: resp.StatusCode, Code: problem.Code, Detail: problem.Detail}
 	}
+
 	if out == nil {
 		return nil
 	}
+
 	return json.Unmarshal(raw, out)
 }
 

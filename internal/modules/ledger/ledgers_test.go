@@ -40,9 +40,11 @@ func TestApplyUpdate(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
+
 			if err != nil {
 				return
 			}
+
 			if name != tt.wantName || desc != tt.wantDesc || !jsonEqual(metadata, jsontext.Value(tt.wantMetadata)) {
 				t.Fatalf("got %q %q %s, want %q %q %s", name, desc, metadata, tt.wantName, tt.wantDesc, tt.wantMetadata)
 			}

@@ -24,10 +24,12 @@ func TestCrashBeforeCommitLeavesNoTrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := tx.Exec(ctx, `
 		WITH t AS (`+e.insertPosted(`'crash'`)+` RETURNING id)
 		INSERT INTO ledger_postings (transaction_id, account_id, currency, side, amount, balance_after)
@@ -35,6 +37,7 @@ func TestCrashBeforeCommitLeavesNoTrace(t *testing.T) {
 		FROM t, (VALUES ($1::uuid, 'debit'), ($2::uuid, 'credit')) AS v(account, side)`, b.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := tx.Exec(ctx, `UPDATE ledger_accounts SET posted_credits = posted_credits + 500, version = version + 1 WHERE id = $1`, a.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +49,11 @@ func TestCrashBeforeCommitLeavesNoTrace(t *testing.T) {
 	if err := e.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM ledger_transactions WHERE idempotency_key = 'crash')`).Scan(&exists); err != nil {
 		t.Fatal(err)
 	}
+
 	if exists {
 		t.Fatal("uncommitted transaction survived the crash")
 	}
+
 	if bal := e.balance(t, a.ID); bal != 1_000 {
 		t.Fatalf("a = %d after crash, want 1000", bal)
 	}
@@ -72,14 +77,17 @@ func TestClientDisconnectsAtRandomMoments(t *testing.T) {
 			_, _ = e.m.Post(ctx, transfer(fmt.Sprintf("flaky-%d", i), a.ID, b.ID, 7))
 		})
 	}
+
 	wg.Wait()
 
 	for i := range attempts {
 		e.post(t, transfer(fmt.Sprintf("flaky-%d", i), a.ID, b.ID, 7))
 	}
+
 	if bal := e.balance(t, b.ID); bal != attempts*7 {
 		t.Fatalf("b = %d, want %d (each key applied exactly once)", bal, attempts*7)
 	}
+
 	e.verify(t)
 }
 
@@ -97,6 +105,7 @@ func TestShutdownDrainsQueuedEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	done := make(chan struct{})
 	go func() {
 		_ = m.Run(runCtx)
@@ -111,6 +120,7 @@ func TestShutdownDrainsQueuedEntries(t *testing.T) {
 			_, results[i] = m.Post(context.Background(), transfer(fmt.Sprintf("drain-%d", i), a.ID, b.ID, 1))
 		})
 	}
+
 	time.Sleep(20 * time.Millisecond)
 	stop()
 	<-done
@@ -124,6 +134,7 @@ func TestShutdownDrainsQueuedEntries(t *testing.T) {
 			fmt.Sprintf("drain-%d", i)).Scan(&exists); qerr != nil {
 			t.Fatal(qerr)
 		}
+
 		switch {
 		case err == nil && !exists:
 			t.Errorf("caller %d told success but nothing was written", i)
@@ -132,10 +143,12 @@ func TestShutdownDrainsQueuedEntries(t *testing.T) {
 		case err != nil && !errors.Is(err, ledger.ErrStopped):
 			t.Errorf("caller %d unexpected error: %v", i, err)
 		}
+
 		if exists {
 			committed++
 		}
 	}
+
 	if bal := e.balance(t, b.ID); bal != committed {
 		t.Fatalf("b = %d, committed entries = %d", bal, committed)
 	}
@@ -164,10 +177,12 @@ func TestHotAccountContention(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	if bal := e.balance(t, hot.ID); bal != 1_000_000-writers*10 {
 		t.Fatalf("hot = %d", bal)
 	}
+
 	e.verify(t)
 }

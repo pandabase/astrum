@@ -40,9 +40,11 @@ func ParseAmount(s string) (Amount, error) {
 	if len(digits) > 0 && digits[0] == '-' {
 		digits, negative = digits[1:], true
 	}
+
 	if len(digits) == 0 || len(digits) > MaxDigits || (digits[0] == '0' && (len(digits) > 1 || negative)) {
 		return Amount{}, fmt.Errorf("%w: %q", ErrInvalidAmount, s)
 	}
+
 	for i := range len(digits) {
 		if digits[i] < '0' || digits[i] > '9' {
 			return Amount{}, fmt.Errorf("%w: %q", ErrInvalidAmount, s)
@@ -54,6 +56,7 @@ func ParseAmount(s string) (Amount, error) {
 	if split > 0 {
 		high, _ = strconv.ParseUint(digits[:split], 10, 64)
 	}
+
 	low, _ = strconv.ParseUint(digits[split:], 10, 64)
 	hi, lo := bits.Mul64(high, pow19)
 	lo, carry := bits.Add64(lo, low, 0)
@@ -61,6 +64,7 @@ func ParseAmount(s string) (Amount, error) {
 	if negative {
 		a = a.Neg()
 	}
+
 	return a, nil
 }
 
@@ -69,6 +73,7 @@ func MustParseAmount(s string) Amount {
 	if err != nil {
 		panic(err)
 	}
+
 	return a
 }
 
@@ -79,6 +84,7 @@ func (a Amount) Sign() int {
 	case a.hi == 0 && a.lo == 0:
 		return 0
 	}
+
 	return 1
 }
 
@@ -97,6 +103,7 @@ func (a Amount) Cmp(b Amount) int {
 	case a.lo > b.lo:
 		return 1
 	}
+
 	return 0
 }
 
@@ -110,6 +117,7 @@ func (a Amount) Abs() Amount {
 	if a.Sign() < 0 {
 		return a.Neg()
 	}
+
 	return a
 }
 
@@ -128,6 +136,7 @@ func checked(a, b, sum Amount) (Amount, error) {
 	if wrapped || sum.Abs().Cmp(maxAmount) > 0 {
 		return Amount{}, ErrOverflow
 	}
+
 	return sum, nil
 }
 
@@ -140,6 +149,7 @@ func (a Amount) String() string {
 	if n, ok := a.Int64(); ok {
 		return strconv.FormatInt(n, 10)
 	}
+
 	sign := ""
 	if a.Sign() < 0 {
 		sign, a = "-", a.Neg()
@@ -150,6 +160,7 @@ func (a Amount) String() string {
 	if high == 0 {
 		return sign + lowDigits
 	}
+
 	return sign + strconv.FormatUint(high, 10) + "0000000000000000000"[len(lowDigits):] + lowDigits
 }
 
@@ -157,12 +168,14 @@ func (a Amount) Big() *big.Int {
 	if n, ok := a.Int64(); ok {
 		return big.NewInt(n)
 	}
+
 	abs := a.Abs()
 	b := new(big.Int).SetUint64(abs.hi)
 	b.Lsh(b, 64).Or(b, new(big.Int).SetUint64(abs.lo))
 	if a.Sign() < 0 {
 		b.Neg(b)
 	}
+
 	return b
 }
 
@@ -170,15 +183,18 @@ func AmountFromBig(b *big.Int) (Amount, error) {
 	if b.IsInt64() {
 		return NewAmount(b.Int64()), nil
 	}
+
 	if b.CmpAbs(maxAmount.Big()) > 0 {
 		return Amount{}, ErrOverflow
 	}
+
 	abs := new(big.Int).Abs(b)
 	lo := abs.Uint64()
 	a := Amount{hi: abs.Rsh(abs, 64).Uint64(), lo: lo}
 	if b.Sign() < 0 {
 		a = a.Neg()
 	}
+
 	return a, nil
 }
 
@@ -195,6 +211,7 @@ func (a *Amount) UnmarshalText(text []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*a = parsed
 	return nil
 }
@@ -233,6 +250,7 @@ func (a *Amount) ScanNumeric(n pgtype.Numeric) error {
 	if err != nil {
 		return err
 	}
+
 	*a = parsed
 
 	return nil

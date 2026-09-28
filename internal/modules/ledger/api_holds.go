@@ -61,6 +61,7 @@ func toSchedule(st ScheduledTransaction) scheduleResource {
 	if len(metadata) == 0 {
 		metadata = jsontext.Value(`{}`)
 	}
+
 	return scheduleResource{
 		Object:         "scheduled_transaction",
 		ID:             scheduleID(st.ID),

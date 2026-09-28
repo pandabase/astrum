@@ -21,10 +21,12 @@ func TestAllow(t *testing.T) {
 			t.Fatalf("request %d within the burst was limited", i)
 		}
 	}
+
 	ok, wait := l.Allow(a)
 	if ok || wait != 500*time.Millisecond {
 		t.Fatalf("request past the burst = %v, %v; want limited for 500ms", ok, wait)
 	}
+
 	if ok, _ := l.Allow(b); !ok {
 		t.Fatal("another key shared the bucket")
 	}
@@ -33,6 +35,7 @@ func TestAllow(t *testing.T) {
 	if ok, _ := l.Allow(a); !ok {
 		t.Fatal("token was not refilled after the wait")
 	}
+
 	if ok, _ := l.Allow(a); ok {
 		t.Fatal("refill granted more than one token")
 	}
@@ -43,6 +46,7 @@ func TestAllow(t *testing.T) {
 			t.Fatalf("request %d after idling was limited", i)
 		}
 	}
+
 	if ok, _ := l.Allow(a); ok {
 		t.Fatal("idle refill exceeded the burst")
 	}

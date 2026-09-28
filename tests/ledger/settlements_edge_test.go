@@ -20,6 +20,7 @@ func feSettle(t *testing.T, e *env, in ledger.CreateSettlementInput) ledger.Sett
 	if err != nil {
 		t.Fatalf("CreateSettlement(%s) error = %v", in.IdempotencyKey, err)
 	}
+
 	return st
 }
 
@@ -29,6 +30,7 @@ func feUnsettled(t *testing.T, e *env, account uuid.UUID) int {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return len(entries)
 }
 
@@ -43,6 +45,7 @@ func TestSettlementsEdgeValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	elsewhere := e.accountIn(t, other.ID)
 	e.post(t, transfer("v-sale", acme.ID, payouts.ID, 10))
 
@@ -72,13 +75,16 @@ func TestSettlementsEdgeValidation(t *testing.T) {
 			wantErr(t, err, tt.want)
 		})
 	}
+
 	if feUnsettled(t, e, acme.ID) != 1 {
 		t.Fatal("a rejected settlement marked entries")
 	}
+
 	list, err := e.m.ListSettlements(ctx, ledger.ListSettlementsInput{Limit: 10})
 	if err != nil || len(list) != 0 {
 		t.Fatalf("settlements after rejections = %+v, %v", list, err)
 	}
+
 	e.verify(t)
 }
 
@@ -94,9 +100,11 @@ func TestSettlementsEdgeZeroNet(t *testing.T) {
 		if !st.Amount.IsZero() || st.EntryCount != 0 || st.TransactionID != nil || st.Currency != "USD" || st.LedgerID != e.ledger.ID {
 			t.Fatalf("settlement = %+v", st)
 		}
+
 		if !jsonSame(t, st.Metadata, `{}`) || st.UpperBound != nil {
 			t.Fatalf("defaults = metadata %s bound %v", st.Metadata, st.UpperBound)
 		}
+
 		again := feSettle(t, e, settle("fresh-2", fresh.ID, payouts.ID))
 		if again.ID == st.ID || again.EntryCount != 0 {
 			t.Fatalf("second empty settlement = %+v", again)
@@ -111,9 +119,11 @@ func TestSettlementsEdgeZeroNet(t *testing.T) {
 		if !st.Amount.IsZero() || st.EntryCount != 2 || st.TransactionID != nil {
 			t.Fatalf("settlement = %+v", st)
 		}
+
 		if n := feUnsettled(t, e, acme.ID); n != 0 {
 			t.Fatalf("unsettled = %d, want 0", n)
 		}
+
 		entries, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{SettlementID: st.ID, Limit: 10})
 		if err != nil || len(entries) != 2 {
 			t.Fatalf("settled entries = %+v, %v", entries, err)
@@ -128,6 +138,7 @@ func TestSettlementsEdgeZeroNet(t *testing.T) {
 			t.Fatalf("settlement = %+v", st)
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -170,6 +181,7 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 		if err != nil || got.ID != st.ID {
 			t.Fatalf("replay = %+v, %v", got, err)
 		}
+
 		for name, mutate := range map[string]func(*ledger.CreateSettlementInput){
 			"no bound":    func(in *ledger.CreateSettlementInput) { in.UpperBound = nil },
 			"later bound": func(in *ledger.CreateSettlementInput) { in.UpperBound = new(bound.Add(time.Microsecond)) },
@@ -194,6 +206,7 @@ func TestSettlementsEdgeUpperBound(t *testing.T) {
 	if feUnsettled(t, e, acme.ID) != 0 {
 		t.Fatal("entries left unsettled")
 	}
+
 	e.verify(t)
 }
 
@@ -213,21 +226,26 @@ func TestSettlementsEdgeMovesMoney(t *testing.T) {
 		if err != nil || !strings.HasPrefix(txn.IdempotencyKey, "stl_") || txn.Description != "payout" {
 			t.Fatalf("settlement transaction = %+v, %v", txn, err)
 		}
+
 		if !jsonSame(t, txn.Metadata, fmt.Sprintf(`{"settlement_id":%q}`, txn.IdempotencyKey)) {
 			t.Fatalf("transaction metadata = %s", txn.Metadata)
 		}
+
 		if txn.Postings[0].AccountID != acme.ID || txn.Postings[0].Side != ledger.Debit || txn.Postings[0].Amount != amt(75) {
 			t.Fatalf("postings = %+v", txn.Postings)
 		}
+
 		if again, err := e.m.CreateSettlement(ctx, ledger.CreateSettlementInput{
 			IdempotencyKey: "mm", SettledAccountID: acme.ID, ContraAccountID: payouts.ID, Description: "payout",
 			Metadata: jsontext.Value(`{"batch":7.0}`),
 		}); err != nil || again.ID != st.ID {
 			t.Fatalf("replay with equivalent metadata = %+v, %v", again, err)
 		}
+
 		if n := feUnsettled(t, e, payouts.ID); n != 2 {
 			t.Fatalf("contra unsettled = %d, want its sale and settlement entries", n)
 		}
+
 		third := e.account(t, "USD", ledger.Debit, unrestricted)
 		back := feSettle(t, e, settle("mm-contra", payouts.ID, third.ID))
 		if back.EntryCount != 2 || !back.Amount.IsZero() || back.TransactionID != nil {
@@ -254,20 +272,24 @@ func TestSettlementsEdgeMovesMoney(t *testing.T) {
 		if _, err := e.m.FreezeAccount(ctx, acme.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err := e.m.CreateSettlement(ctx, settle("fz", acme.ID, payouts.ID))
 		wantErr(t, err, ledger.ErrAccountNotOpen)
 		if _, err := e.m.UnfreezeAccount(ctx, acme.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		if _, err := e.m.FreezeAccount(ctx, payouts.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		_, err = e.m.CreateSettlement(ctx, settle("fz-contra", acme.ID, payouts.ID))
 		wantErr(t, err, ledger.ErrAccountNotOpen)
 		if feUnsettled(t, e, acme.ID) != 1 {
 			t.Fatal("failed settlement marked entries")
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -292,15 +314,18 @@ func TestSettlementsEdgeConcurrency(t *testing.T) {
 					t.Error(err)
 					return
 				}
+
 				mu.Lock()
 				ids[st.ID] = true
 				mu.Unlock()
 			})
 		}
+
 		wg.Wait()
 		if len(ids) != 1 {
 			t.Fatalf("one key produced %d settlements", len(ids))
 		}
+
 		if e.balance(t, acme.ID) != 0 {
 			t.Fatalf("acme = %d, want 0 after exactly one payout", e.balance(t, acme.ID))
 		}
@@ -312,6 +337,7 @@ func TestSettlementsEdgeConcurrency(t *testing.T) {
 		for i := range 10 {
 			e.post(t, transfer(fmt.Sprint("od-", i), a.ID, b.ID, 3))
 		}
+
 		var wg sync.WaitGroup
 		for i := range 6 {
 			wg.Go(func() {
@@ -319,24 +345,29 @@ func TestSettlementsEdgeConcurrency(t *testing.T) {
 				if i%2 == 1 {
 					in = settle(fmt.Sprint("od-ba-", i), b.ID, a.ID)
 				}
+
 				if _, err := e.m.CreateSettlement(ctx, in); err != nil {
 					t.Error(err)
 				}
 			})
 		}
+
 		wg.Wait()
 		entries, err := e.m.ListEntries(ctx, ledger.ListEntriesInput{AccountID: a.ID, Limit: 1000})
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		seen := map[int64]bool{}
 		for _, en := range entries {
 			if seen[en.Sequence] {
 				t.Fatalf("entry %d listed twice", en.Sequence)
 			}
+
 			seen[en.Sequence] = true
 		}
 	})
+
 	e.verify(t)
 }
 
@@ -353,6 +384,7 @@ func TestSettlementsEdgeGetAndList(t *testing.T) {
 		e.post(t, transfer(fmt.Sprint("gl-a-", i), acme.ID, payouts.ID, int64(i+1)))
 		acmes = append(acmes, feSettle(t, e, settle(fmt.Sprint("gl-acme-", i), acme.ID, payouts.ID)))
 	}
+
 	e.post(t, transfer("gl-g", globex.ID, payouts.ID, 9))
 	g := feSettle(t, e, settle("gl-globex", globex.ID, payouts.ID))
 
@@ -360,6 +392,7 @@ func TestSettlementsEdgeGetAndList(t *testing.T) {
 	if err != nil || got.ID != acmes[1].ID || got.Amount != amt(2) || got.EntryCount != 1 || !got.CreatedAt.Equal(acmes[1].CreatedAt) {
 		t.Fatalf("Settlement() = %+v, %v", got, err)
 	}
+
 	_, err = e.m.Settlement(ctx, uuid.New())
 	wantErr(t, err, ledger.ErrNotFound)
 
@@ -368,6 +401,7 @@ func TestSettlementsEdgeGetAndList(t *testing.T) {
 		for i, st := range sts {
 			out[i] = st.IdempotencyKey
 		}
+
 		return strings.Join(out, ",")
 	}
 	tests := []struct {
@@ -395,6 +429,7 @@ func TestSettlementsEdgeGetAndList(t *testing.T) {
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("ListSettlements() error = %v, want %v", err, tt.err)
 			}
+
 			if err == nil && keys(got) != tt.want {
 				t.Fatalf("settlements = %s, want %s", keys(got), tt.want)
 			}

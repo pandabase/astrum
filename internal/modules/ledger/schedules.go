@@ -19,6 +19,7 @@ func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTran
 	if err := validateSchedule(in); err != nil {
 		return ScheduledTransaction{}, op.fail(err)
 	}
+
 	in.ExecuteAt = in.ExecuteAt.Truncate(time.Microsecond)
 	in.Metadata = normalizeMetadata(in.Metadata)
 
@@ -26,6 +27,7 @@ func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTran
 	if err != nil {
 		return ScheduledTransaction{}, op.fail(err)
 	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return ScheduledTransaction{}, op.fail(err)
@@ -56,9 +58,11 @@ func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTran
 		if selectErr != nil {
 			return selectErr
 		}
+
 		if !existing.matches(in) {
 			return ErrIdempotencyConflict
 		}
+
 		st, replayed = existing, true
 		return nil
 	})
@@ -70,6 +74,7 @@ func (s *service) schedule(ctx context.Context, in ScheduleInput) (ScheduledTran
 		op.info("schedule replayed", "schedule_id", st.ID)
 		return st, nil
 	}
+
 	op.info("transaction scheduled", "schedule_id", st.ID)
 	return st, nil
 }
@@ -81,6 +86,7 @@ func (s *service) scheduled(ctx context.Context, id uuid.UUID) (ScheduledTransac
 	if err != nil {
 		return ScheduledTransaction{}, op.fail(err)
 	}
+
 	return st, nil
 }
 
@@ -93,6 +99,7 @@ func (s *service) cancelSchedule(ctx context.Context, id uuid.UUID) (ScheduledTr
 		if err != nil {
 			return err
 		}
+
 		switch current.Status {
 		case ScheduleCanceled:
 			st = current
@@ -101,6 +108,7 @@ func (s *service) cancelSchedule(ctx context.Context, id uuid.UUID) (ScheduledTr
 		default:
 			return fmt.Errorf("%w: schedule is %s", ErrScheduleNotPending, current.Status)
 		}
+
 		st, err = scanSchedule(tx.QueryRow(ctx, `
 			UPDATE ledger_scheduled_transactions
 			SET status = 'canceled', resolved_at = now()
@@ -111,6 +119,7 @@ func (s *service) cancelSchedule(ctx context.Context, id uuid.UUID) (ScheduledTr
 	if err != nil {
 		return ScheduledTransaction{}, op.fail(err)
 	}
+
 	op.info("schedule canceled", "schedule_id", st.ID)
 	return st, nil
 }
@@ -128,6 +137,7 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 		if err != nil {
 			return err
 		}
+
 		due, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ScheduledTransaction, error) {
 			return scanSchedule(row)
 		})
@@ -141,6 +151,7 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 			in.IdempotencyKey = st.IdempotencyKey
 			reqs[i] = &postingRequest{in: in}
 		}
+
 		results, err := applyRequests(ctx, tx, reqs, false)
 		if err != nil {
 			return err
@@ -161,6 +172,7 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 				s.log.Warn("scheduled transaction failed", "schedule_id", due[i].ID, "err", o.err)
 				continue
 			}
+
 			statuses[i] = string(ScheduleExecuted)
 			txnIDs[i] = uuid.NullUUID{UUID: o.txn.ID, Valid: true}
 			executed++
@@ -176,6 +188,7 @@ func (s *service) executeDue(ctx context.Context, limit int) (executed, failed i
 			ids, statuses, txnIDs, failures)
 		return err
 	})
+
 	return executed, failed, err
 }
 
@@ -184,15 +197,18 @@ func checkAccountsExist(ctx context.Context, q querier, postings []Posting) erro
 	for i, p := range postings {
 		ids[i] = p.AccountID
 	}
+
 	ids = sortedUnique(ids)
 
 	var found int
 	if err := q.QueryRow(ctx, `SELECT count(*) FROM ledger_accounts WHERE id = ANY($1)`, ids).Scan(&found); err != nil {
 		return err
 	}
+
 	if found != len(ids) {
 		return fmt.Errorf("%w: one or more accounts do not exist", ErrNotFound)
 	}
+
 	return nil
 }
 
@@ -210,6 +226,7 @@ func (s *service) listSchedules(ctx context.Context, in ListSchedulesInput) ([]S
 	case !slices.Contains([]ScheduleStatus{"", ScheduleScheduled, ScheduleExecuted, ScheduleFailed, ScheduleCanceled}, in.Status):
 		return nil, op.fail(fmt.Errorf("%w: status must be scheduled, executed, failed or canceled", ErrInvalid))
 	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+scheduleColumns+` FROM ledger_scheduled_transactions
 		WHERE ($1::text IS NULL OR status = $1) AND ($2::uuid IS NULL OR id < $2)
@@ -218,9 +235,11 @@ func (s *service) listSchedules(ctx context.Context, in ListSchedulesInput) ([]S
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	schedules, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (ScheduledTransaction, error) { return scanSchedule(row) })
 	if err != nil {
 		return nil, op.fail(err)
 	}
+
 	return schedules, nil
 }

@@ -22,14 +22,17 @@ func TestFrozenAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	toCapture, err := e.m.CreateHold(ctx, holdInput("capture-me", a.ID, 100, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	toExpire, err := e.m.CreateHold(ctx, holdInput("expire-me", a.ID, 100, 50*time.Millisecond))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	sched, err := e.m.Schedule(ctx, scheduleInput("sched", a.ID, b.ID, 10, time.Now().Add(-time.Second)))
 	if err != nil {
 		t.Fatal(err)
@@ -39,9 +42,11 @@ func TestFrozenAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if frozen.Status != ledger.AccountFrozen || frozen.StatusChangedAt == nil {
 		t.Fatalf("frozen = %+v", frozen)
 	}
+
 	if again, err := e.m.FreezeAccount(ctx, a.ID); err != nil || again.Version != frozen.Version {
 		t.Fatalf("second freeze = %+v, %v; want no-op", again, err)
 	}
@@ -55,6 +60,7 @@ func TestFrozenAccount(t *testing.T) {
 		if err != nil || results[0].Err == nil {
 			t.Fatalf("batch = %+v, %v", results, err)
 		}
+
 		wantErr(t, results[0].Err, ledger.ErrAccountNotOpen)
 	})
 
@@ -69,10 +75,12 @@ func TestFrozenAccount(t *testing.T) {
 		if _, err := e.m.VoidHold(ctx, toVoid.ID); err != nil {
 			t.Fatal(err)
 		}
+
 		time.Sleep(100 * time.Millisecond)
 		if n, err := e.m.ExpireHolds(ctx); err != nil || n != 1 {
 			t.Fatalf("ExpireHolds() = %d, %v; want 1", n, err)
 		}
+
 		if h, _ := e.m.Hold(ctx, toExpire.ID); h.Status != ledger.HoldExpired {
 			t.Fatalf("expire-me = %s", h.Status)
 		}
@@ -82,6 +90,7 @@ func TestFrozenAccount(t *testing.T) {
 		if _, _, err := e.m.ExecuteDue(ctx); err != nil {
 			t.Fatal(err)
 		}
+
 		st, _ := e.m.Scheduled(ctx, sched.ID)
 		if st.Status != ledger.ScheduleFailed || st.Failure == nil || !strings.Contains(*st.Failure, "frozen") {
 			t.Fatalf("schedule = %+v", st)
@@ -93,6 +102,7 @@ func TestFrozenAccount(t *testing.T) {
 		if err != nil || acc.Status != ledger.AccountOpen {
 			t.Fatalf("unfreeze = %+v, %v", acc, err)
 		}
+
 		e.post(t, transfer("after-unfreeze", a.ID, b.ID, 1))
 		if _, err := e.m.CaptureHold(ctx, toCapture.ID, ledger.CaptureInput{IdempotencyKey: "cap", Destination: b.ID, Amount: amt(50)}); err != nil {
 			t.Fatal(err)
@@ -102,6 +112,7 @@ func TestFrozenAccount(t *testing.T) {
 	if acc := e.get(t, a.ID); acc.Posted.Amount != amt(949) || acc.Held != amt(0) {
 		t.Fatalf("a = balance %s held %s, want 949 and 0", acc.Posted.Amount, acc.Held)
 	}
+
 	e.verify(t)
 }
 
@@ -116,6 +127,7 @@ func TestCloseAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	e.post(t, transfer("drain", a.ID, b.ID, 90))
 	_, err = e.m.CloseAccount(ctx, a.ID)
 	wantErr(t, err, ledger.ErrAccountNotEmpty)
@@ -127,10 +139,12 @@ func TestCloseAccount(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, a.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	closed, err := e.m.CloseAccount(ctx, a.ID)
 	if err != nil || closed.Status != ledger.AccountClosed {
 		t.Fatalf("close = %+v, %v", closed, err)
 	}
+
 	if again, err := e.m.CloseAccount(ctx, a.ID); err != nil || again.Version != closed.Version {
 		t.Fatalf("second close = %+v, %v; want no-op", again, err)
 	}
@@ -145,6 +159,7 @@ func TestCloseAccount(t *testing.T) {
 	if _, err := e.m.CloseAccount(ctx, uuid.New()); err == nil {
 		t.Fatal("closing an unknown account succeeded")
 	}
+
 	e.verify(t)
 }
 
@@ -158,6 +173,7 @@ func TestAccountStatusInvariants(t *testing.T) {
 	if _, err := e.m.FreezeAccount(ctx, frozen.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := e.m.CloseAccount(ctx, empty.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -185,5 +201,6 @@ func TestAccountStatusInvariants(t *testing.T) {
 			}
 		})
 	}
+
 	e.verify(t)
 }

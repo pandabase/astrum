@@ -37,10 +37,12 @@ func New(eventType string, resource any) (Event, error) {
 	if err != nil {
 		return Event{}, err
 	}
+
 	data, err := json.Marshal(resource, json.Deterministic(true))
 	if err != nil {
 		return Event{}, fmt.Errorf("events: encode %s: %w", eventType, err)
 	}
+
 	return Event{ID: id, Type: eventType, Data: data}, nil
 }
 
@@ -53,6 +55,7 @@ func columns(evs []Event) ([]uuid.UUID, []string, []string) {
 	for i, e := range evs {
 		ids[i], types[i], data[i] = e.ID, e.Type, string(e.Data)
 	}
+
 	return ids, types, data
 }
 
@@ -60,6 +63,7 @@ func Queue(b *pgx.Batch, evs ...Event) {
 	if len(evs) == 0 {
 		return
 	}
+
 	ids, types, data := columns(evs)
 	b.Queue(insertSQL, ids, types, data)
 }
@@ -72,6 +76,7 @@ func Insert(ctx context.Context, q execer, evs ...Event) error {
 	if len(evs) == 0 {
 		return nil
 	}
+
 	ids, types, data := columns(evs)
 	_, err := q.Exec(ctx, insertSQL, ids, types, data)
 	return err
@@ -152,6 +157,7 @@ func (c Config) withDefaults() Config {
 		if !c.AllowInsecureURLs {
 			transport.Proxy = nil
 		}
+
 		c.Client = &http.Client{
 			Transport: transport,
 
@@ -205,6 +211,7 @@ func Migrations() fs.FS {
 	if err != nil {
 		panic(err)
 	}
+
 	return sub
 }
 
@@ -226,6 +233,7 @@ func (s *Service) Run(ctx context.Context) error {
 			if _, err := s.Prune(ctx); err != nil {
 				s.log.Error("prune failed", "err", err)
 			}
+
 			continue
 		case <-ticker.C:
 		}
