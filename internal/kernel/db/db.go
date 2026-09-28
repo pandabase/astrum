@@ -59,6 +59,7 @@ func Harden(cfg *pgxpool.Config, maxConns int32) {
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.HealthCheckPeriod = 15 * time.Second
+	cfg.ConnConfig.DialFunc = dialer(cfg.ConnConfig.ConnectTimeout).DialContext
 }
 
 type rowQuerier interface {
