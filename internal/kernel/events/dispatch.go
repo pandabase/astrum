@@ -30,7 +30,9 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		n = 0
 		var locked bool
-		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, dispatchLockID).Scan(&locked); err != nil || !locked {
+		err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, dispatchLockID).
+			Scan(&locked)
+		if err != nil || !locked {
 			return err
 		}
 
@@ -38,7 +40,9 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 			lastXID *string
 			lastID  *uuid.UUID
 		)
-		if err := tx.QueryRow(ctx, `SELECT last_xid::text, last_id FROM event_dispatch_cursor FOR UPDATE`).Scan(&lastXID, &lastID); err != nil {
+		err = tx.QueryRow(ctx, `SELECT last_xid::text, last_id FROM event_dispatch_cursor FOR UPDATE`).
+			Scan(&lastXID, &lastID)
+		if err != nil {
 			return err
 		}
 
@@ -178,12 +182,12 @@ func (s *Service) claim(ctx context.Context) ([]claimed, error) {
 		c    claimed
 		data []byte
 	)
-	_, err = pgx.ForEachRow(rows, []any{&c.id, &c.attempts, &c.url, &c.secret, &c.event.ID, &c.event.Type, &data, &c.event.CreatedAt}, func() error {
+	dest := []any{&c.id, &c.attempts, &c.url, &c.secret, &c.event.ID, &c.event.Type, &data, &c.event.CreatedAt}
+	_, err = pgx.ForEachRow(rows, dest, func() error {
 		c.event.Data = bytes.Clone(data)
 		out = append(out, c)
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("claim deliveries: %w", err)
 	}

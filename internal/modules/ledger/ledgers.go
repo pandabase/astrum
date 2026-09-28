@@ -100,7 +100,9 @@ func (s *service) updateLedger(ctx context.Context, id uuid.UUID, in UpdateInput
 	return ledger, nil
 }
 
-func applyUpdate(name, description string, metadata jsontext.Value, in UpdateInput, nameRequired bool) (string, string, jsontext.Value, error) {
+func applyUpdate(
+	name, description string, metadata jsontext.Value, in UpdateInput, nameRequired bool,
+) (string, string, jsontext.Value, error) {
 	if in.Name != nil {
 		name = *in.Name
 	}
@@ -196,7 +198,9 @@ func (s *service) closePeriod(ctx context.Context, id uuid.UUID, closedBefore *t
 		}
 
 		var future bool
-		if err := tx.QueryRow(ctx, `SELECT coalesce($1::timestamptz > now(), false), pg_current_xact_id()::text`, closedBefore).Scan(&future, &xid); err != nil {
+		err = tx.QueryRow(ctx, `SELECT coalesce($1::timestamptz > now(), false), pg_current_xact_id()::text`, closedBefore).
+			Scan(&future, &xid)
+		if err != nil {
 			return err
 		}
 

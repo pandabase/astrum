@@ -90,7 +90,8 @@ func (s *service) readMonitors(ctx context.Context, where string, args ...any) (
 			return err
 		}
 
-		if monitors, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (BalanceMonitor, error) { return scanMonitor(row) }); err != nil {
+		monitors, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (BalanceMonitor, error) { return scanMonitor(row) })
+		if err != nil {
 			return err
 		}
 
@@ -182,7 +183,8 @@ func validateMonitor(in CreateBalanceMonitorInput) error {
 	case in.AccountID == uuid.Nil:
 		return fmt.Errorf("%w: account_id is required", ErrInvalid)
 	case in.Condition.Field != "pending" && in.Condition.Field != "posted" && in.Condition.Field != "available":
-		return fmt.Errorf("%w: alert_condition.field must be pending_balance_amount, posted_balance_amount or available_balance_amount", ErrInvalid)
+		return fmt.Errorf("%w: alert_condition.field must be pending_balance_amount, posted_balance_amount "+
+			"or available_balance_amount", ErrInvalid)
 	}
 
 	switch in.Condition.Operator {

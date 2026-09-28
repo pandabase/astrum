@@ -116,7 +116,12 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 		out[i] = toKey(k)
 	}
 
-	httpx.JSON(w, r, http.StatusOK, httpx.List[keyResource]{Object: list.Object, Data: out, HasMore: list.HasMore, NextCursor: list.NextCursor})
+	httpx.JSON(w, r, http.StatusOK, httpx.List[keyResource]{
+		Object:     list.Object,
+		Data:       out,
+		HasMore:    list.HasMore,
+		NextCursor: list.NextCursor,
+	})
 }
 
 func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {

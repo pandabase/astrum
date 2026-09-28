@@ -9,7 +9,9 @@ import (
 	"github.com/pandabase/astrum/internal/money"
 )
 
-func sumUnsettled(ctx context.Context, q querier, accountID uuid.UUID, upperBound *time.Time) (debits, credits money.Amount, count int, err error) {
+func sumUnsettled(
+	ctx context.Context, q querier, accountID uuid.UUID, upperBound *time.Time,
+) (debits, credits money.Amount, count int, err error) {
 	err = q.QueryRow(ctx, `
 		SELECT coalesce(sum(p.amount) FILTER (WHERE p.side = 'debit'), 0),
 		       coalesce(sum(p.amount) FILTER (WHERE p.side = 'credit'), 0),

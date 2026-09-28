@@ -35,7 +35,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("astrum-bench", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintf(stderr, "Load-tests a running Astrum server through its HTTP API.\n\nusage: astrum-bench [flags]\n\nscenarios: %s\n\n", strings.Join(bench.Scenarios(), ", "))
+		fmt.Fprintf(stderr, "Load-tests a running Astrum server through its HTTP API.\n\n"+
+			"usage: astrum-bench [flags]\n\nscenarios: %s\n\n", strings.Join(bench.Scenarios(), ", "))
 		fs.PrintDefaults()
 	}
 	cfg := bench.Config{}
@@ -73,7 +74,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	l = l.WithPrefix("bench")
 	if !*quiet {
 		cfg.Progress = func(p bench.Progress) {
-			l.Info("progress", "elapsed", p.Elapsed.Round(time.Second), "operations", p.Operations, "failed", p.Failed, "per_second", fmt.Sprintf("%.0f", p.PerSecond))
+			l.Info("progress",
+				"elapsed", p.Elapsed.Round(time.Second),
+				"operations", p.Operations,
+				"failed", p.Failed,
+				"per_second", fmt.Sprintf("%.0f", p.PerSecond))
 		}
 	}
 

@@ -161,8 +161,10 @@ func resolveRequest(
 		effectiveAt = *req.in.EffectiveAt
 	}
 
-	if a, ok := state.accounts[req.in.Postings[0].AccountID]; ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
-		return postingResult{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, a.closedBefore.UTC().Format(time.RFC3339Nano))}
+	a, ok := state.accounts[req.in.Postings[0].AccountID]
+	if ok && status != TransactionArchived && a.closedBefore != nil && effectiveAt.Before(*a.closedBefore) {
+		closed := a.closedBefore.UTC().Format(time.RFC3339Nano)
+		return postingResult{err: fmt.Errorf("%w: effective_at is before %s", ErrPeriodClosed, closed)}
 	}
 
 	ledgerID, postings, err := state.transition(balanceChange{add: req.in.Postings, status: status, releases: req.releases})

@@ -174,11 +174,12 @@ func (s *service) seal(ctx context.Context, limit int) (int, chainHead, error) {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		sealed = 0
 		var locked bool
-		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, sealLockID).Scan(&locked); err != nil || !locked {
+		err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended(current_schema(), $1))`, sealLockID).
+			Scan(&locked)
+		if err != nil || !locked {
 			return err
 		}
 
-		var err error
 		if head, err = s.loadVerifiedHead(ctx, tx); err != nil {
 			return err
 		}

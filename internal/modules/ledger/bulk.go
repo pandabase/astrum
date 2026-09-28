@@ -73,7 +73,8 @@ func (s *service) createBulk(ctx context.Context, in CreateBulkInput) (BulkReque
 			}
 
 			replayed = true
-			bulk, err = scanBulk(tx.QueryRow(ctx, `SELECT `+bulkColumns+` FROM ledger_bulk_requests WHERE idempotency_key = $1`, in.IdempotencyKey))
+			row := tx.QueryRow(ctx, `SELECT `+bulkColumns+` FROM ledger_bulk_requests WHERE idempotency_key = $1`, in.IdempotencyKey)
+			bulk, err = scanBulk(row)
 			return err
 		}
 

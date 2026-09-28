@@ -93,7 +93,8 @@ func (s *service) listCategories(ctx context.Context, in ListCategoriesInput) ([
 			return err
 		}
 
-		if categories, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Category, error) { return scanCategory(row) }); err != nil {
+		categories, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Category, error) { return scanCategory(row) })
+		if err != nil {
 			return err
 		}
 
@@ -364,7 +365,8 @@ func rollUp(ctx context.Context, q querier, c Category, r EffectiveRange) (Balan
 		a    accountState
 		side string
 	)
-	_, err = pgx.ForEachRow(rows, []any{&side, &a.postedDebits, &a.postedCredits, &a.pendingDebits, &a.pendingCredits, &a.held}, func() error {
+	dest := []any{&side, &a.postedDebits, &a.postedCredits, &a.pendingDebits, &a.pendingCredits, &a.held}
+	_, err = pgx.ForEachRow(rows, dest, func() error {
 		a.normalSide = Side(side)
 		posted, pending, available, err := a.balances()
 		if err != nil {

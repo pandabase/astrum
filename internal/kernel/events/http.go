@@ -265,7 +265,9 @@ func respond[T, R any](w http.ResponseWriter, r *http.Request, status int, v T, 
 	httpx.JSON(w, r, status, render(v))
 }
 
-func respondList[T, R any](w http.ResponseWriter, r *http.Request, items []T, limit int, render func(T) R, id func(T) uuid.UUID, err error) {
+func respondList[T, R any](
+	w http.ResponseWriter, r *http.Request, items []T, limit int, render func(T) R, id func(T) uuid.UUID, err error,
+) {
 	if err != nil {
 		writeError(w, r, err)
 		return

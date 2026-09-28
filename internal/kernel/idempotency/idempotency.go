@@ -115,7 +115,8 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 
 		if len(key) > maxKeyLen {
 			l.Warn("key rejected", "reason", "too long")
-			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, fmt.Sprintf("%s must be at most %d characters", Header, maxKeyLen))
+			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest,
+				fmt.Sprintf("%s must be at most %d characters", Header, maxKeyLen))
 			return
 		}
 
@@ -210,7 +211,8 @@ func (s *Service) resolveExisting(w http.ResponseWriter, r *http.Request, l *log
 		httpx.Error(w, r, http.StatusInternalServerError, httpx.CodeInternal, "")
 	case !bytes.Equal(rec.requestHash, hash):
 		l.Warn("key reused with a different request")
-		httpx.Error(w, r, http.StatusUnprocessableEntity, httpx.CodeIdempotencyReuse, "this idempotency key was used with a different request")
+		httpx.Error(w, r, http.StatusUnprocessableEntity, httpx.CodeIdempotencyReuse,
+			"this idempotency key was used with a different request")
 	case rec.status == "processing":
 		l.Warn("key in progress")
 		httpx.Error(w, r, http.StatusConflict, httpx.CodeIdempotencyBusy, "a request with this idempotency key is in progress, retry later")

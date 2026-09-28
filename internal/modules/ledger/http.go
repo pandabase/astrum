@@ -147,7 +147,8 @@ func queryMetadata(w http.ResponseWriter, r *http.Request) (map[string]string, b
 
 		name, found = strings.CutSuffix(name, "]")
 		if !found || name == "" || len(values) != 1 {
-			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest, "metadata filters take the form metadata[key]=value, once per key")
+			httpx.Error(w, r, http.StatusBadRequest, httpx.CodeInvalidRequest,
+				"metadata filters take the form metadata[key]=value, once per key")
 			return nil, false
 		}
 
@@ -237,7 +238,9 @@ func respond[T, R any](w http.ResponseWriter, r *http.Request, status int, v T, 
 	httpx.JSON(w, r, status, render(v))
 }
 
-func respondList[T, R any](w http.ResponseWriter, r *http.Request, items []T, limit int, render func(T) R, cursor func(T) string, err error) {
+func respondList[T, R any](
+	w http.ResponseWriter, r *http.Request, items []T, limit int, render func(T) R, cursor func(T) string, err error,
+) {
 	if err != nil {
 		writeError(w, r, err)
 		return

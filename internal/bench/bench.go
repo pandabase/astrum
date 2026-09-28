@@ -114,8 +114,12 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
 		httpClient = &http.Client{
-			Timeout:   time.Minute,
-			Transport: &http.Transport{MaxIdleConns: cfg.Concurrency * 2, MaxIdleConnsPerHost: cfg.Concurrency * 2, IdleConnTimeout: time.Minute},
+			Timeout: time.Minute,
+			Transport: &http.Transport{
+				MaxIdleConns:        cfg.Concurrency * 2,
+				MaxIdleConnsPerHost: cfg.Concurrency * 2,
+				IdleConnTimeout:     time.Minute,
+			},
 		}
 	}
 

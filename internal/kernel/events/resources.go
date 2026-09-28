@@ -143,7 +143,8 @@ func (s *Service) ListEndpoints(ctx context.Context, before uuid.UUID, limit int
 func (s *Service) UpdateEndpoint(ctx context.Context, id uuid.UUID, in EndpointUpdate) (Endpoint, error) {
 	var e Endpoint
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		current, err := notFound(scanEndpoint(tx.QueryRow(ctx, `SELECT `+endpointColumns+` FROM webhook_endpoints WHERE id = $1 FOR UPDATE`, id)))
+		row := tx.QueryRow(ctx, `SELECT `+endpointColumns+` FROM webhook_endpoints WHERE id = $1 FOR UPDATE`, id)
+		current, err := notFound(scanEndpoint(row))
 		if err != nil {
 			return err
 		}

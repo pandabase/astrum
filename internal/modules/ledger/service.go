@@ -130,7 +130,11 @@ func (s *service) createAccount(ctx context.Context, in CreateAccountInput) (Acc
 }
 
 func (s *service) setAccountStatus(ctx context.Context, id uuid.UUID, target AccountStatus) (Account, error) {
-	name := map[AccountStatus]string{AccountOpen: "unfreeze account", AccountFrozen: "freeze account", AccountClosed: "close account"}[target]
+	name := map[AccountStatus]string{
+		AccountOpen:   "unfreeze account",
+		AccountFrozen: "freeze account",
+		AccountClosed: "close account",
+	}[target]
 	op := s.begin(ctx, name, "account_id", id)
 
 	var (

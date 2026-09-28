@@ -36,7 +36,8 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 	)
 	err := db.RunTx(ctx, s.pool, func(tx pgx.Tx) error {
 		replayed = false
-		existing, err := scanSettlement(tx.QueryRow(ctx, `SELECT `+settlementColumns+` FROM ledger_settlements WHERE idempotency_key = $1`, in.IdempotencyKey))
+		row := tx.QueryRow(ctx, `SELECT `+settlementColumns+` FROM ledger_settlements WHERE idempotency_key = $1`, in.IdempotencyKey)
+		existing, err := scanSettlement(row)
 		switch {
 		case err == nil:
 			if !existing.matches(in) {
