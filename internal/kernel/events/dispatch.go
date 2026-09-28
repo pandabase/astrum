@@ -36,69 +36,13 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 			return err
 		}
 
-		var (
-			lastXID *string
-			lastID  *uuid.UUID
-		)
-		err = tx.QueryRow(ctx, `SELECT last_xid::text, last_id FROM event_dispatch_cursor FOR UPDATE`).
-			Scan(&lastXID, &lastID)
-		if err != nil {
+		batch, err := nextEvents(ctx, tx, s.cfg.BatchSize)
+		if err != nil || len(batch) == 0 {
 			return err
 		}
 
-		rows, err := tx.Query(ctx, `
-			SELECT id, type, created_xid::text
-			FROM events
-			WHERE created_xid < pg_snapshot_xmin(pg_current_snapshot())
-			  AND ($1::xid8 IS NULL OR (created_xid, id) > ($1::xid8, $2::uuid))
-			ORDER BY created_xid, id
-			LIMIT $3`, lastXID, lastID, s.cfg.BatchSize)
-		if err != nil {
+		if err := insertDeliveries(ctx, tx, batch); err != nil {
 			return err
-		}
-
-		type pending struct {
-			id  uuid.UUID
-			typ string
-			xid string
-		}
-		var batch []pending
-		var p pending
-		if _, err := pgx.ForEachRow(rows, []any{&p.id, &p.typ, &p.xid}, func() error {
-			batch = append(batch, p)
-			return nil
-		}); err != nil || len(batch) == 0 {
-			return err
-		}
-
-		endpoints, err := enabledEndpoints(ctx, tx)
-		if err != nil {
-			return err
-		}
-
-		var ids, endpointIDs, eventIDs []uuid.UUID
-		for _, ev := range batch {
-			for _, ep := range endpoints {
-				if !subscribed(ep.EventTypes, ev.typ) {
-					continue
-				}
-
-				id, err := uuid.NewV7()
-				if err != nil {
-					return err
-				}
-
-				ids, endpointIDs, eventIDs = append(ids, id), append(endpointIDs, ep.ID), append(eventIDs, ev.id)
-			}
-		}
-
-		if len(ids) > 0 {
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO webhook_deliveries (id, endpoint_id, event_id)
-				SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[])
-				ON CONFLICT DO NOTHING`, ids, endpointIDs, eventIDs); err != nil {
-				return err
-			}
 		}
 
 		last := batch[len(batch)-1]
@@ -114,6 +58,78 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	}
 
 	return n, err
+}
+
+type queuedEvent struct {
+	id  uuid.UUID
+	typ string
+	xid string
+}
+
+func nextEvents(ctx context.Context, tx pgx.Tx, limit int) ([]queuedEvent, error) {
+	var (
+		lastXID *string
+		lastID  *uuid.UUID
+	)
+	err := tx.QueryRow(ctx, `SELECT last_xid::text, last_id FROM event_dispatch_cursor FOR UPDATE`).
+		Scan(&lastXID, &lastID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT id, type, created_xid::text
+		FROM events
+		WHERE created_xid < pg_snapshot_xmin(pg_current_snapshot())
+		  AND ($1::xid8 IS NULL OR (created_xid, id) > ($1::xid8, $2::uuid))
+		ORDER BY created_xid, id
+		LIMIT $3`, lastXID, lastID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		batch []queuedEvent
+		ev    queuedEvent
+	)
+	_, err = pgx.ForEachRow(rows, []any{&ev.id, &ev.typ, &ev.xid}, func() error {
+		batch = append(batch, ev)
+		return nil
+	})
+	return batch, err
+}
+
+func insertDeliveries(ctx context.Context, tx pgx.Tx, batch []queuedEvent) error {
+	endpoints, err := enabledEndpoints(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	var ids, endpointIDs, eventIDs []uuid.UUID
+	for _, ev := range batch {
+		for _, ep := range endpoints {
+			if !subscribed(ep.EventTypes, ev.typ) {
+				continue
+			}
+
+			id, err := uuid.NewV7()
+			if err != nil {
+				return err
+			}
+
+			ids, endpointIDs, eventIDs = append(ids, id), append(endpointIDs, ep.ID), append(eventIDs, ev.id)
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO webhook_deliveries (id, endpoint_id, event_id)
+		SELECT * FROM unnest($1::uuid[], $2::uuid[], $3::uuid[])
+		ON CONFLICT DO NOTHING`, ids, endpointIDs, eventIDs)
+	return err
 }
 
 func enabledEndpoints(ctx context.Context, q pgx.Tx) ([]Endpoint, error) {

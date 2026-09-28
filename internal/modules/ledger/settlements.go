@@ -50,84 +50,8 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 			return err
 		}
 
-		state, err := lockAccounts(ctx, tx, []uuid.UUID{in.SettledAccountID, in.ContraAccountID})
-		if err != nil {
+		if st, err = s.settle(ctx, tx, in); err != nil {
 			return err
-		}
-
-		settled, ok := state.accounts[in.SettledAccountID]
-		if !ok {
-			return fmt.Errorf("%w: settled account %s", ErrNotFound, in.SettledAccountID)
-		}
-
-		contra, ok := state.accounts[in.ContraAccountID]
-		if !ok {
-			return fmt.Errorf("%w: contra account %s", ErrNotFound, in.ContraAccountID)
-		}
-
-		if settled.ledgerID != contra.ledgerID || settled.currency != contra.currency {
-			return fmt.Errorf("%w: settled and contra accounts must share a ledger and currency", ErrInvalid)
-		}
-
-		debits, credits, count, err := sumUnsettled(ctx, tx, in.SettledAccountID, in.UpperBound)
-		if err != nil {
-			return err
-		}
-
-		net, err := (&accountState{normalSide: settled.normalSide}).balance(debits, credits)
-		if err != nil {
-			return err
-		}
-
-		id, err := uuid.NewV7()
-		if err != nil {
-			return err
-		}
-
-		st = Settlement{
-			ID:               id,
-			IdempotencyKey:   in.IdempotencyKey,
-			LedgerID:         settled.ledgerID,
-			SettledAccountID: in.SettledAccountID,
-			ContraAccountID:  in.ContraAccountID,
-			Currency:         settled.currency,
-			UpperBound:       in.UpperBound,
-			Amount:           net.Amount,
-			EntryCount:       count,
-			Description:      in.Description,
-			Metadata:         normalizeMetadata(in.Metadata),
-		}
-
-		if !net.Amount.IsZero() {
-			txn, err := s.postSettlement(ctx, tx, st, settled.normalSide)
-			if err != nil {
-				return err
-			}
-
-			st.TransactionID = &txn.ID
-		}
-
-		st, err = insertSettlement(ctx, tx, st)
-		if err != nil {
-			if db.Constraint(err) == constraintSettlementKey {
-				return fmt.Errorf("%w: %w", db.ErrRetry, err)
-			}
-
-			return err
-		}
-
-		marked, err := markSettled(ctx, tx, st)
-		if err != nil {
-			return err
-		}
-
-		own := 0
-		if st.TransactionID != nil {
-			own = 1
-		}
-
-		if marked != int64(count+own) {
-			return fmt.Errorf("ledger: settlement marked %d entries, summed %d", marked, count+own)
 		}
 
 		return emit(ctx, tx, eventSettlementCreated, toSettlement, st)
@@ -146,8 +70,91 @@ func (s *service) createSettlement(ctx context.Context, in CreateSettlementInput
 	return st, nil
 }
 
-func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, settledSide Side) (Transaction, error) {
+func (s *service) settle(ctx context.Context, tx pgx.Tx, in CreateSettlementInput) (Settlement, error) {
+	state, err := lockAccounts(ctx, tx, []uuid.UUID{in.SettledAccountID, in.ContraAccountID})
+	if err != nil {
+		return Settlement{}, err
+	}
 
+	settled, ok := state.accounts[in.SettledAccountID]
+	if !ok {
+		return Settlement{}, fmt.Errorf("%w: settled account %s", ErrNotFound, in.SettledAccountID)
+	}
+
+	contra, ok := state.accounts[in.ContraAccountID]
+	if !ok {
+		return Settlement{}, fmt.Errorf("%w: contra account %s", ErrNotFound, in.ContraAccountID)
+	}
+
+	if settled.ledgerID != contra.ledgerID || settled.currency != contra.currency {
+		return Settlement{}, fmt.Errorf("%w: settled and contra accounts must share a ledger and currency", ErrInvalid)
+	}
+
+	debits, credits, count, err := sumUnsettled(ctx, tx, in.SettledAccountID, in.UpperBound)
+	if err != nil {
+		return Settlement{}, err
+	}
+
+	net, err := (&accountState{normalSide: settled.normalSide}).balance(debits, credits)
+	if err != nil {
+		return Settlement{}, err
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Settlement{}, err
+	}
+
+	st := Settlement{
+		ID:               id,
+		IdempotencyKey:   in.IdempotencyKey,
+		LedgerID:         settled.ledgerID,
+		SettledAccountID: in.SettledAccountID,
+		ContraAccountID:  in.ContraAccountID,
+		Currency:         settled.currency,
+		UpperBound:       in.UpperBound,
+		Amount:           net.Amount,
+		EntryCount:       count,
+		Description:      in.Description,
+		Metadata:         normalizeMetadata(in.Metadata),
+	}
+
+	if !net.Amount.IsZero() {
+		txn, err := s.postSettlement(ctx, tx, st, settled.normalSide)
+		if err != nil {
+			return Settlement{}, err
+		}
+
+		st.TransactionID = &txn.ID
+	}
+
+	st, err = insertSettlement(ctx, tx, st)
+	if err != nil {
+		if db.Constraint(err) == constraintSettlementKey {
+			return Settlement{}, fmt.Errorf("%w: %w", db.ErrRetry, err)
+		}
+
+		return Settlement{}, err
+	}
+
+	marked, err := markSettled(ctx, tx, st)
+	if err != nil {
+		return Settlement{}, err
+	}
+
+	own := 0
+	if st.TransactionID != nil {
+		own = 1
+	}
+
+	if marked != int64(count+own) {
+		return Settlement{}, fmt.Errorf("ledger: settlement marked %d entries, summed %d", marked, count+own)
+	}
+
+	return st, nil
+}
+
+func (s *service) postSettlement(ctx context.Context, tx pgx.Tx, st Settlement, settledSide Side) (Transaction, error) {
 	side, amount := settledSide.opposite(), st.Amount
 	if amount.Sign() < 0 {
 		side, amount = settledSide, amount.Neg()
