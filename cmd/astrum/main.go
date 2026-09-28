@@ -24,6 +24,11 @@ const shutdownTimeout = 30 * time.Second
 var version = "dev"
 
 func main() {
+	if err := harden(); err != nil {
+		log.Error("astrum exited", "err", err)
+		os.Exit(1)
+	}
+
 	if len(os.Args) == 2 && os.Args[1] == "version" {
 		fmt.Println(version)
 		return
